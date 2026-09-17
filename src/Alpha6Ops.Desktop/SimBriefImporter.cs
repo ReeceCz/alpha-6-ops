@@ -16,21 +16,21 @@ internal record SimBriefImport(ActiveFlightPlan Plan, DateTimeOffset GeneratedUt
 internal static class SimBriefImporter
 {
     private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromSeconds(20) };
-    private static string CacheDirectory => Path.Combine(CrashReporter.RootDirectory, "SimBrief");
-    private static string CachePath => Path.Combine(CacheDirectory, "latest-ofp.json");
-    private static string UsernamePath => Path.Combine(CacheDirectory, "username.txt");
+    private static string CacheDirectory(string? root) => Path.Combine(root ?? CrashReporter.RootDirectory, "SimBrief");
+    private static string CachePath(string? root) => Path.Combine(CacheDirectory(root), "latest-ofp.json");
+    private static string UsernamePath(string? root) => Path.Combine(CacheDirectory(root), "username.txt");
 
-    internal static string LoadUsername()
+    internal static string LoadUsername(string? root = null)
     {
-        try { return File.Exists(UsernamePath) ? File.ReadAllText(UsernamePath).Trim() : ""; }
+        try { return File.Exists(UsernamePath(root)) ? File.ReadAllText(UsernamePath(root)).Trim() : ""; }
         catch (IOException) { return ""; }
     }
 
-    internal static async Task<SimBriefImport> ImportAsync(string username, CancellationToken token = default)
+    internal static async Task<SimBriefImport> ImportAsync(string username, CancellationToken token = default, string? root = null)
     {
         username = username.Trim();
         if (username.Length is < 2 or > 80) throw new ArgumentException("Enter your Navigraph Alias or SimBrief username.");
-        Directory.CreateDirectory(CacheDirectory);
+        Directory.CreateDirectory(CacheDirectory(root));
         try
         {
             var endpoint = "https://www.simbrief.com/api/xml.fetcher.php?username=" + Uri.EscapeDataString(username) + "&json=1";
@@ -38,14 +38,14 @@ internal static class SimBriefImporter
             var json = await response.Content.ReadAsStringAsync(token);
             if (!response.IsSuccessStatusCode) throw new HttpRequestException($"SimBrief returned {(int)response.StatusCode}. Check the username and generate a flight plan first.");
             var imported = Parse(json, username, false);
-            var temporary = CachePath + ".tmp";
-            File.WriteAllText(temporary, json); File.Move(temporary, CachePath, true);
-            File.WriteAllText(UsernamePath, username);
+            var temporary = CachePath(root) + ".tmp";
+            File.WriteAllText(temporary, json); File.Move(temporary, CachePath(root), true);
+            File.WriteAllText(UsernamePath(root), username);
             return imported;
         }
         catch (Exception error) when (error is HttpRequestException or TaskCanceledException)
         {
-            if (File.Exists(CachePath) && LoadUsername().Equals(username, StringComparison.OrdinalIgnoreCase)) return Parse(File.ReadAllText(CachePath), username, true);
+            if (File.Exists(CachePath(root)) && LoadUsername(root).Equals(username, StringComparison.OrdinalIgnoreCase)) return Parse(File.ReadAllText(CachePath(root)), username, true);
             throw new IOException("Could not reach SimBrief and no offline briefing is cached.", error);
         }
     }

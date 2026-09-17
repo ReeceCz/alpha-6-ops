@@ -10,8 +10,10 @@ namespace Alpha6Ops.Desktop;
 public partial class ActiveFlightWindow : Window
 {
     internal ActiveFlightPlan? Plan { get; private set; }
-    internal ActiveFlightWindow(ActiveFlightPlan? current)
+    private readonly string? stateDirectory;
+    internal ActiveFlightWindow(ActiveFlightPlan? current, string? directory = null)
     {
+        stateDirectory = directory;
         InitializeComponent();
         var now = DateTimeOffset.UtcNow;
         FlightNumberBox.Text = current?.FlightNumber ?? "";
@@ -22,14 +24,14 @@ public partial class ActiveFlightWindow : Window
         ArrivalBox.Text = (current?.PlannedArrivalUtc ?? now.AddHours(2)).UtcDateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
         DepartureGateBox.Text = current?.DepartureGate ?? "";
         ArrivalGateBox.Text = current?.ArrivalGate ?? "";
-        SimBriefUsernameBox.Text = current?.SimBriefUsername ?? SimBriefImporter.LoadUsername();
+        SimBriefUsernameBox.Text = current?.SimBriefUsername ?? SimBriefImporter.LoadUsername(stateDirectory);
     }
     private async void Import_Click(object sender, RoutedEventArgs e)
     {
         ImportButton.IsEnabled = false; ImportStatusText.Text = "Downloading latest SimBrief briefing…";
         try
         {
-            var imported = await SimBriefImporter.ImportAsync(SimBriefUsernameBox.Text);
+            var imported = await SimBriefImporter.ImportAsync(SimBriefUsernameBox.Text, root: stateDirectory);
             var plan = imported.Plan;
             FlightNumberBox.Text = plan.FlightNumber; RegistrationBox.Text = plan.Registration;
             OriginBox.Text = plan.Origin; DestinationBox.Text = plan.Destination;

@@ -15,6 +15,8 @@
   <ItemGroup>
     <Resource Include="Assets\Alpha6OPS.ico" />
     <ProjectReference Include="../Alpha6Ops.Core/Alpha6Ops.Core.csproj" />
+    <ProjectReference Include="../Alpha6Ops.Identity/Alpha6Ops.Identity.csproj" />
+    <PackageReference Include="Duende.IdentityModel.OidcClient" Version="7.1.0" />
     <EmbeddedResource Include="../../samples/delayed-flight.jsonl" LogicalName="delayed-flight.jsonl" />
     <EmbeddedResource Include="../../samples/on-time-flight.jsonl" LogicalName="on-time-flight.jsonl" />
     <EmbeddedResource Include="Assets/Map/ne_110m_land.geojson" LogicalName="ne_110m_land.geojson" />
@@ -24,5 +26,6 @@
     <Content Include="Assets/alpha6.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Resource Include="Assets/alpha6-mark.png" />
     <Resource Include="Assets/Dashboard/*.png" />
+    <None Update="alpha6-identity.example.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

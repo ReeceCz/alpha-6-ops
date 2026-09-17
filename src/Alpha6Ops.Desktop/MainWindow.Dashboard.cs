@@ -40,7 +40,7 @@ public partial class MainWindow
 
     private void InitializeDashboard(string? diagnosticDirectory)
     {
-        dashboardStore = new DashboardStateStore(diagnosticDirectory ?? CrashReporter.RootDirectory);
+        dashboardStore = new DashboardStateStore(stateDirectory);
         try { dashboardState = dashboardStore.Load(); }
         catch (Exception error) when (error is IOException or JsonException or UnauthorizedAccessException)
         { StatusText.Text = "Could not load dashboard preferences: " + error.Message; }
@@ -63,6 +63,7 @@ public partial class MainWindow
         var now=DateTimeOffset.UtcNow;
         RenderClocks(now, TimeZoneInfo.Local);
         RenderLocalWeather(now);
+
         ClockText.ToolTip="Current real-world UTC. Replay and flight schedules use their own dated simulator clock.";
     }
     private void SaveDashboard()
@@ -97,6 +98,7 @@ public partial class MainWindow
     }
     private void RefreshDashboardFlight(bool live)
     {
+        if (IsPilotWorkspace && !running) live = true;
         dashboardShowsLive=live;
         var rotation=live ? liveRotation ?? (activePlan is null ? null : BuildLiveRotation(activePlan,liveAircraft,AircraftGroundProfile.Default)) : session.Rotation;
         DashboardFlights=rotation is null ? [] : RotationPlanner.Project(rotation).Select(l=>new DashboardFlightRow(l,rotation.AircraftId)).ToArray();
@@ -211,12 +213,14 @@ public partial class MainWindow
     private void Dashboard_Click(object sender,RoutedEventArgs e)=>ShowDashboard();
     internal void ShowDashboard()
     {
+        SelectPilotLogbook(false);
         ToolsOverlay.Visibility=Visibility.Collapsed;FlightTrackingView.Visibility=PilotLogbookView.Visibility=Visibility.Collapsed;DashboardScroll.Visibility=Visibility.Visible;DashboardScroll.ScrollToTop();
         FlightTrackingNavButton.ClearValue(Button.BackgroundProperty);FlightTrackingNavButton.ClearValue(Button.ForegroundProperty);
         DashboardNavButton.Background=OpsUi.Brush("#FFDA00");DashboardNavButton.Foreground=OpsUi.Brush("#080C0F");
     }
     internal void ShowFlightTracking()
     {
+        SelectPilotLogbook(false);
         ToolsOverlay.Visibility=Visibility.Collapsed;DashboardScroll.Visibility=PilotLogbookView.Visibility=Visibility.Collapsed;FlightTrackingView.Visibility=Visibility.Visible;
         DashboardNavButton.ClearValue(Button.BackgroundProperty);DashboardNavButton.ClearValue(Button.ForegroundProperty);
         FlightTrackingNavButton.Background=OpsUi.Brush("#FFDA00");FlightTrackingNavButton.Foreground=OpsUi.Brush("#080C0F");
@@ -224,11 +228,15 @@ public partial class MainWindow
     }
     internal void ShowPilotLogbook()
     {
+        SelectPilotLogbook(true);
         ToolsOverlay.Visibility=Visibility.Collapsed;DashboardScroll.Visibility=FlightTrackingView.Visibility=Visibility.Collapsed;PilotLogbookView.Visibility=Visibility.Visible;
         DashboardNavButton.ClearValue(Button.BackgroundProperty);DashboardNavButton.ClearValue(Button.ForegroundProperty);FlightTrackingNavButton.ClearValue(Button.BackgroundProperty);FlightTrackingNavButton.ClearValue(Button.ForegroundProperty);
         PilotLogbookView.Render(flightHistory);
     }
-    internal void OpenTools(){ToolsOverlay.Visibility=Visibility.Visible;PilotNameBox.Focus();}
+    internal void OpenTools()
+    {
+        ToolsOverlay.Visibility=Visibility.Visible;PilotNameBox.Focus();
+    }
     private void CloseTools_Click(object sender,RoutedEventArgs e)=>ToolsOverlay.Visibility=Visibility.Collapsed;
     internal OpsModule CreateFlightModule() => new("FLIGHTS & ROTATIONS","The aircraft's day, calculated from the current flight session",dashboardShowsLive?"ACTIVE ASSIGNMENT • SIMULATOR UTC":"RECORDED SCENARIO • 02 SEP 2026",
         [new("LEGS",DashboardFlights.Count.ToString(),"Current rotation"),new("COMPLETED",DashboardFlights.Count(f=>f.Leg.Completed).ToString(),"Confirmed block-in"),new("TURNAROUND",(dashboardShowsLive?liveRotation?.MinimumTurnMinutes??35:session.Rotation.MinimumTurnMinutes)+" MIN","Minimum aircraft turn")],
@@ -237,13 +245,19 @@ public partial class MainWindow
     private void Module_Click(object sender,RoutedEventArgs e)
     {
         var name=(string)((Button)sender).Tag;
+        if (IsPilotWorkspace)
+        {
+            if (name == "Dispatch") { OpenTools(); return; }
+            if (name == "Weather") { LocalWeather_Click(sender, e); return; }
+            if (!PilotFeatureProfile.Allows(name)) return;
+        }
         switch(name)
         {
             case "Settings": new SettingsWindow(ConnectionBadgeText.Text, PilotNameBox.Text, OpenTools,
                 () => FlightHistory_Click(this, new RoutedEventArgs()),
                 () => Logs_Click(this, new RoutedEventArgs()),
                 () => ExportLog_Click(this, new RoutedEventArgs()), MinimizeToTray,
-                ProgramHealthText.Text, LogStatusText.Text, generalSettings, ApplyGeneralSettings) { Owner = this }.ShowDialog(); return;
+                ProgramHealthText.Text, LogStatusText.Text, generalSettings, ApplyGeneralSettings, stateDirectory) { Owner = this }.ShowDialog(); return;
             case "Aircraft": Fleet_Click(sender,e);return;
             case "Network": new NetworkWindow{Owner=this}.ShowDialog();return;
             case "FlightTracking": ShowFlightTracking();return;

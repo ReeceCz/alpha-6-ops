@@ -51,7 +51,7 @@ public partial class MainWindow : Window
     // RotationPlanner.ApplyMilestone/Project path the fixture-replay session uses, so a live flight
     // and a replayed one compute delay/ETA identically instead of the tracker hand-rolling its own math.
     private AircraftRotation? liveRotation;
-    private static string LogDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Alpha6Designs", "Alpha6OPS", "TestLogs");
+    private string LogDirectory => Path.Combine(stateDirectory, "TestLogs");
     internal bool IsRunning => running;
     internal bool TrayVisible => tray.Visible;
     internal IReadOnlyList<LegProjection> Projection => RotationPlanner.Project(session.Rotation);
@@ -63,12 +63,18 @@ public partial class MainWindow : Window
     private string SelectedFixture => (string)(FixtureCombo.SelectedItem ?? EmbeddedReplay.Fixtures[0]);
     private string PilotName => string.IsNullOrWhiteSpace(PilotNameBox.Text) ? "Unspecified" : PilotNameBox.Text.Trim();
 
-    public MainWindow(string? diagnosticDirectory = null)
+    public MainWindow(string? diagnosticDirectory = null) : this(diagnosticDirectory, null) { }
+
+    internal MainWindow(string? diagnosticDirectory, DesktopAccountSession? accountSession, bool pilotPreview = false)
     {
+        if (pilotPreview && (diagnosticDirectory is null || accountSession is not null))
+            throw new ArgumentException("Pilot preview requires an isolated directory and no account session.");
+        this.pilotPreview = pilotPreview;
+        account = accountSession;
         diagnosticMode = diagnosticDirectory is not null;
-        stateDirectory=diagnosticDirectory??CrashReporter.RootDirectory;
+        stateDirectory=diagnosticDirectory??account?.DataDirectory??CrashReporter.RootDirectory;
         InitializeComponent();
-        try { flightHistory = new FlightHistoryDatabase(diagnosticDirectory ?? CrashReporter.RootDirectory); }
+        try { flightHistory = new FlightHistoryDatabase(stateDirectory); }
         catch (Exception error) { CrashReporter.Write("flight_history_startup", error); }
         var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "unknown";
         VersionText.Text = $"ALPHA 6 OPS  •  v{version}";
@@ -91,14 +97,15 @@ public partial class MainWindow : Window
         StateChanged += (_, _) => OnWindowStateChanged();
         activePlan = ActiveFlightPlanStore.Load(stateDirectory);
         if(activePlan is not null)RestoreFlightRecovery(FlightRecoveryStore.Load(activePlan,stateDirectory));
-        preferences = diagnosticDirectory is null ? UserPreferencesStore.Load() : null;
-        generalSettings = GeneralSettingsStore.Load(diagnosticDirectory);
+        preferences = diagnosticDirectory is null ? UserPreferencesStore.Load(stateDirectory) : null;
+        generalSettings = GeneralSettingsStore.Load(stateDirectory);
         FixtureCombo.ItemsSource = EmbeddedReplay.Fixtures;
         RestoreDashboardPreferences(preferences);
         ResetPreview();
         InitializeDashboard(diagnosticDirectory);
         ApplyGeneralSettings(generalSettings);
-        try { programMonitor = new ProgramMonitor(diagnosticDirectory is null ? LogDirectory : Path.Combine(diagnosticDirectory, "TestLogs"), status => ProgramHealthText.Text = status, diagnosticDirectory); }
+        InitializeAccountWorkspace();
+        try { programMonitor = new ProgramMonitor(diagnosticDirectory is null ? LogDirectory : Path.Combine(diagnosticDirectory, "TestLogs"), status => ProgramHealthText.Text = status, stateDirectory); }
         catch (Exception error)
         {
             CrashReporter.Write("program_monitor_startup", error);
@@ -130,7 +137,8 @@ public partial class MainWindow : Window
         var dpi = VisualTreeHelper.GetDpi(this);
         var work = Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(this).Handle).WorkingArea;
         var available = new Size(work.Width / dpi.DpiScaleX, work.Height / dpi.DpiScaleY);
-        MinWidth = Math.Min(640, available.Width); MinHeight = Math.Min(480, available.Height);
+        MinWidth = Math.Min(IsPilotWorkspace ? 960 : 640, available.Width);
+        MinHeight = Math.Min(IsPilotWorkspace ? 640 : 480, available.Height);
         var optimize = !diagnosticMode && ShouldOptimizeToMonitor(preferences, available);
         var requested = optimize ? available : new Size(preferences?.Width ?? available.Width, preferences?.Height ?? available.Height);
         var fitted = FitWindowSize(requested, available);
@@ -152,7 +160,7 @@ public partial class MainWindow : Window
     private void ApplyGeneralSettings(GeneralSettings settings)
     {
         generalSettings = settings;
-        AdvancedButton.Visibility = settings.ShowAdvancedControls ? Visibility.Visible : Visibility.Collapsed;
+        AdvancedButton.Visibility = settings.ShowAdvancedControls && !IsPilotWorkspace ? Visibility.Visible : Visibility.Collapsed;
         if (!settings.ShowAdvancedControls) SetAdvanced(false);
     }
 
@@ -192,7 +200,7 @@ public partial class MainWindow : Window
 
     internal async Task RunReplayAsync(int sampleDelayMilliseconds = 650)
     {
-        if (running) return;
+        if (changingAccount || running || !MayStartAccountFlight()) return;
         ResetPreview();
         running = true;
         ConnectButton.IsEnabled = ConnectFlightLabButton.IsEnabled = false;
@@ -244,7 +252,13 @@ public partial class MainWindow : Window
     private string? BeginFlightHistory(string source, string? sourceDetail, string aircraft, string? origin, string? destination, string? flightNumber)
     {
         if (flightHistory is null) return null;
-        try { return flightHistory.BeginFlight(PilotName, source, sourceDetail, aircraft, origin, destination, flightNumber, Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "unknown"); }
+        try
+        {
+            var id = flightHistory.BeginFlight(PilotName, source, sourceDetail, aircraft, origin, destination, flightNumber, Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "unknown");
+            if (account?.Bootstrap is { } bootstrap)
+                flightHistory.RecordEvent(id, "account_identity", null, new { userId = bootstrap.Account.Id, displayName = bootstrap.Account.DisplayName, airlineId = account.Workspace.AirlineId });
+            return id;
+        }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { CrashReporter.Write("flight_history_begin", error); return null; }
     }
     private void RecordFlightEvent(string? flightId, string kind, DateTimeOffset? at, object detail)
@@ -302,7 +316,7 @@ public partial class MainWindow : Window
         exiting = true;
         dashboardClock.Stop();
         var savedBounds = WindowState == WindowState.Normal ? new Rect(Left, Top, Width, Height) : RestoreBounds;
-        UserPreferencesStore.Save(new UserPreferences(savedBounds.Width, savedBounds.Height, WindowState == WindowState.Maximized, AdvancedPanel.Visibility == Visibility.Visible, SelectedFixture, PilotNameBox.Text), preferencesDirectory);
+        UserPreferencesStore.Save(new UserPreferences(savedBounds.Width, savedBounds.Height, WindowState == WindowState.Maximized, AdvancedPanel.Visibility == Visibility.Visible, SelectedFixture, PilotNameBox.Text), preferencesDirectory ?? stateDirectory);
         FinishLog("application_exit");
         programMonitor?.Stop("application_exit");
         flightHistory?.Dispose();
@@ -347,7 +361,7 @@ public partial class MainWindow : Window
             OpsNoticeWindow.Show(this, "Active flight", "Finish the replay or disconnect the simulator before changing the active flight.");
             return;
         }
-        var dialog = new ActiveFlightWindow(activePlan) { Owner = this };
+        var dialog = new ActiveFlightWindow(activePlan, stateDirectory) { Owner = this };
         if (dialog.ShowDialog() != true || dialog.Plan is null) return;
         activePlan = dialog.Plan;
         ActiveFlightPlanStore.Save(activePlan,stateDirectory);
@@ -443,7 +457,9 @@ public partial class MainWindow : Window
 
     private async Task ConnectSimulatorAsync(bool showRotationDetails, bool useFlightLab = false)
     {
-        if (liveCancellation is not null || running) return;
+        if (changingAccount || liveCancellation is not null || running) return;
+        // A current recorder may reconnect after expiry to preserve an ongoing flight.
+        if ((liveRecorder is null || liveRecorder.Phase == FlightPhase.Complete) && !MayStartAccountFlight()) return;
         liveCancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
         ResetLiveIdentity();
         liveNeedsBaseline=liveRecorder is not null;liveSource = useFlightLab ? "FLIGHT LAB" : "MSFS 2024"; lastScenarioEvent = null;

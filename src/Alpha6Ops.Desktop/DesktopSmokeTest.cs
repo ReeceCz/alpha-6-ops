@@ -155,6 +155,7 @@ internal static class DesktopSmokeTest
             LiveIdentitySmokeTest.Run(window, outputDirectory);
             await DiagnosticIndexSmokeTest.RunAsync(outputDirectory);
             await ProgramMonitorSmokeTest.RunAsync(window, outputDirectory);
+            await IdentityWorkspaceSmokeTest.RunAsync(outputDirectory);
             File.WriteAllText(Path.Combine(outputDirectory, "desktop-smoke.json"), JsonSerializer.Serialize(new
             {
                 passed = true, checks = new[] { "WPF startup", "embedded replay", "close-to-tray preserves replay", "downstream delays", "tray restore", "reset", "SQLite fleet counts and N414DZ identity", "case-insensitive fleet search and no-results state", "active-flight assignment window", "timeline scrubber window and snapshot contract", "debrief window and segment/delay contract", "live-tracking recorder feeds the same timeline/debrief windows", "SimBrief JSON mapping", "active flight recovery round-trip and clear", "SQLite diagnostic file index", "crash report serialization", "flight history records a replay run", "Pilot Logbook renders a completed record" },

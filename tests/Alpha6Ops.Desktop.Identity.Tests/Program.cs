@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Alpha6Ops.Desktop;
 using Alpha6Ops.Identity;
+using Duende.IdentityModel.OidcClient;
 
 var count = 0;
 void Check(bool condition, string name)
@@ -41,6 +42,7 @@ SavedAccountSession Read() => JsonSerializer.Deserialize<SavedAccountSession>(Pr
 HttpResponseMessage Json(object value, HttpStatusCode code = HttpStatusCode.OK) => new(code) { Content = JsonContent.Create(value) };
 var mode = "offline";
 var tokensSeen = new List<string>();
+var workspaceWrites = 0;
 async Task<HttpResponseMessage> Handle(HttpRequestMessage request)
 {
     if (mode == "offline") throw new HttpRequestException("Simulated network outage");
@@ -56,7 +58,13 @@ async Task<HttpResponseMessage> Handle(HttpRequestMessage request)
         if (mode == "bootstrap-down") return Json(new { error = "temporarily_unavailable" }, HttpStatusCode.ServiceUnavailable);
         if (mode == "forbidden") return Json(new { code = "account_suspended" }, HttpStatusCode.Forbidden);
         if (mode == "other-account") return Json(bootstrap with { Account = bootstrap.Account with { Id = Guid.NewGuid() } });
+        if (mode == "membership-removed") return Json(bootstrap with { Airlines = [] });
         return Json(bootstrap);
+    }
+    if (request.RequestUri.AbsolutePath == "/api/v1/me/workspace")
+    {
+        workspaceWrites++;
+        if (mode == "workspace-denied") return Json(new { code = "forbidden" }, HttpStatusCode.Forbidden);
     }
     return new(HttpStatusCode.NoContent);
 }
@@ -92,6 +100,93 @@ Check(session.Bootstrap is null && !File.Exists(sessionPath), "logout removes pr
 Directory.CreateDirectory(Path.GetDirectoryName(sessionPath)!);
 File.WriteAllBytes(sessionPath, [1, 2, 3]);
 Check(!await Session().RestoreAsync(default), "corrupt credential cache fails closed");
+
+mode = "online";
+var firstInstall = new DesktopAccountSession(config, Path.Combine(directory, "first-install"), () => new FakeHandler(Handle),
+    (_, _) => Task.FromResult(new BrowserLoginResult("test-access", "first-refresh")));
+await firstInstall.LoginAsync(default);
+Check(firstInstall.Bootstrap is not null, "first sign-in succeeds before any identity cache directory exists");
+var accessOnly = new DesktopAccountSession(config, Path.Combine(directory, "access-only"), () => new FakeHandler(Handle),
+    (_, _) => Task.FromResult(new BrowserLoginResult("test-access", null)));
+await accessOnly.LoginAsync(default);
+var refreshesBeforeAccessOnly = tokensSeen.Count;
+Check(await accessOnly.RestoreAsync(default) && !accessOnly.IsOffline && tokensSeen.Count == refreshesBeforeAccessOnly,
+    "in-memory access token can refresh memberships when provider did not issue a refresh token");
+LoginRequest? loginRequest = null;
+var loginMode = "success";
+using var cancelLogin = new CancellationTokenSource();
+session = new(config, directory, () => new FakeHandler(Handle), (request, token) =>
+{
+    loginRequest = request;
+    if (loginMode == "cancel") cancelLogin.Cancel();
+    return Task.FromResult(loginMode == "error"
+        ? new BrowserLoginResult("", null, true)
+        : new BrowserLoginResult("test-access", "signup-refresh"));
+});
+await session.LoginAsync(default, "new-pilot@example.invalid", createAccount: true);
+Check(loginRequest!.FrontChannelExtraParameters.Any(p => p.Key == "screen_hint" && p.Value == "signup")
+    && loginRequest.FrontChannelExtraParameters.Any(p => p.Key == "login_hint" && p.Value == "new-pilot@example.invalid")
+    && loginRequest.FrontChannelExtraParameters.Any(p => p.Key == "audience" && p.Value == config.Audience),
+    "desktop registration requests hosted signup with email hint and API audience");
+Check(session.Bootstrap?.Account.Id == bootstrap.Account.Id && Read().RefreshToken == "signup-refresh",
+    "registration bootstraps and protects a usable desktop session");
+await session.LoginAsync(default);
+Check(!loginRequest!.FrontChannelExtraParameters.Any(p => p.Key is "screen_hint" or "login_hint"),
+    "other sign-in options do not inherit a previous signup or email hint");
+loginMode = "error";
+try { await session.LoginAsync(default); throw new Exception("Expected failed sign-in"); }
+catch (AccountSessionException error)
+{
+    Check(error.Message == "Sign-in was canceled or could not be verified. Try again in your browser." && session.Bootstrap is null && !File.Exists(sessionPath),
+        "failed login clears old session and exposes only safe application text");
+}
+loginMode = "cancel";
+try { await session.LoginAsync(cancelLogin.Token); throw new Exception("Expected canceled login"); }
+catch (OperationCanceledException)
+{
+    Check(session.Bootstrap is null && !File.Exists(sessionPath), "cancellation cannot establish a session from a late login result");
+}
+loginMode = "success";
+await session.LoginAsync(default);
+Check(session.Bootstrap is not null, "sign-in can be retried after cancellation");
+var refreshes = tokensSeen.Count;
+await session.SelectWorkspaceAsync(WorkspaceSelection.Personal, default);
+Check(tokensSeen.Count == refreshes + 1 && workspaceWrites == 1 && Read().Workspace == WorkspaceSelection.Personal,
+    "opening a workspace refreshes credentials and durably saves the chosen workspace");
+mode = "membership-removed";
+try { await session.SelectWorkspaceAsync(new(airline.Id), default); throw new Exception("Expected removed membership"); }
+catch (AccountSessionException)
+{
+    Check(workspaceWrites == 1 && session.Workspace == WorkspaceSelection.Personal && session.Bootstrap!.Airlines.Length == 0,
+        "membership changes are rechecked before writing a workspace selection");
+}
+mode = "revoked";
+try { await session.SelectWorkspaceAsync(WorkspaceSelection.Personal, default); throw new Exception("Expected revoked session"); }
+catch (AccountSessionException)
+{
+    Check(session.Bootstrap is null && workspaceWrites == 1, "revoked session cannot open a workspace");
+}
+Seed(); mode = "online"; session = Session(); await session.RestoreAsync(default);
+mode = "bootstrap-down";
+try { await session.SelectWorkspaceAsync(WorkspaceSelection.Personal, default); throw new Exception("Expected offline transition"); }
+catch (AccountSessionException)
+{
+    Check(session.IsOffline && session.Workspace.AirlineId == airline.Id && workspaceWrites == 1,
+        "outage during selection preserves current workspace and offers explicit offline retry");
+}
+await session.SelectWorkspaceAsync(WorkspaceSelection.Personal, default);
+Check(session.Workspace == WorkspaceSelection.Personal && workspaceWrites == 1, "explicit offline retry opens personal workspace without a cloud write");
+Seed(); mode = "online"; session = Session(); await session.RestoreAsync(default);
+mode = "workspace-denied";
+try { await session.SelectWorkspaceAsync(WorkspaceSelection.Personal, default); throw new Exception("Expected access denial"); }
+catch (AccountSessionException)
+{
+    Check(session.Bootstrap is null && !File.Exists(sessionPath), "workspace endpoint denial clears session even after successful refresh");
+}
+var expired = Seed() with { RefreshToken = null, ReceivedAt = now.AddDays(-31), LastSeenAt = now.AddDays(-31) };
+File.WriteAllBytes(sessionPath, ProtectedData.Protect(JsonSerializer.SerializeToUtf8Bytes(expired), null, DataProtectionScope.CurrentUser));
+Check(!await Session().RestoreAsync(default), "expired offline session requires sign-in");
+await BrowserChecks.RunAsync(Check);
 Console.WriteLine($"{count} desktop identity checks passed. Artifacts: {directory}");
 
 sealed class FakeHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> handle) : HttpMessageHandler

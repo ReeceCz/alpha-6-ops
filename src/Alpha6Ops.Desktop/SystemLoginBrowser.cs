@@ -14,9 +14,16 @@ namespace Alpha6Ops.Desktop;
 internal sealed class SystemLoginBrowser : IBrowser, IDisposable
 {
     private readonly TcpListener listener;
+    private readonly Action<string> openBrowser;
+    private readonly TimeSpan loginTimeout;
+    private readonly TimeSpan requestTimeLimit;
     internal string RedirectUri { get; }
-    internal SystemLoginBrowser(int port)
+    internal BrowserResultType? LastResultType { get; private set; }
+    internal SystemLoginBrowser(int port, Action<string>? browserLauncher = null, TimeSpan? timeout = null, TimeSpan? requestTimeout = null)
     {
+        openBrowser = browserLauncher ?? (url => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }));
+        loginTimeout = timeout ?? TimeSpan.FromMinutes(3);
+        requestTimeLimit = requestTimeout ?? TimeSpan.FromSeconds(3);
         listener = new TcpListener(IPAddress.Loopback, port);
         listener.Server.ExclusiveAddressUse = true;
         listener.Start();
@@ -26,40 +33,52 @@ internal sealed class SystemLoginBrowser : IBrowser, IDisposable
     public async Task<BrowserResult> InvokeAsync(BrowserOptions options, CancellationToken cancellationToken = default)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromMinutes(3));
+        timeout.CancelAfter(loginTimeout);
         try
         {
-            Process.Start(new ProcessStartInfo(options.StartUrl) { UseShellExecute = true });
+            timeout.Token.ThrowIfCancellationRequested();
+            openBrowser(options.StartUrl);
             while (true)
             {
                 using var connection = await listener.AcceptTcpClientAsync(timeout.Token);
-                using var stream = connection.GetStream();
-                using var requestTimeout = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token);
-                requestTimeout.CancelAfter(TimeSpan.FromSeconds(3));
-                var bytes = new byte[16384]; var count = 0;
-                while (count < bytes.Length)
+                try
                 {
-                    var read = await stream.ReadAsync(bytes.AsMemory(count, 1), requestTimeout.Token);
-                    if (read == 0) break;
-                    count += read;
-                    if (count >= 4 && bytes[count - 4] == 13 && bytes[count - 3] == 10 && bytes[count - 2] == 13 && bytes[count - 1] == 10) break;
+                    using var stream = connection.GetStream();
+                    using var requestTimeout = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token);
+                    requestTimeout.CancelAfter(requestTimeLimit);
+                    var bytes = new byte[16384]; var count = 0;
+                    while (count < bytes.Length)
+                    {
+                        var read = await stream.ReadAsync(bytes.AsMemory(count, 1), requestTimeout.Token);
+                        if (read == 0) break;
+                        count += read;
+                        if (count >= 4 && bytes[count - 4] == 13 && bytes[count - 3] == 10 && bytes[count - 2] == 13 && bytes[count - 1] == 10) break;
+                    }
+                    var headers = Encoding.ASCII.GetString(bytes, 0, count);
+                    var line = headers.Split("\r\n")[0].Split(' ');
+                    var host = new Uri(RedirectUri).Authority;
+                    if (!headers.EndsWith("\r\n\r\n", StringComparison.Ordinal) || line.Length != 3 || line[0] != "GET" || !line[1].StartsWith("/callback/?", StringComparison.Ordinal)
+                        || !headers.Contains("\r\nHost: " + host + "\r\n", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await stream.WriteAsync(Encoding.ASCII.GetBytes("HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"), timeout.Token);
+                        continue;
+                    }
+                    const string body = "Sign-in response received. You can return to Alpha 6 OPS.";
+                    var reply = $"HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {body.Length}\r\nCache-Control: no-store\r\nReferrer-Policy: no-referrer\r\nConnection: close\r\n\r\n{body}";
+                    await stream.WriteAsync(Encoding.UTF8.GetBytes(reply), timeout.Token);
+                    LastResultType = BrowserResultType.Success;
+                    return new BrowserResult { ResultType = BrowserResultType.Success, Response = RedirectUri.TrimEnd('/') + "/" + line[1]["/callback/".Length..] };
                 }
-                var headers = Encoding.ASCII.GetString(bytes, 0, count);
-                var line = headers.Split("\r\n")[0].Split(' ');
-                var host = new Uri(RedirectUri).Authority;
-                if (line.Length != 3 || line[0] != "GET" || !line[1].StartsWith("/callback/?", StringComparison.Ordinal)
-                    || !headers.Contains("\r\nHost: " + host + "\r\n", StringComparison.OrdinalIgnoreCase))
-                {
-                    await stream.WriteAsync(Encoding.ASCII.GetBytes("HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"), timeout.Token);
-                    continue;
-                }
-                const string body = "Sign-in response received. You can return to Alpha 6 OPS.";
-                var reply = $"HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {body.Length}\r\nCache-Control: no-store\r\nReferrer-Policy: no-referrer\r\nConnection: close\r\n\r\n{body}";
-                await stream.WriteAsync(Encoding.UTF8.GetBytes(reply), timeout.Token);
-                return new BrowserResult { ResultType = BrowserResultType.Success, Response = RedirectUri.TrimEnd('/') + "/" + line[1]["/callback/".Length..] };
+                // A browser probe or abandoned connection must not cancel the real sign-in.
+                catch (OperationCanceledException) when (!timeout.IsCancellationRequested) { }
+                catch (IOException) when (!timeout.IsCancellationRequested) { }
             }
         }
-        catch (OperationCanceledException) { return new BrowserResult { ResultType = BrowserResultType.UserCancel }; }
+        catch (OperationCanceledException)
+        {
+            LastResultType = cancellationToken.IsCancellationRequested ? BrowserResultType.UserCancel : BrowserResultType.Timeout;
+            return new BrowserResult { ResultType = LastResultType.Value };
+        }
         finally { listener.Stop(); }
     }
     public void Dispose() => listener.Stop();

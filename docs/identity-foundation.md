@@ -107,11 +107,43 @@ The workspace screen uses live membership/role/plan data, retains offline airlin
 and requires an explicit selection followed by Open workspace. Long membership lists scroll
 while the selection and Open workspace action remain visible.
 
+Create an account now uses the desktop's browser callback, so completing registration signs
+the desktop in and opens workspace selection. It requests Auth0's
+[hosted signup screen](https://auth0.com/docs/authenticate/login/auth0-universal-login/universal-login-vs-classic-login/universal-experience)
+with `screen_hint=signup`; the optional email remains only a provider login hint. The same
+OIDC client validates the response before the account API provisions or loads the account.
+Cancel sign-in stops the pending attempt without closing the app; retry starts a new attempt.
+Browser timeout is reported separately, and incomplete loopback requests do not cancel login.
+First sign-in also works when no local Identity cache directory exists yet.
+
+After joining or creating an airline on the website, use **Refresh** in the desktop selector
+to reload memberships. **Reconnect** retries saved credentials while offline, opening browser
+sign-in when no renewable credential remains. Opening an online workspace refreshes available
+credentials and rechecks membership before saving the selection. A revoked session returns to
+sign-in; an outage offers an explicit retry into the trusted offline workspace. An expired
+offline session cannot open a workspace. These flows use the existing account/airline API and
+do not require new server routes.
+
 To build and open the latest interactive design without closing the installed app:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/preview-account.ps1
 ```
+
+Install separate development shortcuts with:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-desktop-launcher.ps1 -View Dashboard
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-desktop-launcher.ps1 -View Login
+```
+
+**Alpha 6 OPS - Dashboard** builds the current desktop source and launches normally, restoring
+an existing desktop instance when one is running. **Alpha 6 OPS - Login** opens the explicit
+login design preview. Both build into separate timestamped folders under `work/desktop-launcher`.
+The packaged installer shortcut launches normally, without the preview flag. The current
+0.16.0 package includes only `alpha6-identity.example.json` and opens the local dashboard.
+Adding a valid `alpha6-identity.json` to a deployed build enables the real sign-in requirement;
+a valid saved session can restore directly into its workspace.
 
 The launcher builds to an isolated timestamped folder under `work/account-previews` so an open
 app cannot lock its output. Use Preview your workspaces, select either sample airline or
@@ -160,6 +192,14 @@ then run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify
 The script builds both solutions and runs domain, database, hosted API, desktop-session,
 Auth0 Action unit checks, and desktop UI checks. It fails if database configuration is missing.
 Tests preserve their uniquely named account/schema data and UI artifacts under `work/` for review.
+
+The 16 September login-flow update passed a desktop/test build with zero warnings/errors,
+63 desktop identity checks, and WPF smoke reports containing 44 identity UI checks, 18 desktop
+checks, and 456 dashboard checks. Login checks include a fresh installation, hosted signup
+request construction, cancel/retry, callback timeout/port release, membership refresh, and
+revoked-session recovery. UI screenshots and reports are under
+`work/login-review/20260916-204616`. Provider responses are simulated in these tests;
+live Auth0 registration and sign-in remain staging acceptance work.
 
 ## Production activation prerequisites
 

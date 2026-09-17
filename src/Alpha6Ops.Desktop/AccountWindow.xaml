@@ -88,7 +88,7 @@
               <Grid x:Name="LoginDivider" Margin="0,22"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition/></Grid.ColumnDefinitions><Rectangle Height="1" Fill="#2A3A49"/><TextBlock Grid.Column="1" Text="or" FontSize="12" Foreground="#96A6B4" Margin="14,0"/><Rectangle Grid.Column="2" Height="1" Fill="#2A3A49"/></Grid>
               <Button x:Name="OtherLoginButton" Style="{StaticResource PortalButton}" Content="Other sign-in options    ↗" Click="OtherLogin_Click"/>
               <TextBlock x:Name="LoginOptionsHint" Text="Passkey or connected account, in your browser." FontSize="11" Foreground="#A2B0BD" TextAlignment="Center" Margin="0,10,0,25"/>
-              <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"><TextBlock Text="New to Alpha 6?" FontSize="12" Foreground="#A2B0BD" VerticalAlignment="Center"/><Button x:Name="RegisterButton" Content="Create an account ↗" Tag="auth/signup" Style="{StaticResource PortalLink}" Margin="7,0,0,0" Click="Portal_Click"/></StackPanel>
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"><TextBlock Text="New to Alpha 6?" FontSize="12" Foreground="#A2B0BD" VerticalAlignment="Center"/><Button x:Name="RegisterButton" Content="Create an account ↗" Style="{StaticResource PortalLink}" Margin="7,0,0,0" Click="Register_Click"/></StackPanel>
               <TextBlock x:Name="LoginStatus" FontSize="12" Foreground="#E5C977" Margin="0,18,0,0" LineHeight="19" AutomationProperties.LiveSetting="Polite" Visibility="Collapsed"/>
             </StackPanel>
           </Grid>
@@ -127,5 +127,6 @@
         <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><Button x:Name="BackButton" Content="← Back" Style="{StaticResource PortalLink}" Margin="0,0,25,0" Click="Back_Click"/><StackPanel Grid.Column="1" VerticalAlignment="Center"><TextBlock x:Name="SelectedTypeText" Style="{StaticResource Eyebrow}"/><TextBlock x:Name="SelectedNameText" FontSize="14" FontWeight="SemiBold" Margin="0,4,0,0"/></StackPanel><Button x:Name="ReconnectButton" Grid.Column="2" Content="Reconnect" Style="{StaticResource PortalButton}" Margin="0,0,12,0" Click="Reconnect_Click" Visibility="Collapsed"/><Button x:Name="OpenWorkspaceButton" Grid.Column="3" Content="Open workspace    →" Style="{StaticResource PortalPrimary}" Padding="26,16" Click="OpenWorkspace_Click"/></Grid>
       </Border>
     </Grid>
+    <Button x:Name="CancelSignInButton" Content="Cancel sign-in" Style="{StaticResource PortalButton}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="24" Visibility="Collapsed" Click="CancelSignIn_Click"/>
   </Grid>
 </Window>

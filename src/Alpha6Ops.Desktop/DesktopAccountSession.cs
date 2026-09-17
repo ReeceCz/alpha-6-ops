@@ -19,6 +19,10 @@ namespace Alpha6Ops.Desktop;
 internal sealed record SavedAccountSession(string ConfigurationKey, string? RefreshToken, BootstrapResponse Bootstrap,
     DateTimeOffset ReceivedAt, DateTimeOffset LastSeenAt, WorkspaceSelection Workspace);
 
+// Only these application-authored messages are safe to show in the account window.
+internal sealed class AccountSessionException(string message) : InvalidOperationException(message);
+internal sealed record BrowserLoginResult(string AccessToken, string? RefreshToken, bool IsError = false);
+
 internal sealed class DesktopAccountSession
 {
     private readonly SemaphoreSlim gate = new(1, 1);
@@ -26,12 +30,14 @@ internal sealed class DesktopAccountSession
     private readonly string configurationKey;
     private readonly string rootDirectory;
     private readonly Func<HttpMessageHandler>? handlerFactory;
+    private readonly Func<LoginRequest, CancellationToken, Task<BrowserLoginResult>> login;
     private string? accessToken;
     private SavedAccountSession? saved;
     internal IdentityConfiguration Configuration { get; }
     internal BootstrapResponse? Bootstrap => saved?.Bootstrap;
     internal WorkspaceSelection Workspace => saved?.Workspace ?? WorkspaceSelection.Personal;
     internal bool IsOffline { get; private set; }
+    internal bool CanRefresh => !string.IsNullOrEmpty(saved?.RefreshToken) || !string.IsNullOrEmpty(accessToken);
     internal bool MayStartNewFlight(DateTimeOffset now) => saved is not null
         && OfflineSessionPolicy.MayOpen(saved.Bootstrap, saved.ReceivedAt, saved.LastSeenAt, now);
     internal string WorkspaceName => Workspace.AirlineId is { } id
@@ -39,11 +45,13 @@ internal sealed class DesktopAccountSession
     internal string DataDirectory => Path.Combine(rootDirectory, "accounts", Bootstrap!.Account.Id.ToString("N"),
         Workspace.AirlineId is { } id ? Path.Combine("airlines", id.ToString("N")) : "personal");
 
-    internal DesktopAccountSession(IdentityConfiguration configuration, string? directory = null, Func<HttpMessageHandler>? httpHandlerFactory = null)
+    internal DesktopAccountSession(IdentityConfiguration configuration, string? directory = null, Func<HttpMessageHandler>? httpHandlerFactory = null,
+        Func<LoginRequest, CancellationToken, Task<BrowserLoginResult>>? browserLogin = null)
     {
         Configuration = configuration;
         rootDirectory = directory ?? CrashReporter.RootDirectory;
         handlerFactory = httpHandlerFactory;
+        login = browserLogin ?? LoginInBrowserAsync;
         configurationKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(configuration))));
         sessionPath = Path.Combine(rootDirectory, "Identity", "session.bin");
     }
@@ -55,18 +63,30 @@ internal sealed class DesktopAccountSession
         Browser = browser, LoadProfile = false
     });
 
-    internal async Task LoginAsync(CancellationToken token, string? loginHint = null)
+    private async Task<BrowserLoginResult> LoginInBrowserAsync(LoginRequest request, CancellationToken token)
+    {
+        using var browser = new SystemLoginBrowser(Configuration.CallbackPort);
+        var result = await Client(browser).LoginAsync(request, token);
+        token.ThrowIfCancellationRequested();
+        if (browser.LastResultType == Duende.IdentityModel.OidcClient.Browser.BrowserResultType.Timeout)
+            throw new AccountSessionException("Sign-in timed out. Try again and complete sign-in in your browser within three minutes.");
+        return new(result.AccessToken, result.RefreshToken, result.IsError);
+    }
+
+    internal async Task LoginAsync(CancellationToken token, string? loginHint = null, bool createAccount = false)
     {
         await gate.WaitAsync(token);
         try
         {
             Clear(); // Account changes always require a fresh verified network response.
-            using var browser = new SystemLoginBrowser(Configuration.CallbackPort);
             var parameters = new System.Collections.Generic.Dictionary<string, string> { ["audience"] = Configuration.Audience, ["prompt"] = "login" };
             if (!string.IsNullOrWhiteSpace(loginHint)) parameters["login_hint"] = loginHint;
-            var result = await Client(browser).LoginAsync(new LoginRequest
+            if (createAccount) parameters["screen_hint"] = "signup";
+            var result = await login(new LoginRequest
             { FrontChannelExtraParameters = new Parameters(parameters) }, token);
-            if (result.IsError) throw new InvalidOperationException("Sign-in was canceled or could not be verified. Try again in your browser.");
+            token.ThrowIfCancellationRequested();
+            if (result.IsError || string.IsNullOrWhiteSpace(result.AccessToken))
+                throw new AccountSessionException("Sign-in was canceled or could not be verified. Try again in your browser.");
             await EstablishAsync(result.AccessToken, result.RefreshToken, token, preserveWorkspace: false);
         }
         finally { gate.Release(); }
@@ -75,49 +95,58 @@ internal sealed class DesktopAccountSession
     internal async Task<bool> RestoreAsync(CancellationToken token)
     {
         await gate.WaitAsync(token);
+        try { return await RestoreCoreAsync(token); }
+        finally { gate.Release(); }
+    }
+
+    // Called only while holding gate, including before committing a workspace change.
+    private async Task<bool> RestoreCoreAsync(CancellationToken token)
+    {
+        saved ??= Read();
+        if (saved is null) return false;
         try
         {
-            saved ??= Read();
-            if (saved is null) return false;
-            if (string.IsNullOrEmpty(saved.RefreshToken)) return TryOffline();
-            try
+            if (string.IsNullOrEmpty(saved.RefreshToken))
             {
-                using var http = Http();
-                // Use the maintained protocol client. All refresh exchanges are serialized by gate.
-                var result = await http.RequestRefreshTokenAsync(new RefreshTokenRequest
-                {
-                    Address = Configuration.Authority.TrimEnd('/') + "/oauth/token", ClientId = Configuration.ClientId,
-                    ClientCredentialStyle = ClientCredentialStyle.PostBody, RefreshToken = saved.RefreshToken
-                }, token);
-                if (result.IsError)
-                {
-                    if (result.HttpStatusCode == 0 || (int)result.HttpStatusCode >= 500) return TryOffline();
-                    Clear(); return false; // invalid_grant and every explicit provider rejection fail closed.
-                }
-                if (string.IsNullOrWhiteSpace(result.AccessToken)) { Clear(); return false; }
-                // Persist the new refresh token before bootstrap; an API outage must not lose rotation.
-                Save(saved with { RefreshToken = result.RefreshToken ?? saved.RefreshToken });
-                await EstablishAsync(result.AccessToken, result.RefreshToken, token);
+                if (string.IsNullOrEmpty(accessToken)) return TryOffline();
+                await EstablishAsync(accessToken, null, token);
                 return true;
             }
-            catch (HttpRequestException error) when (error.StatusCode is null || (int)error.StatusCode >= 500)
-            { return TryOffline(); }
-            catch (OperationCanceledException) when (!token.IsCancellationRequested) { return TryOffline(); }
+            using var http = Http();
+            // Use the maintained protocol client. All refresh exchanges are serialized by gate.
+            var result = await http.RequestRefreshTokenAsync(new RefreshTokenRequest
+            {
+                Address = Configuration.Authority.TrimEnd('/') + "/oauth/token", ClientId = Configuration.ClientId,
+                ClientCredentialStyle = ClientCredentialStyle.PostBody, RefreshToken = saved.RefreshToken
+            }, token);
+            if (result.IsError)
+            {
+                if (result.HttpStatusCode == 0 || (int)result.HttpStatusCode >= 500) return TryOffline();
+                Clear(); return false; // invalid_grant and every explicit provider rejection fail closed.
+            }
+            if (string.IsNullOrWhiteSpace(result.AccessToken)) { Clear(); return false; }
+            // Persist the new refresh token before bootstrap; an API outage must not lose rotation.
+            Save(saved with { RefreshToken = result.RefreshToken ?? saved.RefreshToken });
+            await EstablishAsync(result.AccessToken, result.RefreshToken, token);
+            return true;
         }
-        finally { gate.Release(); }
+        catch (HttpRequestException error) when (error.StatusCode is null || (int)error.StatusCode >= 500)
+        { return TryOffline(); }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested) { return TryOffline(); }
     }
 
     private async Task EstablishAsync(string access, string? refresh, CancellationToken token, bool preserveWorkspace = true)
     {
         using var client = Api(access);
         using var response = await client.GetAsync("api/v1/me/bootstrap", token);
-        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) { Clear(); throw new InvalidOperationException("This account is not authorized. Sign in again or contact support."); }
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) { Clear(); throw new AccountSessionException("This account is not authorized. Sign in again or contact support."); }
         response.EnsureSuccessStatusCode();
         var bootstrap = await response.Content.ReadFromJsonAsync<BootstrapResponse>(cancellationToken: token)
             ?? throw new InvalidDataException("The account service returned an empty response.");
-        if (bootstrap.Account.Status != AccountStatus.Active || bootstrap.Account.Id == Guid.Empty) { Clear(); throw new InvalidOperationException("This account is not active."); }
+        if (bootstrap.Account.Status != AccountStatus.Active || bootstrap.Account.Id == Guid.Empty) { Clear(); throw new AccountSessionException("This account is not active. Contact support for help."); }
         if (preserveWorkspace && saved is not null && saved.Bootstrap.Account.Id != bootstrap.Account.Id)
-        { Clear(); throw new InvalidOperationException("The account identity changed. Sign in again."); }
+        { Clear(); throw new AccountSessionException("The account identity changed. Sign in again."); }
+        token.ThrowIfCancellationRequested();
         var now = DateTimeOffset.UtcNow;
         accessToken = access; IsOffline = false;
         var selected = preserveWorkspace && saved is not null ? saved.Workspace : bootstrap.LastWorkspace;
@@ -139,15 +168,22 @@ internal sealed class DesktopAccountSession
         await gate.WaitAsync(token);
         try
         {
-            if (saved is null) throw new InvalidOperationException("Sign in to choose a workspace.");
+            if (saved is null) throw new AccountSessionException("Sign in to choose a workspace.");
+            if (!IsOffline && !string.IsNullOrEmpty(saved.RefreshToken))
+            {
+                if (!await RestoreCoreAsync(token)) throw new AccountSessionException("Your session has expired. Sign in again.");
+                if (IsOffline) throw new AccountSessionException("The account service is unavailable. You can now open your current workspace offline or try reconnecting.");
+            }
+            if (!MayStartNewFlight(DateTimeOffset.UtcNow))
+            { Clear(); throw new AccountSessionException("Your saved session has expired. Sign in again to open a workspace."); }
             if (IsOffline && selection.AirlineId is not null && selection != saved.Workspace)
-                throw new InvalidOperationException("Connect to the internet to choose a different virtual airline.");
-            if (OfflineSessionPolicy.ValidateWorkspace(saved.Bootstrap, selection) != selection) throw new InvalidOperationException("This airline membership is unavailable.");
+                throw new AccountSessionException("Connect to the internet to choose a different virtual airline.");
+            if (OfflineSessionPolicy.ValidateWorkspace(saved.Bootstrap, selection) != selection) throw new AccountSessionException("This airline membership is unavailable. Choose another workspace.");
             if (!IsOffline)
             {
                 using var client = Api(accessToken!);
                 using var response = await client.PutAsJsonAsync("api/v1/me/workspace", selection, token);
-                if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) { Clear(); throw new InvalidOperationException("Your access changed. Sign in again."); }
+                if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) { Clear(); throw new AccountSessionException("Your access changed. Sign in again."); }
                 response.EnsureSuccessStatusCode();
             }
             Save(saved with { Workspace = selection });
@@ -217,6 +253,7 @@ internal sealed class DesktopAccountSession
     private void Clear()
     {
         saved = null; accessToken = null; IsOffline = false;
-        File.Delete(sessionPath); File.Delete(sessionPath + ".tmp");
+        try { File.Delete(sessionPath); File.Delete(sessionPath + ".tmp"); }
+        catch (DirectoryNotFoundException) { } // First sign-in has no Identity directory yet.
     }
 }

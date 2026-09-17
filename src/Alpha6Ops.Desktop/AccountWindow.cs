@@ -2,6 +2,8 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Net.Mail;
+using System.Net.Http;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -20,6 +22,7 @@ internal sealed partial class AccountWindow : Window
     private WorkspaceSelection selection = WorkspaceSelection.Personal;
     private string selectedName = "Flying as a Pilot";
     private bool busy;
+    private CancellationTokenSource? signInCancellation;
     internal bool Accepted { get; private set; }
     internal bool SignedOut { get; private set; }
     internal bool ShowingWorkspaces => WorkspacePage.Visibility == Visibility.Visible;
@@ -88,13 +91,31 @@ internal sealed partial class AccountWindow : Window
         await SignInAsync(null);
     });
 
-    private async Task SignInAsync(string? email)
+    private async void Register_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
+    {
+        if (preview) { ShowWorkspaces(); return; }
+        var email = EmailInput.Text.Trim();
+        if (email.Length > 0 && (!MailAddress.TryCreate(email, out var parsed) || parsed.Address != email))
+        { SetStatus("Enter a valid email address or leave it blank to create an account in your browser."); EmailInput.Focus(); return; }
+        await SignInAsync(email.Length == 0 ? null : email, createAccount: true);
+    });
+
+    private async Task SignInAsync(string? email, bool createAccount = false)
     {
         if (account is null) return;
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+        signInCancellation = cancellation;
+        CancelSignInButton.Visibility = Visibility.Visible;
         SetStatus("Complete sign-in in your browser. You can return here when you’re done.");
-        await account.LoginAsync(lifetime.Token, email);
-        ShowWorkspaces();
+        try
+        {
+            await account.LoginAsync(cancellation.Token, email, createAccount);
+            if (!lifetime.IsCancellationRequested) ShowWorkspaces();
+        }
+        finally { signInCancellation = null; CancelSignInButton.Visibility = Visibility.Collapsed; }
     }
+
+    private void CancelSignIn_Click(object sender, RoutedEventArgs e) => signInCancellation?.Cancel();
 
     internal void ShowWorkspaces()
     {
@@ -110,7 +131,8 @@ internal sealed partial class AccountWindow : Window
         ConnectionText.Text = preview ? "DESIGN PREVIEW" : offline ? "OFFLINE ACCESS" : "SIGNED IN";
         PlanText.Text = preview ? "FREE" : bootstrap!.PersonalEntitlement.Plan.ToString().ToUpperInvariant();
         SetStatus(offline ? "You’re offline. Continue with your current workspace or fly personally. Reconnect to switch airlines." : "");
-        ReconnectButton.Visibility = offline ? Visibility.Visible : Visibility.Collapsed;
+        ReconnectButton.Visibility = preview ? Visibility.Collapsed : Visibility.Visible;
+        ReconnectButton.Content = offline ? "Reconnect" : "Refresh";
         ManageButton.IsEnabled = JoinButton.IsEnabled = CreateButton.IsEnabled = !offline;
         selection = account?.Workspace ?? WorkspaceSelection.Personal;
         var airlines = preview ? PreviewAirlines : bootstrap!.Airlines;
@@ -188,7 +210,11 @@ internal sealed partial class AccountWindow : Window
         if (preview) { SetStatus("In the connected app, this opens the account website for registration and airline management."); return; }
         if (account is null) { SetStatus("Account services have not been configured for this installation."); return; }
         var path = (sender as Button)?.Tag as string ?? "Account";
-        try { Process.Start(new ProcessStartInfo(new Uri(new Uri(account.Configuration.PortalUrl.TrimEnd('/') + "/"), path).AbsoluteUri) { UseShellExecute = true }); }
+        try
+        {
+            Process.Start(new ProcessStartInfo(new Uri(new Uri(account.Configuration.PortalUrl.TrimEnd('/') + "/"), path).AbsoluteUri) { UseShellExecute = true });
+            if (ShowingWorkspaces) SetStatus("Complete your changes on the website, then select Refresh to update your workspaces.");
+        }
         catch (Exception) { SetStatus("The website could not be opened. Check your default browser and try again."); }
     }
 
@@ -198,7 +224,18 @@ internal sealed partial class AccountWindow : Window
         await account!.SignOutAsync(); SignedOut = true; Close();
     });
 
-    private async void Reconnect_Click(object sender, RoutedEventArgs e) => await RunAsync(() => SignInAsync(null));
+    private async void Reconnect_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
+    {
+        if (preview || account is null) return;
+        if (!account.CanRefresh) { await SignInAsync(null); return; }
+        SetStatus("Refreshing your account and workspaces…");
+        if (await account.RestoreAsync(lifetime.Token))
+        {
+            ShowWorkspaces();
+            if (account.IsOffline) SetStatus("Could not reconnect. Your saved workspace is still available offline. Try again when your connection returns.");
+        }
+        else { ShowLogin(); SetStatus("Your session has expired. Sign in again to continue."); }
+    });
 
     private void SetStatus(string message)
     {
@@ -209,11 +246,25 @@ internal sealed partial class AccountWindow : Window
     private async Task RunAsync(Func<Task> action)
     {
         if (busy) return;
-        busy = true; InteractionRoot.IsEnabled = false;
+        busy = true; LoginPage.IsEnabled = WorkspacePage.IsEnabled = false;
         try { await action(); }
-        catch (OperationCanceledException) { SetStatus("Sign-in canceled. You can try again."); }
-        catch (Exception) { SetStatus("We couldn’t complete that request. Check your connection and try again."); }
-        finally { busy = false; InteractionRoot.IsEnabled = true; }
+        catch (OperationCanceledException) { RecoverAfterError("Sign-in canceled. You can try again."); }
+        catch (AccountSessionException error) { RecoverAfterError(error.Message); }
+        catch (SocketException) { RecoverAfterError("The sign-in callback could not start. Close any other sign-in attempt and try again."); }
+        catch (HttpRequestException) { RecoverAfterError("The account service could not be reached. Check your connection and try again."); }
+        catch (Exception) { RecoverAfterError("We couldn’t complete that request. Please try again."); }
+        finally { busy = false; LoginPage.IsEnabled = WorkspacePage.IsEnabled = true; }
+    }
+
+    private void RecoverAfterError(string message)
+    {
+        if (lifetime.IsCancellationRequested) return;
+        if (!preview)
+        {
+            if (account?.Bootstrap is null) ShowLogin();
+            else ShowWorkspaces();
+        }
+        SetStatus(message);
     }
 
     // Presentation-only samples; never create a session or enter an authenticated workspace.

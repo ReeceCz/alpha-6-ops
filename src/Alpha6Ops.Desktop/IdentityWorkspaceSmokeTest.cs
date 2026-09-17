@@ -69,7 +69,7 @@ internal static class IdentityWorkspaceSmokeTest
         DashboardSmokeTest.Capture(chooser, Path.Combine(outputDirectory, "identity-workspaces.png"));
         chooser.Close();
 
-        var checks = 9;
+        var checks = 9 + await AccountFlowSmokeTest.RunAsync(outputDirectory);
         void Check(bool passed, string message) { if (!passed) throw new InvalidOperationException(message); checks++; }
         var cacheDirectory = Path.Combine(account.DataDirectory, "SimBrief");
         Directory.CreateDirectory(cacheDirectory);

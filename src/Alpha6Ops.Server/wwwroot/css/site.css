@@ -156,7 +156,7 @@ a.badge:hover { color: var(--yellow); border-color: var(--yellow); }
 .strip-fields li::before { content: "■"; color: #3f5265; font-size: 8px; vertical-align: 2px; margin-right: 8px; }
 .strip.paid .strip-fields li::before { color: var(--yellow); }
 .strip-price { display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 18px 22px; border-left: 1px dashed var(--line); text-align: right; }
-.amount { font-size: 26px; font-weight: 650; letter-spacing: -.6px; }
+.amount { font-size: 22px; font-weight: 650; letter-spacing: -.6px; }
 .amount small { font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 4px; }
 .yearly { color: var(--muted); font-size: 13px; }
 .strip-price .badge { align-self: flex-end; margin-top: 6px; }

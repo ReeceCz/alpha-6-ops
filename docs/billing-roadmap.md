@@ -1,7 +1,7 @@
 # Billing roadmap: subscriptions with Stripe and Link
 
-Status (17 September 2026): **designed, not built.** The public site shows the levels, placeholder
-prices and how payment will work (`/Pricing`); every level is complimentary during early access. This
+Status (17 September 2026): **designed, not built.** The public site shows the levels
+and how payment will work (`/Levels`, no prices shown until they are decided); every level is complimentary during early access. This
 note records the decisions already taken so the build is mechanical when it starts.
 
 ## Decisions
@@ -13,7 +13,7 @@ note records the decisions already taken so the build is mechanical when it star
   subscription; the Customer Portal handles card changes, invoices and cancellation.
 - **SDK: `Stripe.net` in `Alpha6Ops.Server` only** (approved 17 September; not yet added — the repo rule
   is no new NuGet packages until the feature is actually built).
-- **Products** (prices set in the Stripe dashboard, placeholders on `/Pricing` until then):
+- **Products** (prices set in the Stripe dashboard, not shown on `/Levels` until decided):
   Premium pilot monthly and yearly; Pro airline monthly and yearly. Free and Community stay free.
 
 ## How it maps onto what exists

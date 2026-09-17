@@ -1,24 +1,23 @@
-@page
-@model Alpha6Ops.Server.Pages.PricingModel
+@page "/Levels"
+@model Alpha6Ops.Server.Pages.LevelsModel
 @inject ServerSettings Settings
-@{ ViewData["Title"] = "Pricing"; }
+@{ ViewData["Title"] = "Levels"; }
 <div class="page-heading pricing-heading">
-    <h1>Fly free. Pay only when your operation grows.</h1>
+    <h1>Fly free. Grow when your operation does.</h1>
     <p class="lead">One account covers your own flying and every airline you belong to. Personal and airline levels are separate, so a pilot on the free level can still fly for a Pro airline.</p>
-    <p class="early-access" role="status">Early access: every level is complimentary right now. Choose one from your account and it applies immediately — no card, no trial clock.</p>
+    <p class="early-access" role="status">Early access: every level is complimentary. Choose one from your account and it applies immediately. Paid levels and their prices will be announced before public release — nothing is charged until then.</p>
 </div>
 
 <div class="strip-board" aria-label="Levels">
     <div class="strip-group">Personal</div>
-    @foreach (var tier in Alpha6Ops.Server.Pages.PricingModel.Tiers.Where(t => t.Group == "Personal")) { <partial name="_TierStrip" model="tier" /> }
+    @foreach (var tier in Alpha6Ops.Server.Pages.LevelsModel.Tiers.Where(t => t.Group == "Personal")) { <partial name="_TierStrip" model="tier" /> }
     <div class="strip-group">Airline</div>
-    @foreach (var tier in Alpha6Ops.Server.Pages.PricingModel.Tiers.Where(t => t.Group == "Airline")) { <partial name="_TierStrip" model="tier" /> }
+    @foreach (var tier in Alpha6Ops.Server.Pages.LevelsModel.Tiers.Where(t => t.Group == "Airline")) { <partial name="_TierStrip" model="tier" /> }
 </div>
-<p class="muted placeholder-note">Prices shown are placeholders for the public release and will be confirmed before anything is charged. Yearly prices are shown per year.</p>
 
 <section class="grid two pay-grid" aria-label="Paying and starting">
     <article class="card pay-card">
-        <h2>How you'll pay</h2>
+        <h2>How you'll pay, when the time comes</h2>
         <p>Paid levels will check out with <strong>Link</strong>, the one-tap wallet from Stripe: your email, a one-time code, and a saved card you never re-type. Anyone without Link sees a normal card form on the same page. Alpha 6 never sees or stores card numbers.</p>
         <div class="link-mock" aria-hidden="true"><span class="link-pill">Pay with Link</span><span class="link-or">or card · Apple Pay · Google Pay</span></div>
         <ul class="plain">
@@ -26,7 +25,6 @@
             <li>Airline levels are paid by the airline's owner and cover every crew member.</li>
             <li>Receipts and card changes live in a billing page linked from your account.</li>
         </ul>
-        <p class="muted">Arrives with the public release. Nothing is charged during early access.</p>
     </article>
     <article class="card pay-card">
         <h2>Start in three steps</h2>

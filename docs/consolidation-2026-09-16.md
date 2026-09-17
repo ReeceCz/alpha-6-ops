@@ -10,7 +10,7 @@
 
 The merge retains both parents and their full histories. Older work from `reece/orientation` and `integration/dan-6208a4f` is already ancestral to this consolidated build. GitHub has one fork, `ReeceCz/alpha-6-ops`, of `Alphatango2/alpha-6-ops`; the other names are branches, not separate copies of the product.
 
-The agreed shared home is **`Alphatango2/alpha-6-ops`, branch `main`**. The current GitHub account has ADMIN permission on Reece's fork and READ permission on Dan's repository. The fork is the staging location for the combined branch; Dan's `main` requires an upstream pull request and a maintainer merge. Existing upstream PR #4 contains checkpoint 7.11, which is included in this integration. Existing branches remain available as recovery/history references.
+The agreed shared home is **`Alphatango2/alpha-6-ops`, branch `main`**. The current GitHub account has ADMIN permission on Reece's fork and READ permission on Dan's repository. The fork is the staging location for the combined branch; [upstream pull request #5](https://github.com/Alphatango2/alpha-6-ops/pull/5) requires a maintainer merge. Existing upstream PR #4 contains checkpoint 7.11, which is included in this integration. Existing branches remain available as recovery/history references.
 
 ## Dan's changes retained
 
@@ -38,10 +38,11 @@ The agreed shared home is **`Alphatango2/alpha-6-ops`, branch `main`**. The curr
 - Accounts: 64 checks, including real disposable PostgreSQL integration.
 - Server integration: zero failures, including signed-token validation, tenant authorization, antiforgery and rate limits.
 - Auth0 Action unit checks passed.
-- Desktop UI, dashboard, identity UI and live identity diagnostic reports are recorded under `work/consolidation-verification/` and summarized in `outputs/Desktop-0.16.0-Consolidation-Validation.json`.
+- Packaged desktop: 18 desktop UI, 456 dashboard, 33 identity/workspace UI and 24 live identity diagnostic checks passed. Reports are recorded under `work/consolidation-verification/` and summarized in `outputs/Desktop-0.16.0-Consolidation-Validation.json`.
+- Packaged single-instance activation passed: a second launch restored the tray-hidden primary window and exited.
 - React dashboard: TypeScript validation and Vite production build passed.
 
-These checks use isolated fixtures and disposable databases. Real Auth0 tenant login, hosted deployment and a live MSFS flight are not established by them. The single-instance activation test requires exiting any older normal OPS instance first.
+These checks use isolated fixtures and disposable databases. Real Auth0 tenant login, hosted deployment and a live MSFS flight are not established by them.
 
 ## Working from one main branch
 

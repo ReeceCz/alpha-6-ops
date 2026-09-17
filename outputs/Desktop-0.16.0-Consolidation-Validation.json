@@ -1,6 +1,6 @@
 ﻿{
     "version":  "0.16.0",
-    "verifiedAtUtc":  "2026-09-17T01:27:14.9358328Z",
+    "verifiedAtUtc":  "2026-09-17T01:29:16.2808994Z",
     "danCommit":  "36c5e6a1a14c0d7404bc29d6c9bc288a6656181f",
     "reecePublishedCommit":  "a6ffb72",
     "reeceLocalSnapshot":  "a041285",
@@ -34,7 +34,7 @@
                                 "checks":  24
                             }
                         ],
-    "singleInstanceActivation":  "blocked by pre-existing v0.13.0 normal instance; not verified",
+    "singleInstanceActivation":  "passed: second launch restored the tray-hidden primary window and child exited",
     "artifacts":  [
                       {
                           "file":  "Alpha6OPS-Setup-0.16.0.exe",

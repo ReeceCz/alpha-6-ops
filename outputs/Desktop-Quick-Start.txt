@@ -1,8 +1,16 @@
-ALPHA 6 OPS - WINDOWS DESKTOP BUILD 0.13.0
+ALPHA 6 OPS - WINDOWS DESKTOP BUILD 0.16.0
 
 START HERE
-Exit an older OPS copy using Exit OPS, then run Alpha6OPS-Setup-0.13.0.exe.
+Exit an older OPS copy using Exit OPS, then run Alpha6OPS-Setup-0.16.0.exe.
 Open Alpha 6 OPS from Start. Administrator access is not required.
+
+CONSOLIDATED BUILD
+Includes Dan's flight tracking checkpoints through 7.11 and Reece's account,
+personal pilot workspace, simulator integration and performance work.
+Open Dispatch to import and review SimBrief, accept a release, or enter a
+flight manually. The OFP viewer and cached releases use the current workspace.
+Account sign-in requires publisher Auth0 configuration; an unconfigured build
+opens Local Preview. Real Auth0 and live MSFS acceptance are separate checks.
 
 LAUNCH & CONNECT
 Click the simulator card. If MSFS 2024 is closed, OPS launches the Microsoft

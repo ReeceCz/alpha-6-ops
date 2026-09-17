@@ -1,5 +1,11 @@
 # Alpha 6 OPS
 
+## Current consolidated build: 0.16.0
+
+This source combines Dan's checkpoint 7.11 commit `36c5e6a1a14c0d7404bc29d6c9bc288a6656181f`, Reece's replay/export performance fixes, and the account/identity and personal pilot workspace work. Dispatch now includes SimBrief release review and acceptance, the OFP viewer, flight tracking, local PIREP closeout, and the pilot logbook. SimBrief/OFP files and viewer preferences are isolated by account and workspace.
+
+See [consolidation review and branch history](docs/consolidation-2026-09-16.md) for merge decisions, validation, and remaining live-service checks. Build the desktop with `dotnet build Alpha6Ops.slnx --configuration Release` and the account server with `dotnet build Alpha6Ops.Cloud.slnx --configuration Release`. Older release notes below are historical.
+
 ## Accounts and virtual airlines (in development)
 
 The first identity foundation adds browser sign-in, a free personal pilot workspace, multiple virtual-airline memberships, PostgreSQL authorization, and an ASP.NET account website. Auth0 tenant configuration and production hosting are still required; live password/MFA/passkey flows have not been verified. See [implementation, setup, and remaining work](docs/identity-foundation.md) and the [server setup guide](src/Alpha6Ops.Server/README.md).

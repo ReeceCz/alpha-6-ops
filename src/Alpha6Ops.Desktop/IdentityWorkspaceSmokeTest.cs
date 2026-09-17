@@ -71,6 +71,17 @@ internal static class IdentityWorkspaceSmokeTest
 
         var checks = 9;
         void Check(bool passed, string message) { if (!passed) throw new InvalidOperationException(message); checks++; }
+        var cacheDirectory = Path.Combine(account.DataDirectory, "SimBrief");
+        Directory.CreateDirectory(cacheDirectory);
+        File.WriteAllText(Path.Combine(cacheDirectory, "username.txt"), "isolated-pilot");
+        File.WriteAllText(Path.Combine(cacheDirectory, "ofp-isolation.txt"), "PILOT RELEASE\nATC FLIGHT PLAN\nTEST ROUTE");
+        File.WriteAllText(Path.Combine(cacheDirectory, "ofp-isolation.pdf"), "%PDF-test-fixture");
+        var otherWorkspace = Path.Combine(root, "other-workspace");
+        Check(SimBriefImporter.OfpTextPath("isolation", account.DataDirectory) is not null &&
+            SimBriefImporter.OfpPdfPath("isolation", account.DataDirectory) is not null &&
+            SimBriefImporter.OfpTextPath("isolation", otherWorkspace) is null &&
+            SimBriefImporter.OfpPdfPath("isolation", otherWorkspace) is null,
+            "OFP text and PDF must remain isolated to the account workspace.");
         var pilot = new MainWindow(account.DataDirectory, account);
         try
         {
@@ -83,6 +94,7 @@ internal static class IdentityWorkspaceSmokeTest
             Check(pilot.NavigationButtons.Children.OfType<System.Windows.Controls.Button>().All(b => b.Tag is not string tag || PilotFeatureProfile.Allows(tag) || b.Visibility == Visibility.Collapsed), "Airline navigation must be hidden.");
             Check(!PilotFeatureProfile.Allows("Aircraft") && !PilotFeatureProfile.Allows("OCC"), "Pilot module routing must exclude fleet and operations.");
             Check(pilot.FlightHistory?.ReadRecentFlights().Count == 0, "New account must not inherit another account's history.");
+            Check(pilot.DispatchView.SimBriefUsernameBox.Text == "isolated-pilot", "Dispatch must load only the current workspace's SimBrief username.");
             DashboardSmokeTest.Capture(pilot, Path.Combine(outputDirectory, "identity-pilot-home.png"));
             var logbookNav = pilot.NavigationButtons.Children.OfType<System.Windows.Controls.Button>().Single(b => b.Tag as string == "PilotLogbook");
             logbookNav.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent)); pilot.UpdateLayout();
@@ -93,7 +105,8 @@ internal static class IdentityWorkspaceSmokeTest
             DashboardSmokeTest.Capture(pilot, Path.Combine(outputDirectory, "pilot-tracking-empty.png"));
             pilot.ShowDashboard();
             pilot.HeaderDispatchButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent)); pilot.UpdateLayout();
-            Check(pilot.ToolsOverlay.IsVisible && !pilot.ClearFlightButton.IsEnabled && !pilot.RouteText.Text.Contains("ORD"), "Dispatch must use existing flight tools with an honest empty assignment.");
+            Check(pilot.DispatchView.IsVisible && !pilot.DispatchView.HasActiveRelease && !pilot.ToolsOverlay.IsVisible, "Dispatch must use the integrated release workflow with an honest empty assignment.");
+            Check(!pilot.PilotLogbookView.IsVisible && !pilot.FlightTrackingView.IsVisible, "Dispatch must hide the previous embedded workspace.");
             DashboardSmokeTest.Capture(pilot, Path.Combine(outputDirectory, "pilot-dispatch-empty.png"));
             pilot.ShowDashboard();
             Check(pilot.LocalWeatherButton.IsVisible && pilot.WeatherConditionText.Text.Contains("TEST"), "Existing weather header must remain available with diagnostic status.");
@@ -101,6 +114,11 @@ internal static class IdentityWorkspaceSmokeTest
             Check(pilot.HeroPanel.ActualWidth > 1600 && pilot.ModuleTiles.ActualWidth > 1600 && pilot.OperationsPanel.ActualWidth > 1600, "Remaining dashboard panels must fill space left by airline panels.");
             DashboardSmokeTest.Capture(pilot, Path.Combine(outputDirectory, "pilot-home-compact.png"));
             var plan = new ActiveFlightPlan("TEST 101", "N101", "KORD", "KMSP", now, now.AddHours(2), Route: "TEST ROUTE", AircraftType: "A320");
+            var viewer = new OfpViewerWindow(plan with { OfpCacheKey = "isolation" }, account.DataDirectory);
+            viewer.Show(); viewer.UpdateLayout();
+            Check(viewer.OpenPdfButton.IsEnabled && !viewer.DocumentStatusText.Text.Contains("UNAVAILABLE"), "OFP viewer must find the current workspace's cached release.");
+            viewer.Close();
+            Check(File.Exists(Path.Combine(account.DataDirectory, "ofp-viewer-state.json")) && !File.Exists(Path.Combine(otherWorkspace, "ofp-viewer-state.json")), "OFP viewer preferences must remain in the current workspace.");
             ActiveFlightPlanStore.Save(plan, account.DataDirectory);
             var id = pilot.FlightHistory!.BeginFlight(bootstrap.Account.DisplayName, "diagnostic", "Isolated UI fixture", "A320", "KORD", "KMSP", "TEST 101", "test");
             pilot.FlightHistory.EndFlight(id, "Complete");

@@ -29,6 +29,7 @@ public partial class MainWindow
     private bool liveDataCurrent;
     private DateTime liveReceivedAt;
     private string? arrivalMismatch;
+    private bool suppressObservedFlightAfterCloseout;
     private bool CanRenderAssignedFlight => currentLiveReading?.Source == "FLIGHT LAB"
         ? activePlan is not null && liveDataCurrent
         : liveAssociation.Accepted && liveDataCurrent &&
@@ -43,6 +44,7 @@ public partial class MainWindow
     private void ResetObservedSession(string reason)
     {
         RecordLog("observed_session_reset", liveLast, new { reason });
+        if(liveFlightHistoryId is not null){RecordFlightEvent(liveFlightHistoryId,"invalidated",liveLast,new{reason});EndFlightHistory(liveFlightHistoryId,"Invalid");liveFlightHistoryId=null;}
         liveRecorder = null; liveRotation = null; liveLast = null; liveAircraft = null;
         milestones.Clear(); LiveTimelineButton.IsEnabled = LiveDebriefButton.IsEnabled = false;
         ResetLiveIdentity();
@@ -78,6 +80,12 @@ public partial class MainWindow
         if (!association.Accepted && reading.Source != "FLIGHT LAB") liveRotation = null;
         currentLiveReading = reading;
         liveReceivedAt = DateTime.UtcNow; liveDataCurrent = true;
+        if (association.Accepted && liveRotation is null && liveRecorder is not null && activePlan is not null)
+        {
+            var rotation = BuildLiveRotation(activePlan, reading.Aircraft, AircraftGroundProfiles.ForFamily(reading.Aircraft));
+            if(rotation is not null)foreach (var milestone in liveRecorder.Events) rotation = RotationPlanner.ApplyMilestone(rotation, milestone);
+            liveRotation=rotation;
+        }
     }
     private string LiveContextSummary()
     {
@@ -97,6 +105,15 @@ public partial class MainWindow
     }
     private void RenderObservedFlight()
     {
+        if(suppressObservedFlightAfterCloseout)
+        {
+            HeroFlightText.Text="NO ACTIVE FLIGHT";OriginCodeText.Text=DestinationCodeText.Text="—";
+            OriginCityText.Text="SET AN";DestinationCityText.Text="ASSIGNMENT";
+            HeroDepartureText.Text=HeroArrivalText.Text=HeroDepartureGateText.Text=HeroArrivalGateText.Text="—";
+            HeroStatusText.Text="●  WAITING";HeroStatusText.Foreground=OpsUi.Brush("#FFDA00");HeroStatusBadge.Background=OpsUi.Brush("#433817");
+            HeroTimingText.Text="PIREP complete • open Dispatch for your next flight";AircraftText.Text=currentLiveReading?.Aircraft??"AIRCRAFT CONNECTED";HeroAircraftTypeText.Text="SIMULATOR STILL CONNECTED";
+            return;
+        }
         if (currentLiveReading is not { } reading) return;
         var evidence = reading.Evidence ?? new();
         var route = evidence.Route;
@@ -104,10 +121,10 @@ public partial class MainWindow
         var isLab = reading.Source == "FLIGHT LAB";
         HeroFlightText.Text = isLab ? "LAB FLIGHT" : route is null ? "FREE FLIGHT" : "MSFS FLIGHT";
         OriginCodeText.Text = route?.Origin ?? nearby?.Airport.Ident ?? "—";
-        OriginCityText.Text = route is not null ? AirportCatalog.Find(route.Origin)?.City.ToUpperInvariant() ?? "PLANNED DEPARTURE"
+        OriginCityText.Text = route is not null ? AirportCatalog.Find(route.Origin)?.Name.ToUpperInvariant() ?? "AIRPORT NAME UNAVAILABLE"
             : nearby is not null ? "NEAR " + (string.IsNullOrWhiteSpace(nearby.Airport.City) ? nearby.Airport.Ident : nearby.Airport.City).ToUpperInvariant() : "LOCATION UNKNOWN";
         DestinationCodeText.Text = route?.Destination ?? "—";
-        DestinationCityText.Text = route is not null ? AirportCatalog.Find(route.Destination)?.City.ToUpperInvariant() ?? "PLANNED DESTINATION" : "DESTINATION UNKNOWN";
+        DestinationCityText.Text = route is not null ? AirportCatalog.Find(route.Destination)?.Name.ToUpperInvariant() ?? "AIRPORT NAME UNAVAILABLE" : "DESTINATION UNKNOWN";
         OriginCodeText.ToolTip = nearby is null ? evidence.PlanStatus : $"{nearby.Airport.Name} · {nearby.DistanceNm:0.0} nm · {nearby.Airport.Source}. Proximity does not establish the departure airport.";
         HeroDepartureText.Text = liveRecorder?.Events.FirstOrDefault(e => e.Phase == FlightPhase.TaxiOut)?.At.ToString("HH:mm") ?? "—";
         HeroArrivalText.Text = liveRecorder?.Events.FirstOrDefault(e => e.Phase == FlightPhase.Complete)?.At.ToString("HH:mm") ?? "—";

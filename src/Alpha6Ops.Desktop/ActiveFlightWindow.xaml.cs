@@ -1,69 +1,25 @@
-using System;
-using System.Globalization;
-using System.IO;
-using System.Net.Http;
-using System.Text.Json;
-using System.Windows;
-
+using System;using System.Globalization;using System.Text.RegularExpressions;using System.Windows;
 namespace Alpha6Ops.Desktop;
-
-public partial class ActiveFlightWindow : Window
+public partial class ActiveFlightWindow:Window
 {
-    internal ActiveFlightPlan? Plan { get; private set; }
-    private readonly string? stateDirectory;
-    internal ActiveFlightWindow(ActiveFlightPlan? current, string? directory = null)
-    {
-        stateDirectory = directory;
-        InitializeComponent();
-        var now = DateTimeOffset.UtcNow;
-        FlightNumberBox.Text = current?.FlightNumber ?? "";
-        RegistrationBox.Text = current?.Registration ?? "";
-        OriginBox.Text = current?.Origin ?? "";
-        DestinationBox.Text = current?.Destination ?? "";
-        DepartureBox.Text = (current?.PlannedDepartureUtc ?? now).UtcDateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
-        ArrivalBox.Text = (current?.PlannedArrivalUtc ?? now.AddHours(2)).UtcDateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
-        DepartureGateBox.Text = current?.DepartureGate ?? "";
-        ArrivalGateBox.Text = current?.ArrivalGate ?? "";
-        SimBriefUsernameBox.Text = current?.SimBriefUsername ?? SimBriefImporter.LoadUsername(stateDirectory);
-    }
-    private async void Import_Click(object sender, RoutedEventArgs e)
-    {
-        ImportButton.IsEnabled = false; ImportStatusText.Text = "Downloading latest SimBrief briefing…";
-        try
-        {
-            var imported = await SimBriefImporter.ImportAsync(SimBriefUsernameBox.Text, root: stateDirectory);
-            var plan = imported.Plan;
-            FlightNumberBox.Text = plan.FlightNumber; RegistrationBox.Text = plan.Registration;
-            OriginBox.Text = plan.Origin; DestinationBox.Text = plan.Destination;
-            DepartureBox.Text = plan.PlannedDepartureUtc.UtcDateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
-            ArrivalBox.Text = plan.PlannedArrivalUtc.UtcDateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
-            DepartureGateBox.Text = plan.DepartureGate ?? ""; ArrivalGateBox.Text = plan.ArrivalGate ?? "";
-            Plan = plan;
-            var age = DateTimeOffset.UtcNow - imported.GeneratedUtc;
-            var warning = age > TimeSpan.FromHours(24) ? " Warning: this briefing is more than 24 hours old." : "";
-            var gates=plan.DepartureGate is null&&plan.ArrivalGate is null?"gates unassigned":$"gates {plan.DepartureGate??"—"} / {plan.ArrivalGate??"—"} ({plan.GateAssignmentConfidence?.ToLowerInvariant()})";
-            ImportStatusText.Text = $"{(imported.FromCache ? "Offline cache" : "Imported")} • {imported.AircraftType} • {gates} • generated {imported.GeneratedUtc.UtcDateTime:dd MMM HH:mm}Z.{warning}";
-        }
-        catch (Exception error) when (error is IOException or HttpRequestException or JsonException or ArgumentException)
-        { ImportStatusText.Text = error.GetBaseException().Message; }
-        finally { ImportButton.IsEnabled = true; }
-    }
-    private void Save_Click(object sender, RoutedEventArgs e)
-    {
-        var flight = FlightNumberBox.Text.Trim().ToUpperInvariant();
-        var registration = RegistrationBox.Text.Trim().ToUpperInvariant();
-        var origin = OriginBox.Text.Trim().ToUpperInvariant();
-        var destination = DestinationBox.Text.Trim().ToUpperInvariant();
-        var departureGate=GateAssignmentResolver.Normalize(DepartureGateBox.Text);var arrivalGate=GateAssignmentResolver.Normalize(ArrivalGateBox.Text);
-        const DateTimeStyles styles = DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal;
-        if (flight.Length is < 2 or > 10 || !Alpha6Ops.Core.FlightIdentity.IsAirportId(origin) || !Alpha6Ops.Core.FlightIdentity.IsAirportId(destination) ||
-            !DateTimeOffset.TryParseExact(DepartureBox.Text.Trim(), "yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture, styles, out var departure) ||
-            !DateTimeOffset.TryParseExact(ArrivalBox.Text.Trim(), "yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture, styles, out var arrival) || arrival <= departure)
-        { ErrorText.Text = "Enter a flight number, valid 3–8 character airport identifiers, and an arrival later than departure in UTC. Local round trips may use the same airport."; return; }
-        Plan = Plan is { Source: "SimBrief" } imported && imported.FlightNumber == flight && imported.Origin == origin && imported.Destination == destination
-            ? imported with { Registration = registration, PlannedDepartureUtc = departure, PlannedArrivalUtc = arrival, DepartureGate=departureGate, ArrivalGate=arrivalGate }
-            : new(flight, registration, origin, destination, departure, arrival,DepartureGate:departureGate,ArrivalGate:arrivalGate,GateAssignmentSource:"Pilot entry",GateAssignmentConfidence:"Confirmed");
-        DialogResult = true;
-    }
-    private void Cancel_Click(object sender, RoutedEventArgs e) => DialogResult = false;
+ internal ActiveFlightPlan? Plan{get;private set;}
+ internal ActiveFlightWindow(ActiveFlightPlan? current)
+ {
+  InitializeComponent();var now=DateTimeOffset.UtcNow;FlightNumberBox.Text=current?.FlightNumber??"";RegistrationBox.Text=current?.Registration??"";OriginBox.Text=current?.Origin??"";DestinationBox.Text=current?.Destination??"";DepartureBox.Text=(current?.PlannedDepartureUtc??now).UtcDateTime.ToString("yyyy-MM-dd HH:mm'Z'",CultureInfo.InvariantCulture);ArrivalBox.Text=(current?.PlannedArrivalUtc??now.AddHours(2)).UtcDateTime.ToString("yyyy-MM-dd HH:mm'Z'",CultureInfo.InvariantCulture);DepartureGateBox.Text=current?.DepartureGate??"";ArrivalGateBox.Text=current?.ArrivalGate??"";RouteBox.Text=current?.Route??"";
+ }
+ void Save_Click(object sender,RoutedEventArgs e)
+ {
+  var flight=FlightNumberBox.Text.Trim().ToUpperInvariant();var registration=RegistrationBox.Text.Trim().ToUpperInvariant();var origin=OriginBox.Text.Trim().ToUpperInvariant();var destination=DestinationBox.Text.Trim().ToUpperInvariant();var departureGate=GateAssignmentResolver.Normalize(DepartureGateBox.Text);var arrivalGate=GateAssignmentResolver.Normalize(ArrivalGateBox.Text);var route=NormalizeRoute(RouteBox.Text);
+  if(flight.Length is <2 or >10||!Alpha6Ops.Core.FlightIdentity.IsAirportId(origin)||!Alpha6Ops.Core.FlightIdentity.IsAirportId(destination)||!TryFlightTime(DepartureBox.Text,out var departure)||!TryFlightTime(ArrivalBox.Text,out var arrival)||arrival<=departure){ErrorText.Text="Enter valid airports and dated times with Z or an explicit UTC offset. Arrival must be later than departure; overnight flights need the correct arrival date.";return;}
+  Plan=new(flight,registration,origin,destination,departure.ToUniversalTime(),arrival.ToUniversalTime(),"Pilot entry",DepartureGate:departureGate,ArrivalGate:arrivalGate,GateAssignmentSource:"Pilot entry",GateAssignmentConfidence:"Confirmed",Route:route,DepartureUtcOffsetMinutes:(int)departure.Offset.TotalMinutes,ArrivalUtcOffsetMinutes:(int)arrival.Offset.TotalMinutes);DialogResult=true;
+ }
+ internal static bool TryFlightTime(string value,out DateTimeOffset result)
+ {
+  var text=value.Trim();var formats=new[]{"yyyy-MM-dd HH:mm'Z'","yyyy-MM-dd HH:mm zzz"};
+  var styles=text.EndsWith('Z')?DateTimeStyles.AssumeUniversal|DateTimeStyles.AdjustToUniversal:DateTimeStyles.None;
+  return DateTimeOffset.TryParseExact(text,formats,CultureInfo.InvariantCulture,styles,out result);
+ }
+ internal static string? NormalizeRoute(string? value){if(string.IsNullOrWhiteSpace(value))return null;return Regex.Replace(value.Trim(),@"\s+"," ").ToUpperInvariant();}
+ void PasteRoute_Click(object sender,RoutedEventArgs e){if(Clipboard.ContainsText())RouteBox.Text=Clipboard.GetText();}
+ void Cancel_Click(object sender,RoutedEventArgs e)=>DialogResult=false;
 }

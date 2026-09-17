@@ -8,7 +8,7 @@ The pilot feature profile keeps:
 
 - Dashboard with the pilot's active assignment and flight table. New accounts start empty; bundled demo flights are not shown.
 - Pilot Logbook, with existing account-scoped completed and interrupted flight records.
-- Dispatch through the existing Flight Deck drawer, including manual flight setup and SimBrief import.
+- Dispatch through the embedded release workspace, including SimBrief import, review, acceptance, the OFP viewer, and manual flight setup. The Flight Deck drawer remains available for advanced tools and diagnostics.
 - Flight Tracking with the original embedded map, flight progress and recorded events.
 - Local weather through the existing header and observation detail dialog.
 - Settings, account/workspace access, simulator connection, recovery, debrief, logs and journal export.
@@ -41,7 +41,7 @@ The script builds into a new folder and launches `--preview-pilot`. It creates f
 
 ## Verification
 
-The WPF smoke suite verifies the original dashboard remains visible, restricted modules and airline panels are hidden, only the four personal tiles remain, account history is isolated, the hero restores the saved assignment, dispatch uses the existing tools, and clearing an assignment preserves recorded history. It captures full and compact dashboard, logbook, dispatch and tracker screenshots. Existing recorder, SimBrief parsing, recovery and desktop regressions run in the same suite.
+The WPF smoke suite verifies the original dashboard remains visible, restricted modules and airline panels are hidden, only the four personal tiles remain, account history is isolated, the hero restores the saved assignment, dispatch uses the embedded release workflow, and clearing an assignment preserves recorded history. SimBrief usernames, OFP text/PDF caches and viewer preferences are checked for workspace isolation. It captures full and compact dashboard, logbook, dispatch and tracker screenshots. Existing recorder, SimBrief parsing, recovery and desktop regressions run in the same suite.
 
 Live MSFS connection and a real Auth0 sign-in require external configuration and are not established by these local UI checks.
 

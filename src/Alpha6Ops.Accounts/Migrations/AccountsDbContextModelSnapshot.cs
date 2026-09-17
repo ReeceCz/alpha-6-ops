@@ -6,11 +6,11 @@ namespace Alpha6Ops.Accounts.Migrations;
 [DbContext(typeof(AccountsDbContext))]
 public sealed class AccountsDbContextModelSnapshot : ModelSnapshot
 {
-    protected override void BuildModel(ModelBuilder modelBuilder) => InitialAccountsModel.Build(modelBuilder);
+    protected override void BuildModel(ModelBuilder modelBuilder) => ProfileAndPlansModel.Build(modelBuilder);
 }
 
 // Frozen initial EF model. The migration's PostgreSQL constraints and triggers are maintained in SQL.
-// Future migrations must replace the snapshot rather than modifying this initial model.
+// Later migrations compose this (see ProfileAndPlansModel) and re-point the snapshot; never edit it.
 internal static class InitialAccountsModel
 {
     internal static void Build(ModelBuilder model)

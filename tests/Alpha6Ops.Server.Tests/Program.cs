@@ -38,6 +38,8 @@ using (var client = setup.CreateClient(new() { BaseAddress = new("https://localh
     Check((await client.GetAsync("/api/v1/me/bootstrap")).StatusCode == HttpStatusCode.ServiceUnavailable, "Unconfigured API fails closed");
     Check((await client.GetAsync("/auth/login")).StatusCode == HttpStatusCode.ServiceUnavailable, "Unconfigured login fails closed");
     Check((await client.GetStringAsync("/Download")).Contains("not been published"), "Missing release cannot advertise a fake download");
+    var release = await client.GetAsync("/api/v1/release");
+    Check(release.StatusCode == HttpStatusCode.NotFound && (await release.Content.ReadAsStringAsync()).Contains("release_unavailable"), "Release descriptor answers 404 without a published installer, even unconfigured");
     Check(landing.Headers.Contains("Content-Security-Policy"), "Security headers present");
 }
 var connection = Environment.GetEnvironmentVariable("ALPHA6_SERVER_TEST_DATABASE");
@@ -69,7 +71,24 @@ var owner = "owner-" + run;
 using var pilot = host.Client(owner);
 var bootstrap = await pilot.GetAsync("/api/v1/me/bootstrap");
 Check(bootstrap.IsSuccessStatusCode, "Verified signed account bootstrap succeeds");
-Check(string.Equals((await bootstrap.Content.ReadFromJsonAsync<BootstrapResponse>())?.Account.Email, owner + "@example.test", StringComparison.OrdinalIgnoreCase), "Bootstrap uses trusted token identity");
+var bootstrapBody = await bootstrap.Content.ReadFromJsonAsync<BootstrapResponse>();
+Check(string.Equals(bootstrapBody?.Account.Email, owner + "@example.test", StringComparison.OrdinalIgnoreCase), "Bootstrap uses trusted token identity");
+Check(bootstrapBody?.Profile is { WeightUnit: "LBS", LastSeenAt: not null }, "Bootstrap includes a provisioned profile");
+pilot.DefaultRequestHeaders.UserAgent.ParseAdd("Alpha6OPS/0.16.0");
+Check((await pilot.GetFromJsonAsync<BootstrapResponse>("/api/v1/me/bootstrap"))?.Profile?.LastSeenVersion == "0.16.0", "Bootstrap records the desktop version from its user agent");
+var profilePut = await pilot.PutAsJsonAsync("/api/v1/me/profile", new UpdateProfileRequest("reece74", "A6-001", "kjfk", "KG", "FT", "FT", "personal", "", "RC"));
+Check(profilePut.IsSuccessStatusCode && (await profilePut.Content.ReadFromJsonAsync<UserProfile>())?.HomeBaseIcao == "KJFK", "Profile round trip over the API");
+Check((await pilot.GetFromJsonAsync<UserProfile>("/api/v1/me/profile"))?.SimBriefUsername == "reece74", "Profile GET returns the saved values");
+var badProfile = await pilot.PutAsJsonAsync("/api/v1/me/profile", new UpdateProfileRequest("x", "", "", "LBS", "FT", "FT", "last_used", "", ""));
+Check(badProfile.StatusCode == HttpStatusCode.BadRequest && (await badProfile.Content.ReadAsStringAsync()).Contains("invalid_profile"), "Invalid profile is rejected with a stable code");
+var planPut = await pilot.PutAsJsonAsync("/api/v1/me/plan", new SetPersonalPlanRequest(PersonalPlan.Premium));
+Check(planPut.IsSuccessStatusCode && (await planPut.Content.ReadFromJsonAsync<PersonalEntitlement>()) is { Plan: PersonalPlan.Premium, Status: "complimentary" }, "Complimentary Premium applied over the API");
+using (var noMfa = host.Client(owner, "no-mfa"))
+{
+    var blocked = await noMfa.PostAsJsonAsync("/api/v1/virtual-airlines", new CreateAirlineRequest("Blocked " + run[..8], "blocked-" + run[..12], "BLK"));
+    Check(blocked.StatusCode == HttpStatusCode.Forbidden && (await blocked.Content.ReadAsStringAsync()).Contains("\"code\":\"mfa_required\""), "Creation without fresh MFA returns the mfa_required problem code the desktop keys on");
+    Check((await noMfa.GetAsync("/api/v1/me/bootstrap")).IsSuccessStatusCode, "Bootstrap never requires MFA");
+}
 
 foreach (var scenario in new[] { "missing-claim", "wrong-issuer", "wrong-audience", "expired", "wrong-signature", "future-mfa" })
 {
@@ -77,6 +96,8 @@ foreach (var scenario in new[] { "missing-claim", "wrong-issuer", "wrong-audienc
     var response = await bad.GetAsync("/api/v1/me/bootstrap");
     Check(response.StatusCode == HttpStatusCode.Unauthorized, $"Reject {scenario}");
 }
+var oidc = host.Services.GetRequiredService<IOptionsMonitor<Microsoft.AspNetCore.Authentication.OpenIdConnect.OpenIdConnectOptions>>().Get("Auth0");
+Check(!oidc.ClaimActions.Any(a => a.ClaimType == "iss") && !oidc.GetClaimsFromUserInfoEndpoint, "Portal login keeps the issuer claim the cookie principal is validated against");
 using var browser = host.CreateClient(new() { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
 var cookieOptions = host.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(CookieAuthenticationDefaults.AuthenticationScheme);
 var identity = new ClaimsIdentity(host.Claims(owner).Select(p => new Claim(p.Key, p.Value.ToString()!)), CookieAuthenticationDefaults.AuthenticationScheme);
@@ -88,7 +109,34 @@ Check(accountPage.IsSuccessStatusCode, "Authenticated portal workspace renders")
 var accountHtml = await accountPage.Content.ReadAsStringAsync();
 Check(accountHtml.Contains("__RequestVerificationToken"), "Portal mutation forms contain antiforgery token");
 Check((await browser.PostAsync("/Account?handler=Logout", new FormUrlEncodedContent([]))).StatusCode == HttpStatusCode.BadRequest, "Logout without CSRF token is rejected");
+var csp = accountPage.Headers.GetValues("Content-Security-Policy").Single();
+Check(Regex.IsMatch(csp, @"form-action 'self' " + Regex.Escape(ServerFactory.Issuer.TrimEnd('/')) + "(;|$)") && csp.Contains("script-src 'none'"), "CSP lets the sign-out form redirect to the identity provider and nowhere else");
 Check((await browser.PostAsync("/Account/Create", new FormUrlEncodedContent(new Dictionary<string, string> { ["Name"] = "Forged" }))).StatusCode == HttpStatusCode.BadRequest, "Airline creation without CSRF token is rejected");
+Check(accountHtml.Contains("/Account/Profile") && accountHtml.Contains("/Account/Plan") && accountHtml.Contains("/Download"), "Workspace page links profile, account level and download");
+Check(accountHtml.Contains("from v0.16.0"), "Workspace page reports the last desktop version seen");
+var profilePage = await browser.GetAsync("/Account/Profile");
+var profileHtml = await profilePage.Content.ReadAsStringAsync();
+Check(profilePage.IsSuccessStatusCode && profileHtml.Contains("value=\"reece74\"") && Regex.IsMatch(profileHtml, "<option (selected=\"selected\" value=\"personal\"|value=\"personal\" selected=\"selected\")>"), "Profile page renders the saved profile");
+Check((await browser.PostAsync("/Account/Profile", new FormUrlEncodedContent(new Dictionary<string, string> { ["SimBriefUsername"] = "forged" }))).StatusCode == HttpStatusCode.BadRequest, "Profile update without CSRF token is rejected");
+var planPage = await browser.GetAsync("/Account/Plan");
+var planHtml = await planPage.Content.ReadAsStringAsync();
+Check(planPage.IsSuccessStatusCode && planHtml.Contains("value=\"Premium\" checked"), "Account level page shows the current level");
+Check((await browser.PostAsync("/Account/Plan", new FormUrlEncodedContent(new Dictionary<string, string> { ["plan"] = "Free" }))).StatusCode == HttpStatusCode.BadRequest, "Account level change without CSRF token is rejected");
+// A genuine browser submission: antiforgery cookie from the GET plus the hidden form token.
+static async Task<HttpResponseMessage> SubmitAsync(HttpClient client, HttpResponseMessage page, string html, string path, Dictionary<string, string> fields)
+{
+    var token = Regex.Match(html, "name=\"__RequestVerificationToken\" type=\"hidden\" value=\"([^\"]+)\"").Groups[1].Value;
+    var antiforgery = page.Headers.TryGetValues("Set-Cookie", out var cookies) ? cookies.Select(c => c.Split(';')[0]).FirstOrDefault(c => c.StartsWith(".AspNetCore.Antiforgery", StringComparison.Ordinal)) : null;
+    using var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = new FormUrlEncodedContent(fields.Append(new("__RequestVerificationToken", token))) };
+    request.Headers.Add("Cookie", string.Join("; ", client.DefaultRequestHeaders.GetValues("Cookie").Append(antiforgery ?? "")));
+    return await client.SendAsync(request);
+}
+var profilePost = await SubmitAsync(browser, profilePage, profileHtml, "/Account/Profile", new() { ["SimBriefUsername"] = "", ["Callsign"] = "", ["HomeBaseIcao"] = "kmke", ["WeightUnit"] = "LBS", ["AltitudeUnit"] = "FT", ["LandingDistanceUnit"] = "FT", ["PreferredWorkspace"] = "portal", ["TimeZone"] = "", ["AvatarInitials"] = "rc" });
+var profileAfter = await pilot.GetFromJsonAsync<UserProfile>("/api/v1/me/profile");
+Check(profilePost.StatusCode == HttpStatusCode.Redirect && profileAfter is { SimBriefUsername: "", HomeBaseIcao: "KMKE", PreferredWorkspace: "portal", AvatarInitials: "RC" }, "Profile form accepts blank optional fields and saves the rest");
+var planPost = await SubmitAsync(browser, planPage, planHtml, "/Account/Plan", new() { ["plan"] = "Free" });
+Check(planPost.StatusCode == HttpStatusCode.Redirect && (await pilot.GetFromJsonAsync<BootstrapResponse>("/api/v1/me/bootstrap"))?.PersonalEntitlement.Plan == PersonalPlan.Free, "Account level form applies the chosen level");
+Check((await SubmitAsync(browser, planPage, planHtml, "/Account/Plan", new() { ["plan"] = "Premium" })).StatusCode == HttpStatusCode.Redirect, "Account level can be restored from the web");
 
 var created = await pilot.PostAsJsonAsync("/api/v1/virtual-airlines", new CreateAirlineRequest("Server Test " + run[..8], "server-" + run[..12], "TEST"));
 Check(created.IsSuccessStatusCode, "Owner creates airline with recent MFA proof");
@@ -98,6 +146,9 @@ if (created.IsSuccessStatusCode)
     using var outsider = host.Client("outsider-" + run);
     var denied = await outsider.GetAsync($"/api/v1/virtual-airlines/{airline.Id}/members");
     Check(denied.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound, "Cross-tenant roster is denied");
+    var airlinePlan = await pilot.PutAsJsonAsync($"/api/v1/virtual-airlines/{airline.Id}/plan", new SetAirlinePlanRequest(AirlinePlan.Pro));
+    Check(airlinePlan.IsSuccessStatusCode && (await airlinePlan.Content.ReadFromJsonAsync<AirlineWorkspace>())?.Plan == AirlinePlan.Pro, "Owner applies complimentary Pro to the airline");
+    Check((await outsider.PutAsJsonAsync($"/api/v1/virtual-airlines/{airline.Id}/plan", new SetAirlinePlanRequest(AirlinePlan.Community))).StatusCode == HttpStatusCode.Forbidden, "Non-members cannot change an airline plan");
     var invite = await pilot.PostAsJsonAsync($"/api/v1/virtual-airlines/{airline.Id}/invitations", new InviteMemberRequest("outsider-" + run + "@example.test", [AirlineRole.Pilot]));
     Check(invite.IsSuccessStatusCode, "Authorized invitation issuance");
     if (invite.IsSuccessStatusCode)
@@ -105,6 +156,16 @@ if (created.IsSuccessStatusCode)
         var invitation = (await invite.Content.ReadFromJsonAsync<IssuedInvitation>())!;
         Check((await outsider.PostAsJsonAsync("/api/v1/invitations/accept", new { token = invitation.Token })).IsSuccessStatusCode, "Invitation accepts body token without secret in URL");
         Check(!(await pilot.GetStringAsync($"/api/v1/virtual-airlines/{airline.Id}/invitations")).Contains(invitation.Token), "Invitation listing never returns raw token");
+        var activityLog = await pilot.GetStringAsync($"/api/v1/virtual-airlines/{airline.Id}/activity");
+        Check(activityLog.Contains("invitation.issued") && !activityLog.Contains(invitation.Token), "Activity log lists operator actions without secrets");
+        Check((await outsider.GetAsync($"/api/v1/virtual-airlines/{airline.Id}/activity")).StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound, "Activity log is administrator-only");
+        var airlinePage = await browser.GetAsync($"/Account/Airline/{airline.Id}");
+        var airlineHtml = await airlinePage.Content.ReadAsStringAsync();
+        Check(airlinePage.IsSuccessStatusCode && airlineHtml.Contains("Airline level") && airlineHtml.Contains("value=\"Pro\" checked"), "Airline page offers the owner the level form with the current level");
+        Check(airlineHtml.Contains("invitation.issued") && airlineHtml.Contains("airline.plan_changed") && !airlineHtml.Contains(invitation.Token), "Airline page shows the activity log without secrets");
+        Check((await browser.PostAsync($"/Account/Airline/{airline.Id}?handler=Plan", new FormUrlEncodedContent(new Dictionary<string, string> { ["plan"] = "Community" }))).StatusCode == HttpStatusCode.BadRequest, "Airline level change without CSRF token is rejected");
+        var airlinePlanPost = await SubmitAsync(browser, airlinePage, airlineHtml, $"/Account/Airline/{airline.Id}?handler=Plan", new() { ["plan"] = "Community" });
+        Check(airlinePlanPost.StatusCode == HttpStatusCode.Redirect && (await pilot.GetFromJsonAsync<AirlineWorkspace>($"/api/v1/virtual-airlines/{airline.Id}"))?.Plan == AirlinePlan.Community, "Airline level form applies the chosen level");
     }
 }
 using (var limited = host.Client("rate-" + run, "missing-claim"))
@@ -128,7 +189,7 @@ return failures == 0 ? 0 : 1;
 sealed class ServerFactory(string? connection, string environment = "Development") : WebApplicationFactory<ServerSettings>
 {
     private readonly RSA key = RSA.Create(2048);
-    private const string Issuer = "https://identity.example.test/";
+    internal const string Issuer = "https://identity.example.test/";
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseContentRoot(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../src/Alpha6Ops.Server")));
@@ -167,6 +228,7 @@ sealed class ServerFactory(string? connection, string environment = "Development
         claims.Remove("iss");
         if (variant == "missing-claim") claims.Remove(TrustedActor.Prefix + "email_verified");
         if (variant == "future-mfa") claims[TrustedActor.Prefix + "mfa_at"] = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds();
+        if (variant == "no-mfa") { claims[TrustedActor.Prefix + "mfa"] = false; claims.Remove(TrustedActor.Prefix + "mfa_at"); }
         using var otherKey = RSA.Create(2048);
         var securityKey = new RsaSecurityKey(variant == "wrong-signature" ? otherKey : key) { KeyId = "integration-only" };
         var descriptor = new SecurityTokenDescriptor

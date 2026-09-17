@@ -10,6 +10,7 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
     public DbSet<MembershipRole> MembershipRoles => Set<MembershipRole>();
     public DbSet<Invitation> Invitations => Set<Invitation>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
+    public DbSet<UserProfileRecord> Profiles => Set<UserProfileRecord>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -19,6 +20,15 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
         user.Property(x => x.Issuer).HasMaxLength(255); user.Property(x => x.Subject).HasMaxLength(255);
         user.Property(x => x.DisplayName).HasMaxLength(150); user.Property(x => x.Email).HasMaxLength(254);
         user.Property(x => x.SubscriptionStatus).HasMaxLength(30);
+
+        var profile = model.Entity<UserProfileRecord>();
+        profile.ToTable("user_profile"); profile.HasKey(x => x.UserId);
+        profile.Property(x => x.SimBriefUsername).HasMaxLength(80); profile.Property(x => x.Callsign).HasMaxLength(20);
+        profile.Property(x => x.HomeBaseIcao).HasMaxLength(4); profile.Property(x => x.WeightUnit).HasMaxLength(3);
+        profile.Property(x => x.AltitudeUnit).HasMaxLength(2); profile.Property(x => x.LandingDistanceUnit).HasMaxLength(2);
+        profile.Property(x => x.PreferredWorkspace).HasMaxLength(20); profile.Property(x => x.TimeZone).HasMaxLength(64);
+        profile.Property(x => x.AvatarInitials).HasMaxLength(3); profile.Property(x => x.LastSeenVersion).HasMaxLength(32);
+        profile.HasOne<UserAccount>().WithOne().HasForeignKey<UserProfileRecord>(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
 
         var airline = model.Entity<VirtualAirline>();
         airline.ToTable("virtual_airline"); airline.HasKey(x => x.Id); airline.HasIndex(x => x.Slug).IsUnique();

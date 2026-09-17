@@ -29,6 +29,13 @@ internal static class SimBriefImporter
         catch (IOException) { return ""; }
     }
 
+    // Seeds the local cache from the account profile so a fresh installation needs no re-typing.
+    internal static void SaveUsername(string username, string? root = null)
+    {
+        try { Directory.CreateDirectory(CacheDirectory(root)); File.WriteAllText(UsernamePath(root), username.Trim()); }
+        catch (IOException) { }
+    }
+
     internal static async Task<SimBriefImport> ImportAsync(string username, CancellationToken token = default, string? root = null)
     {
         username = username.Trim();

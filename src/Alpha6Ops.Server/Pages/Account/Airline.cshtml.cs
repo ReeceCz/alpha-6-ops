@@ -10,10 +10,12 @@ public class AirlineModel(AccountsService accounts, ServerSettings settings) : A
     public AirlineWorkspace? Airline { get; private set; }
     public MemberResponse[] Members { get; private set; } = [];
     public InvitationResponse[] Invitations { get; private set; } = [];
+    public ActivityEntry[] Activity { get; private set; } = [];
     public IssuedInvitation? Issued { get; private set; }
-    public async Task<IActionResult> OnGetAsync(CancellationToken ct)
+    public bool PlanSaved { get; private set; }
+    public async Task<IActionResult> OnGetAsync(bool planSaved, CancellationToken ct)
     {
-        try { await LoadAsync(ct); return Page(); }
+        try { await LoadAsync(ct); PlanSaved = planSaved; return Page(); }
         catch (IdentityException ex) { return Failure(ex); }
     }
     private async Task LoadAsync(CancellationToken ct)
@@ -21,10 +23,17 @@ public class AirlineModel(AccountsService accounts, ServerSettings settings) : A
         Airline = await Accounts.GetAirlineAsync(Actor, Id, ct);
         Members = await Accounts.ListMembersAsync(Actor, Id, ct);
         Invitations = await Accounts.ListInvitationsAsync(Actor, Id, ct);
+        Activity = await Accounts.ListActivityAsync(Actor, Id, ct);
+    }
+    public async Task<IActionResult> OnPostPlanAsync(AirlinePlan plan, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return await OnGetAsync(false, ct);
+        try { await Accounts.SetAirlinePlanAsync(Actor, Id, new(plan), ct); return RedirectToPage(new { Id, planSaved = true }); }
+        catch (IdentityException ex) { return Failure(ex); }
     }
     public async Task<IActionResult> OnPostInviteAsync(string email, AirlineRole[] roles, CancellationToken ct)
     {
-        if (!ModelState.IsValid) return await OnGetAsync(ct);
+        if (!ModelState.IsValid) return await OnGetAsync(false, ct);
         try
         {
             // Load before issuing so an unrelated read failure cannot discard the only token copy.
@@ -36,19 +45,19 @@ public class AirlineModel(AccountsService accounts, ServerSettings settings) : A
     }
     public async Task<IActionResult> OnPostRevokeAsync(Guid invitationId, CancellationToken ct)
     {
-        if (!ModelState.IsValid) return await OnGetAsync(ct);
+        if (!ModelState.IsValid) return await OnGetAsync(false, ct);
         try { await Accounts.RevokeInvitationAsync(Actor, Id, invitationId, ct); return RedirectToPage(new { Id }); }
         catch (IdentityException ex) { return Failure(ex); }
     }
     public async Task<IActionResult> OnPostRolesAsync(Guid membershipId, AirlineRole[] roles, CancellationToken ct)
     {
-        if (!ModelState.IsValid) return await OnGetAsync(ct);
+        if (!ModelState.IsValid) return await OnGetAsync(false, ct);
         try { await Accounts.ChangeRolesAsync(Actor, Id, membershipId, new(roles), ct); return RedirectToPage(new { Id }); }
         catch (IdentityException ex) { return Failure(ex); }
     }
     public async Task<IActionResult> OnPostTransferAsync(Guid newOwnerUserId, bool confirmTransfer, CancellationToken ct)
     {
-        if (!ModelState.IsValid) return await OnGetAsync(ct);
+        if (!ModelState.IsValid) return await OnGetAsync(false, ct);
         if (!confirmTransfer) return Failure(new("confirmation_required", "Confirm that you want to transfer ownership.", 400));
         try { await Accounts.TransferOwnershipAsync(Actor, Id, new(newOwnerUserId), ct); return RedirectToPage("Index"); }
         catch (IdentityException ex) { return Failure(ex); }

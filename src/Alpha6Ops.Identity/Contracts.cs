@@ -24,7 +24,28 @@ public sealed record WorkspaceSelection(Guid? AirlineId)
 }
 public sealed record BootstrapResponse(AccountProfile Account, PersonalEntitlement PersonalEntitlement,
     string[] PersonalCapabilities, AirlineWorkspace[] Airlines, WorkspaceSelection LastWorkspace,
-    DateTimeOffset ServerTime, DateTimeOffset OfflineExpiresAt);
+    DateTimeOffset ServerTime, DateTimeOffset OfflineExpiresAt, UserProfile? Profile = null);
+// Pilot preferences that follow the account between installations. Never security-relevant.
+public sealed record UserProfile(string SimBriefUsername, string Callsign, string HomeBaseIcao,
+    string WeightUnit, string AltitudeUnit, string LandingDistanceUnit, string PreferredWorkspace, string TimeZone,
+    string AvatarInitials, DateTimeOffset? LastSeenAt, string LastSeenVersion, DateTimeOffset? UpdatedAt)
+{
+    public static UserProfile Default { get; } = new("", "", "", "LBS", "FT", "FT", "last_used", "", "", null, "", null);
+}
+public sealed record UpdateProfileRequest(string SimBriefUsername, string Callsign, string HomeBaseIcao,
+    string WeightUnit, string AltitudeUnit, string LandingDistanceUnit, string PreferredWorkspace, string TimeZone, string AvatarInitials);
+public sealed record SetPersonalPlanRequest(PersonalPlan Plan);
+public sealed record SetAirlinePlanRequest(AirlinePlan Plan);
+public sealed record ReleaseInfo(string Version, string DownloadUrl, string Sha256);
+public sealed record ActivityEntry(Guid Id, string Action, string Details, DateTimeOffset CreatedAt, string ActorDisplayName);
+public static class SubscriptionStatuses
+{
+    public const string Active = "active";
+    // Granted without payment during early access; treated as current until billing replaces it.
+    public const string Complimentary = "complimentary";
+    public static bool IsCurrent(string status, DateTimeOffset? expiresAt, DateTimeOffset now) =>
+        status is Active or Complimentary && (expiresAt is null || expiresAt > now);
+}
 public sealed record CreateAirlineRequest(string Name, string Slug, string Callsign);
 public sealed record InviteMemberRequest(string Email, AirlineRole[] Roles);
 public sealed record ChangeRolesRequest(AirlineRole[] Roles);

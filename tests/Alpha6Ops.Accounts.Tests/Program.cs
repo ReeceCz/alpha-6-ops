@@ -49,6 +49,20 @@ Reject(() => AccountRules.RequireRecentMfa(actor with { EmailVerified = false },
 Check(AccountRules.Slug(" Test-Airline ") == "test-airline", "slug normalized");
 Reject(() => AccountRules.Slug("../admin"), "invalid_slug");
 Check(AccountRules.HashToken("secret").Length == 64 && AccountRules.HashToken("secret") != AccountRules.HashToken("other"), "invitation hash stable and nonplaintext");
+var profileRequest = new UpdateProfileRequest(" reece74 ", " a6-001 ", "kjfk", "kg", "m", "ft", "Personal", "", " rc ");
+var cleanProfile = AccountRules.Profile(profileRequest);
+Check(cleanProfile is { SimBriefUsername: "reece74", Callsign: "A6-001", HomeBaseIcao: "KJFK", WeightUnit: "KG", AltitudeUnit: "M", LandingDistanceUnit: "FT", PreferredWorkspace: "personal", AvatarInitials: "RC" }, "profile normalization");
+Reject(() => AccountRules.Profile(profileRequest with { SimBriefUsername = "x" }), "invalid_profile");
+Reject(() => AccountRules.Profile(profileRequest with { SimBriefUsername = "has space" }), "invalid_profile");
+Reject(() => AccountRules.Profile(profileRequest with { HomeBaseIcao = "TOOLONG" }), "invalid_profile");
+Reject(() => AccountRules.Profile(profileRequest with { WeightUnit = "ST" }), "invalid_profile");
+Reject(() => AccountRules.Profile(profileRequest with { PreferredWorkspace = "airline" }), "invalid_profile");
+Reject(() => AccountRules.Profile(profileRequest with { TimeZone = "Mars/Olympus" }), "invalid_profile");
+Reject(() => AccountRules.Profile(profileRequest with { AvatarInitials = "ABCD" }), "invalid_profile");
+Check(AccountRules.Profile(profileRequest with { TimeZone = "UTC" }).TimeZone == "UTC", "known time zone accepted");
+Check(AccountRules.Profile(profileRequest with { PreferredWorkspace = "portal" }).PreferredWorkspace == "portal", "portal start preference accepted");
+Check(AccountRules.ClientVersion("Alpha6OPS/0.16.0 (Windows)") == "0.16.0" && AccountRules.ClientVersion("curl/8 <script>").Length <= 32 && !AccountRules.ClientVersion("curl/8 <script>").Contains('<'), "client version extraction is sanitized");
+Check(SubscriptionStatuses.IsCurrent("complimentary", null, now) && !SubscriptionStatuses.IsCurrent("canceled", null, now) && !SubscriptionStatuses.IsCurrent("active", now.AddMinutes(-1), now), "complimentary counts as current until expiry");
 
 if (string.IsNullOrWhiteSpace(connection))
 {
@@ -86,7 +100,7 @@ await using (var db = Context())
     Check(!db.Database.HasPendingModelChanges(), "migration snapshot matches current model");
     await db.Database.MigrateAsync();
     await db.Database.MigrateAsync();
-    Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 1, "initial migration is repeatable");
+    Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 3, "migrations are repeatable");
 }
 var prefix = Guid.NewGuid().ToString("N")[..10];
 actor = actor with { Subject = prefix + "-owner", Email = prefix + "-owner@example.com" };
@@ -94,6 +108,22 @@ var pilot = actor with { Subject = prefix + "-pilot", DisplayName = "Pilot", Ema
 var outsider = actor with { Subject = prefix + "-outsider", Email = prefix + "-outsider@example.com" };
 var ownerBootstrap = await Run(s => s.BootstrapAsync(actor));
 Check(ownerBootstrap.PersonalEntitlement.Plan == PersonalPlan.Free && ownerBootstrap.Airlines.Length == 0, "new account is Personal Free");
+Check(ownerBootstrap.Profile is { SimBriefUsername: "", WeightUnit: "LBS", AltitudeUnit: "FT", PreferredWorkspace: "last_used", LastSeenAt: not null }, "first bootstrap provisions a default profile and stamps last seen");
+var versioned = await Run(s => s.BootstrapAsync(actor, "Alpha6OPS/0.16.0 (Windows NT 10.0)"));
+Check(versioned.Profile!.LastSeenVersion == "0.16.0", "bootstrap records the client version");
+var savedProfile = await Run(s => s.UpdateProfileAsync(actor, new("reece74", "a6-001", "kjfk", "KG", "FT", "M", "personal", "UTC", "rc")));
+Check(savedProfile is { SimBriefUsername: "reece74", Callsign: "A6-001", HomeBaseIcao: "KJFK", WeightUnit: "KG", LandingDistanceUnit: "M", AvatarInitials: "RC", UpdatedAt: not null }, "profile update round trip");
+Check((await Run(s => s.GetProfileAsync(actor))).SimBriefUsername == "reece74" && (await Run(s => s.BootstrapAsync(actor))).Profile!.HomeBaseIcao == "KJFK", "profile is durable and included in bootstrap");
+var portalProfile = await Run(s => s.UpdateProfileAsync(actor, new("reece74", "A6-001", "KJFK", "KG", "FT", "M", "portal", "UTC", "RC")));
+Check(portalProfile.PreferredWorkspace == "portal", "portal preference is stored by the database");
+await RejectAsync(() => Run(s => s.UpdateProfileAsync(actor, new("x", "", "", "LBS", "FT", "FT", "last_used", "", ""))), "invalid_profile");
+var unchanged = await Run(s => s.UpdateProfileAsync(actor, new("reece74", "A6-001", "KJFK", "KG", "FT", "M", "portal", "UTC", "RC")));
+Check(unchanged.UpdatedAt is { } same && portalProfile.UpdatedAt is { } first && (same - first).Duration() < TimeSpan.FromMilliseconds(1), "identical profile update is a no-op");
+await RejectAsync(() => Run(s => s.SetPersonalPlanAsync(actor with { EmailVerified = false }, new(PersonalPlan.Premium))), "email_verification_required");
+var premium = await Run(s => s.SetPersonalPlanAsync(actor, new(PersonalPlan.Premium)));
+Check(premium.Plan == PersonalPlan.Premium && premium.Status == "complimentary" && premium.ExpiresAt is null, "complimentary Premium applied");
+Check((await Run(s => s.BootstrapAsync(actor))).PersonalEntitlement.Plan == PersonalPlan.Premium, "bootstrap reports complimentary Premium as current");
+Check((await Run(s => s.SetPersonalPlanAsync(actor, new(PersonalPlan.Free)))).Plan == PersonalPlan.Free, "plan can return to Free");
 var concurrentUsers = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => Run(s => s.BootstrapAsync(pilot))));
 Check(concurrentUsers.Select(x => x.Account.Id).Distinct().Count() == 1, "concurrent account provisioning is idempotent");
 var pilotId = concurrentUsers[0].Account.Id;
@@ -123,8 +153,24 @@ await RejectDatabaseAsync(async () =>
     await db.SaveChangesAsync();
 }, "database preserves immutable founder");
 await RejectAsync(() => Run(s => s.CreateAirlineAsync(actor, new("Second", prefix + "second", "TWO"))), "plan_limit_reached");
+await RejectAsync(() => Run(s => s.SetAirlinePlanAsync(outsider, va.Id, new(AirlinePlan.Pro))), "membership_required");
+var proVa = await Run(s => s.SetAirlinePlanAsync(actor, va.Id, new(AirlinePlan.Pro)));
+Check(proVa.Plan == AirlinePlan.Pro && proVa.SubscriptionStatus == "complimentary", "owner applies complimentary Pro");
+var secondVa = await Run(s => s.CreateAirlineAsync(actor, new("Second", prefix + "second", "TWO")));
+Check(secondVa.Plan == AirlinePlan.Community, "complimentary Pro airline no longer occupies the Community slot");
+await RejectAsync(() => Run(s => s.SetAirlinePlanAsync(actor, va.Id, new(AirlinePlan.Community))), "plan_limit_reached");
+Check((await Run(s => s.SetAirlinePlanAsync(actor, secondVa.Id, new(AirlinePlan.Pro)))).Plan == AirlinePlan.Pro && (await Run(s => s.SetAirlinePlanAsync(actor, va.Id, new(AirlinePlan.Community)))).Plan == AirlinePlan.Community, "Community slot frees once the other airline is Pro");
+await Run(s => s.SetAirlinePlanAsync(actor, va.Id, new(AirlinePlan.Community)));
+await using (var db = Context())
+{
+    (await db.Airlines.SingleAsync(x => x.Id == secondVa.Id)).Status = "suspended";
+    await db.SaveChangesAsync();
+}
 await RejectAsync(() => Run(s => s.GetAirlineAsync(outsider, va.Id)), "membership_required");
 await RejectAsync(() => Run(s => s.ListMembersAsync(outsider, va.Id)), "membership_required");
+await RejectAsync(() => Run(s => s.ListActivityAsync(outsider, va.Id)), "membership_required");
+var activity = await Run(s => s.ListActivityAsync(actor, va.Id));
+Check(activity.Any(x => x.Action == "airline.created" && x.ActorDisplayName == actor.DisplayName) && activity.Any(x => x.Action == "airline.plan_changed") && activity.All(x => x.Details.Length <= 2000), "administrators can read the airline activity log with current actor names");
 await RejectAsync(() => Mutation(s => s.SetWorkspaceAsync(outsider, new(va.Id))), "membership_required");
 await RejectAsync(() => Run(s => s.InviteAsync(actor, va.Id, new(pilot.Email, [AirlineRole.Owner]))), "invalid_roles");
 var issued = await Run(s => s.InviteAsync(actor, va.Id, new(pilot.Email, [AirlineRole.Pilot])));
@@ -242,6 +288,12 @@ await using (var db = Context())
     Check(audits.Any(x => x.Action == "airline.ownership_transferred"), "ownership changes are audited");
     Check(audits.All(x => !x.Details.Contains(issued.Token) && !x.Details.Contains(revoked.Token)), "audit excludes invitation secrets");
     Check(audits.Count(x => x.Action == "invitation.accepted" && x.TargetId == issued.Invitation.Id) == 1, "concurrent acceptance has exactly one audit event");
+    Check(audits.Any(x => x.Action == "airline.plan_changed" && x.Details.Contains("Pro")), "airline plan changes are audited");
+    var personalAudits = await db.AuditEvents.Where(x => x.ActorUserId == ownerBootstrap.Account.Id && x.AirlineId == null).ToArrayAsync();
+    Check(personalAudits.Any(x => x.Action == "account.plan_changed" && x.Details.Contains("Premium")), "personal plan changes are audited");
+    var profileAudits = personalAudits.Where(x => x.Action == "profile.updated").OrderBy(x => x.CreatedAt).ToArray();
+    Check(profileAudits.Length == 2 && profileAudits[0].Details.Contains("simbrief") && profileAudits[1].Details == "workspace" && profileAudits.All(x => !x.Details.Contains("reece74")),
+        "profile audit lists changed fields without values and skips no-op saves");
 }
 var racingOwner = actor with { Subject = prefix + "-race", Email = prefix + "-race@example.com" };
 var races = await Task.WhenAll(Enumerable.Range(0, 4).Select(async i =>

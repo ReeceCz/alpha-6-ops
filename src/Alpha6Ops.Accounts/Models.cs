@@ -18,6 +18,23 @@ public sealed class UserAccount
     public DateTimeOffset CreatedAt { get; set; }
 }
 
+public sealed class UserProfileRecord
+{
+    public Guid UserId { get; set; }
+    public string SimBriefUsername { get; set; } = "";
+    public string Callsign { get; set; } = "";
+    public string HomeBaseIcao { get; set; } = "";
+    public string WeightUnit { get; set; } = "LBS";
+    public string AltitudeUnit { get; set; } = "FT";
+    public string LandingDistanceUnit { get; set; } = "FT";
+    public string PreferredWorkspace { get; set; } = "last_used";
+    public string TimeZone { get; set; } = "";
+    public string AvatarInitials { get; set; } = "";
+    public DateTimeOffset? LastSeenAt { get; set; }
+    public string LastSeenVersion { get; set; } = "";
+    public DateTimeOffset? UpdatedAt { get; set; }
+}
+
 public sealed class VirtualAirline
 {
     public Guid Id { get; set; }

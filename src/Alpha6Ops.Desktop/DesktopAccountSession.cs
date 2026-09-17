@@ -19,8 +19,13 @@ namespace Alpha6Ops.Desktop;
 internal sealed record SavedAccountSession(string ConfigurationKey, string? RefreshToken, BootstrapResponse Bootstrap,
     DateTimeOffset ReceivedAt, DateTimeOffset LastSeenAt, WorkspaceSelection Workspace);
 
-// Only these application-authored messages are safe to show in the account window.
-internal sealed class AccountSessionException(string message) : InvalidOperationException(message);
+// Only these application-authored messages are safe to show in the account window. Code carries the
+// server's stable problem code (or a local one such as "offline") so callers can branch without parsing text.
+internal sealed class AccountSessionException(string message, string code = "") : InvalidOperationException(message)
+{
+    internal string Code { get; } = code;
+}
+internal sealed record ProblemBody(string? Title, string? Code);
 internal sealed record BrowserLoginResult(string AccessToken, string? RefreshToken, bool IsError = false);
 
 internal sealed class DesktopAccountSession
@@ -44,6 +49,9 @@ internal sealed class DesktopAccountSession
         ? Bootstrap?.Airlines.FirstOrDefault(a => a.Id == id)?.Name ?? "Flying as a Pilot" : "Flying as a Pilot";
     internal string DataDirectory => Path.Combine(rootDirectory, "accounts", Bootstrap!.Account.Id.ToString("N"),
         Workspace.AirlineId is { } id ? Path.Combine("airlines", id.ToString("N")) : "personal");
+    internal UserProfile Profile => Bootstrap?.Profile ?? UserProfile.Default;
+    internal static string ClientVersion { get; } = typeof(DesktopAccountSession).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
+    internal const string MultiFactorPolicy = "http://schemas.openid.net/pape/policies/2007/06/multi-factor";
 
     internal DesktopAccountSession(IdentityConfiguration configuration, string? directory = null, Func<HttpMessageHandler>? httpHandlerFactory = null,
         Func<LoginRequest, CancellationToken, Task<BrowserLoginResult>>? browserLogin = null)
@@ -97,6 +105,130 @@ internal sealed class DesktopAccountSession
         await gate.WaitAsync(token);
         try { return await RestoreCoreAsync(token); }
         finally { gate.Release(); }
+    }
+
+    // Re-authenticates the same account with a fresh multi-factor proof. The current session and
+    // workspace survive a cancelled or failed attempt; only a verified same-account result replaces them.
+    internal async Task StepUpAsync(CancellationToken token)
+    {
+        await gate.WaitAsync(token);
+        try
+        {
+            if (saved is null) throw new AccountSessionException("Sign in to continue.", "signed_out");
+            var parameters = new System.Collections.Generic.Dictionary<string, string>
+            {
+                ["audience"] = Configuration.Audience, ["prompt"] = "login", ["max_age"] = "0",
+                ["acr_values"] = MultiFactorPolicy, ["login_hint"] = saved.Bootstrap.Account.Email
+            };
+            var result = await login(new LoginRequest { FrontChannelExtraParameters = new Parameters(parameters) }, token);
+            token.ThrowIfCancellationRequested();
+            if (result.IsError || string.IsNullOrWhiteSpace(result.AccessToken))
+                throw new AccountSessionException("Identity confirmation was canceled or could not be verified. Try again.", "step_up_failed");
+            await EstablishAsync(result.AccessToken, result.RefreshToken, token);
+        }
+        finally { gate.Release(); }
+    }
+
+    // Runs an account operation; when the service asks for a fresh multi-factor proof, confirms with the
+    // caller, performs the step-up, and retries exactly once.
+    internal async Task<T> WithStepUpAsync<T>(Func<Task<T>> action, Func<Task<bool>> confirm, CancellationToken token)
+    {
+        try { return await action(); }
+        catch (AccountSessionException error) when (error.Code == "mfa_required")
+        {
+            if (!await confirm()) throw new OperationCanceledException();
+            await StepUpAsync(token);
+            return await action();
+        }
+    }
+
+    internal Task<UserProfile> UpdateProfileAsync(UpdateProfileRequest request, CancellationToken token) => Under(async () =>
+    {
+        var profile = await SendAsync<UserProfile>(HttpMethod.Put, "api/v1/me/profile", request, token)
+            ?? throw new InvalidDataException("The account service returned an empty profile.");
+        if (saved is not null) Save(saved with { Bootstrap = saved.Bootstrap with { Profile = profile } });
+        return profile;
+    }, token);
+    internal Task<PersonalEntitlement> SetPersonalPlanAsync(PersonalPlan plan, CancellationToken token) => Under(async () =>
+    {
+        var entitlement = await SendAsync<PersonalEntitlement>(HttpMethod.Put, "api/v1/me/plan", new SetPersonalPlanRequest(plan), token)
+            ?? throw new InvalidDataException("The account service returned an empty plan.");
+        await EstablishAsync(accessToken!, null, token);
+        return entitlement;
+    }, token);
+    internal Task<AirlineWorkspace> CreateAirlineAsync(CreateAirlineRequest request, CancellationToken token) => Under(async () =>
+    {
+        var airline = await SendAsync<AirlineWorkspace>(HttpMethod.Post, "api/v1/virtual-airlines", request, token)
+            ?? throw new InvalidDataException("The account service returned an empty airline.");
+        await EstablishAsync(accessToken!, null, token);
+        return airline;
+    }, token);
+    internal Task<AirlineWorkspace> AcceptInvitationAsync(string code, CancellationToken token) => Under(async () =>
+    {
+        var airline = await SendAsync<AirlineWorkspace>(HttpMethod.Post, "api/v1/invitations/accept", new { token = code.Trim() }, token)
+            ?? throw new InvalidDataException("The account service returned an empty airline.");
+        await EstablishAsync(accessToken!, null, token);
+        return airline;
+    }, token);
+    internal Task<AirlineWorkspace> SetAirlinePlanAsync(Guid airlineId, AirlinePlan plan, CancellationToken token) => Under(async () =>
+    {
+        var airline = await SendAsync<AirlineWorkspace>(HttpMethod.Put, $"api/v1/virtual-airlines/{airlineId}/plan", new SetAirlinePlanRequest(plan), token)
+            ?? throw new InvalidDataException("The account service returned an empty airline.");
+        await EstablishAsync(accessToken!, null, token);
+        return airline;
+    }, token);
+    internal Task<IssuedInvitation> InviteAsync(Guid airlineId, InviteMemberRequest request, CancellationToken token) => Under(async () =>
+        await SendAsync<IssuedInvitation>(HttpMethod.Post, $"api/v1/virtual-airlines/{airlineId}/invitations", request, token)
+            ?? throw new InvalidDataException("The account service returned an empty invitation."), token);
+    internal Task<InvitationResponse[]> ListInvitationsAsync(Guid airlineId, CancellationToken token) => Under(async () =>
+        await SendAsync<InvitationResponse[]>(HttpMethod.Get, $"api/v1/virtual-airlines/{airlineId}/invitations", null, token) ?? [], token);
+    internal Task RevokeInvitationAsync(Guid airlineId, Guid invitationId, CancellationToken token) => Under(async () =>
+        await SendAsync<object>(HttpMethod.Delete, $"api/v1/virtual-airlines/{airlineId}/invitations/{invitationId}", null, token), token);
+    internal Task<MemberResponse[]> ListMembersAsync(Guid airlineId, CancellationToken token) => Under(async () =>
+        await SendAsync<MemberResponse[]>(HttpMethod.Get, $"api/v1/virtual-airlines/{airlineId}/members", null, token) ?? [], token);
+    internal Task ChangeRolesAsync(Guid airlineId, Guid membershipId, AirlineRole[] roles, CancellationToken token) => Under(async () =>
+        await SendAsync<object>(HttpMethod.Put, $"api/v1/virtual-airlines/{airlineId}/members/{membershipId}/roles", new ChangeRolesRequest(roles), token), token);
+    internal Task TransferOwnershipAsync(Guid airlineId, Guid newOwnerUserId, CancellationToken token) => Under(async () =>
+    {
+        await SendAsync<object>(HttpMethod.Post, $"api/v1/virtual-airlines/{airlineId}/ownership-transfer", new TransferOwnershipRequest(newOwnerUserId), token);
+        await EstablishAsync(accessToken!, null, token);
+        return true;
+    }, token);
+
+    private async Task<T> Under<T>(Func<Task<T>> action, CancellationToken token)
+    {
+        await gate.WaitAsync(token);
+        try { return await action(); }
+        finally { gate.Release(); }
+    }
+
+    // Authenticated call while holding gate. One silent credential refresh on 401; explicit provider or
+    // service rejections become AccountSessionException with the server's stable code and never clear the
+    // session, so a multi-factor prompt can follow without signing the pilot out.
+    private async Task<T?> SendAsync<T>(HttpMethod method, string path, object? body, CancellationToken token, bool retried = false)
+    {
+        if (IsOffline || string.IsNullOrEmpty(accessToken))
+            throw new AccountSessionException("Connect to the internet to use account services.", "offline");
+        using var client = Api(accessToken);
+        using var request = new HttpRequestMessage(method, path);
+        if (body is not null) request.Content = JsonContent.Create(body);
+        using var response = await client.SendAsync(request, token);
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            if (!retried && !string.IsNullOrEmpty(saved?.RefreshToken) && await RestoreCoreAsync(token) && !IsOffline)
+                return await SendAsync<T>(method, path, body, token, retried: true);
+            Clear();
+            throw new AccountSessionException("Your session has expired. Sign in again.", "session_expired");
+        }
+        if ((int)response.StatusCode >= 500) throw new HttpRequestException("The account service is unavailable.", null, response.StatusCode);
+        if (!response.IsSuccessStatusCode)
+        {
+            ProblemBody? problem = null;
+            try { problem = await response.Content.ReadFromJsonAsync<ProblemBody>(cancellationToken: token); } catch (Exception error) when (error is JsonException or IOException) { }
+            throw new AccountSessionException(problem?.Title is { Length: > 0 } title ? title : "The account service declined that request.", problem?.Code ?? "");
+        }
+        if (response.StatusCode == HttpStatusCode.NoContent || typeof(T) == typeof(object)) return default;
+        return await response.Content.ReadFromJsonAsync<T>(cancellationToken: token);
     }
 
     // Called only while holding gate, including before committing a workspace change.
@@ -216,6 +348,7 @@ internal sealed class DesktopAccountSession
         var client = Http();
         client.BaseAddress = new Uri(Configuration.ApiBaseUrl.TrimEnd('/') + "/");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", access);
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("Alpha6OPS/" + ClientVersion);
         return client;
     }
     private HttpClient Http() => new(handlerFactory?.Invoke() ?? new HttpClientHandler { AllowAutoRedirect = false })

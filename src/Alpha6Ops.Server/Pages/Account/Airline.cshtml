@@ -5,8 +5,17 @@
 @if (Model.Issued is { } issued) {
     <section class="notice" role="status"><h2>Invitation created for @issued.Invitation.Email</h2><p>Copy this code now. It is shown once and expires @issued.Invitation.ExpiresAt.ToString("u"). Send your invitee this code and the <a asp-page="Join">join page</a>. Email delivery is not connected yet.</p><code class="break">@issued.Token</code></section>
 }
+@if (Model.PlanSaved) { <div class="notice" role="status"><p>Airline level updated.</p></div> }
 @if (Model.Airline is { } airline) {
-<div class="page-heading"><a href="/Account">← Your workspaces</a><div class="eyebrow">@airline.Callsign / @airline.Plan</div><h1>@airline.Name</h1><p class="lead">Manage your crew and invitations.</p></div>
+<div class="page-heading"><a href="/Account">← Your workspaces</a><div class="eyebrow">@airline.Callsign / @airline.Plan / @airline.SubscriptionStatus</div><h1>@airline.Name</h1><p class="lead">Manage your crew, invitations and airline level. Administrative changes need a security check within the last five minutes.</p>
+    <div class="account-summary"><span>Address: <code>@airline.Slug</code></span><span>@Model.Members.Count(m => m.Status == MembershipStatus.Active) active crew</span><span>@Model.Invitations.Count(i => i.Status == "pending") pending invitations</span></div></div>
+@if (airline.Capabilities.Contains(Capabilities.OwnershipManage)) {
+<section class="card"><h2>Airline level</h2><p>Complimentary during early access — no payment is collected.</p>
+<form method="post" asp-page-handler="Plan"><div class="grid two plan-grid">
+    <label class="card plan-card @(airline.Plan == AirlinePlan.Community ? "selected" : "")"><input type="radio" name="plan" value="Community" checked="@(airline.Plan == AirlinePlan.Community)" /><div class="eyebrow">AIRLINE</div><h2>Community</h2><span class="badge">Included</span><ul><li>Crew roster and invitations</li><li>Shared dispatch board</li><li>One Community airline per owner</li></ul></label>
+    <label class="card plan-card @(airline.Plan == AirlinePlan.Pro ? "selected" : "")"><input type="radio" name="plan" value="Pro" checked="@(airline.Plan == AirlinePlan.Pro)" /><div class="eyebrow">AIRLINE</div><h2>Pro</h2><span class="badge">Complimentary · early access</span><ul><li>Everything in Community</li><li>Does not count toward the Community limit</li><li>Operations reporting (in development)</li><li>Priority support</li></ul></label>
+</div><div class="actions"><button class="button secondary">Apply level</button></div></form></section>
+}
 <section class="card"><h2>Invite a crew member</h2><form method="post" asp-page-handler="Invite" class="stack">
     <label for="email">Email address</label><input id="email" name="email" type="email" maxlength="254" required />
     <fieldset><legend>Initial roles</legend>
@@ -37,4 +46,10 @@
 @foreach (var member in Model.Members.Where(m => m.Status == MembershipStatus.Active && !m.Roles.Contains(AirlineRole.Owner))) { <option value="@member.UserId">@member.DisplayName (@member.Email)</option> }
 </select><label class="check"><input type="checkbox" name="confirmTransfer" value="true" required />I understand that I will give ownership to this member.</label><button class="button secondary">Transfer ownership</button></form></section>
 }
+<section class="card"><h2>Activity</h2><p>The last @Model.Activity.Length administrative events for this airline. Invitation codes are never recorded here.</p>
+@if (Model.Activity.Length == 0) { <p class="muted">No activity yet.</p> } else {
+<div class="table-scroll"><table class="activity"><thead><tr><th scope="col">When</th><th scope="col">Who</th><th scope="col">Event</th><th scope="col">Details</th></tr></thead><tbody>
+@foreach (var entry in Model.Activity) { <tr><td class="nowrap">@entry.CreatedAt.ToString("u")</td><td>@entry.ActorDisplayName</td><td><code>@entry.Action</code></td><td>@entry.Details</td></tr> }
+</tbody></table></div>}
+</section>
 }

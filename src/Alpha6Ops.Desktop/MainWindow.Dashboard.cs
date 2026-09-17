@@ -55,7 +55,9 @@ public partial class MainWindow
         FlightTrackingView.PirepSubmissionRequested=SubmitCompletedPirep;
         FlightTrackingView.PirepCloseoutCompleted+=(_,_)=>CompletePirepCloseout();
         PilotLogbookView.DashboardRequested+=(_,_)=>ShowDashboard();
+        if (account?.Profile.SimBriefUsername is { Length: > 0 } simBrief && SimBriefImporter.LoadUsername(stateDirectory) != simBrief) SimBriefImporter.SaveUsername(simBrief, stateDirectory);
         DispatchView.SetDataDirectory(stateDirectory);
+        DispatchView.SimBriefUsernameUsed += async (_, username) => await RememberSimBriefAsync(username);
         DispatchView.DashboardRequested+=(_,_)=>ShowDashboard();
         DispatchView.ManualRequested+=(_,_)=>{SetFlight_Click(this,new RoutedEventArgs());UpdateDispatchState();};
         DispatchView.FlightAccepted+=(_,plan)=>AcceptDispatchFlight(plan);

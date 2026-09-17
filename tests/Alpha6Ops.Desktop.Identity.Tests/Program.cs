@@ -43,9 +43,33 @@ HttpResponseMessage Json(object value, HttpStatusCode code = HttpStatusCode.OK) 
 var mode = "offline";
 var tokensSeen = new List<string>();
 var workspaceWrites = 0;
+var airlineCreates = 0;
+var unauthorizedServed = false;
+var lastUserAgent = "";
+HttpResponseMessage Problem(HttpStatusCode code, string problemCode, string title) => Json(new { type = "about:blank", title, status = (int)code, code = problemCode }, code);
 async Task<HttpResponseMessage> Handle(HttpRequestMessage request)
 {
     if (mode == "offline") throw new HttpRequestException("Simulated network outage");
+    lastUserAgent = request.Headers.UserAgent.ToString();
+    if (request.RequestUri!.AbsolutePath.StartsWith("/api/") && mode == "unauthorized-once" && !unauthorizedServed)
+    { unauthorizedServed = true; return new(HttpStatusCode.Unauthorized); }
+    if (request.RequestUri.AbsolutePath == "/api/v1/me/profile" && request.Method == HttpMethod.Put)
+    {
+        var body = (await request.Content!.ReadFromJsonAsync<UpdateProfileRequest>())!;
+        if (body.SimBriefUsername.Length == 1) return Problem(HttpStatusCode.BadRequest, "invalid_profile", "SimBrief username must be 2 to 80 characters without spaces.");
+        return Json(new UserProfile(body.SimBriefUsername, body.Callsign.ToUpperInvariant(), body.HomeBaseIcao.ToUpperInvariant(), body.WeightUnit, body.AltitudeUnit,
+            body.LandingDistanceUnit, body.PreferredWorkspace, body.TimeZone, body.AvatarInitials.ToUpperInvariant(), now, "0.16.0", now));
+    }
+    if (request.RequestUri.AbsolutePath == "/api/v1/virtual-airlines" && request.Method == HttpMethod.Post)
+    {
+        airlineCreates++;
+        if (mode == "mfa-required") return Problem(HttpStatusCode.Forbidden, "mfa_required", "Confirm your identity with a passkey or MFA to continue.");
+        return Json(airline with { Id = Guid.NewGuid(), Name = "Created Airline", Roles = [AirlineRole.Pilot, AirlineRole.Owner], IsFounder = true });
+    }
+    if (request.RequestUri.AbsolutePath == "/api/v1/invitations/accept") return Json(airline);
+    if (request.RequestUri.AbsolutePath.EndsWith("/invitations") && request.Method == HttpMethod.Post)
+        return Json(new IssuedInvitation(new InvitationResponse(Guid.NewGuid(), "NEW@EXAMPLE.INVALID", [AirlineRole.Pilot], now.AddDays(7), "pending"), "raw-invite-code"));
+    if (request.RequestUri.AbsolutePath.EndsWith("/members")) return Json(new[] { new MemberResponse(Guid.NewGuid(), bootstrap.Account.Id, "Test Pilot", "pilot@example.invalid", MembershipStatus.Active, [AirlineRole.Pilot, AirlineRole.Owner]) });
     if (request.RequestUri!.AbsolutePath == "/oauth/token")
     {
         tokensSeen.Add(await request.Content!.ReadAsStringAsync());
@@ -149,6 +173,36 @@ catch (OperationCanceledException)
 loginMode = "success";
 await session.LoginAsync(default);
 Check(session.Bootstrap is not null, "sign-in can be retried after cancellation");
+Check(lastUserAgent.StartsWith("Alpha6OPS/"), "account requests identify the desktop version");
+Check(session.Profile == UserProfile.Default, "missing server profile falls back to defaults without failing");
+var updatedProfile = await session.UpdateProfileAsync(new("reece74", "a6-001", "kjfk", "KG", "FT", "M", "personal", "UTC", "rc"), default);
+Check(updatedProfile.Callsign == "A6-001" && session.Profile.SimBriefUsername == "reece74" && Read().Bootstrap.Profile?.HomeBaseIcao == "KJFK",
+    "profile updates are cached in the protected session");
+try { await session.UpdateProfileAsync(new("x", "", "", "LBS", "FT", "FT", "last_used", "", ""), default); throw new Exception("Expected invalid profile"); }
+catch (AccountSessionException error) { Check(error.Code == "invalid_profile" && error.Message.Contains("SimBrief") && session.Bootstrap is not null, "service rejections surface the stable code and keep the session"); }
+var workspaceBefore = session.Workspace;
+mode = "mfa-required"; loginRequest = null;
+var confirmations = 0;
+var created = await session.WithStepUpAsync(() => session.CreateAirlineAsync(new("Created Airline", "created-airline", "CRT"), default),
+    () => { confirmations++; mode = "online"; return Task.FromResult(true); }, default);
+Check(created.Name == "Created Airline" && airlineCreates == 2 && confirmations == 1, "mfa_required prompts once, steps up, and retries exactly once");
+Check(loginRequest!.FrontChannelExtraParameters.Any(p => p.Key == "acr_values" && p.Value == DesktopAccountSession.MultiFactorPolicy)
+    && loginRequest.FrontChannelExtraParameters.Any(p => p.Key == "max_age" && p.Value == "0")
+    && loginRequest.FrontChannelExtraParameters.Any(p => p.Key == "prompt" && p.Value == "login")
+    && loginRequest.FrontChannelExtraParameters.Any(p => p.Key == "login_hint" && p.Value == bootstrap.Account.Email),
+    "step-up requests a fresh multi-factor proof for the signed-in account");
+Check(session.Workspace == workspaceBefore && session.Bootstrap is not null, "step-up preserves the workspace and session");
+mode = "mfa-required"; airlineCreates = 0;
+try { await session.WithStepUpAsync(() => session.CreateAirlineAsync(new("Blocked", "blocked", "BLK"), default), () => Task.FromResult(false), default); throw new Exception("Expected cancellation"); }
+catch (OperationCanceledException) { Check(airlineCreates == 1 && session.Bootstrap is not null, "declining the identity check cancels without a retry or sign-out"); }
+loginMode = "error";
+try { await session.StepUpAsync(default); throw new Exception("Expected failed step-up"); }
+catch (AccountSessionException error) { Check(error.Code == "step_up_failed" && session.Bootstrap is not null && File.Exists(sessionPath), "failed step-up keeps the existing session"); }
+loginMode = "success"; mode = "unauthorized-once"; unauthorizedServed = false;
+var refreshesBefore401 = tokensSeen.Count;
+var members = await session.ListMembersAsync(airline.Id, default);
+Check(members.Length == 1 && tokensSeen.Count == refreshesBefore401 + 1, "a rejected access token is refreshed once and the call retried");
+mode = "online";
 var refreshes = tokensSeen.Count;
 await session.SelectWorkspaceAsync(WorkspaceSelection.Personal, default);
 Check(tokensSeen.Count == refreshes + 1 && workspaceWrites == 1 && Read().Workspace == WorkspaceSelection.Personal,

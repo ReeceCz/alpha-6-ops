@@ -9,6 +9,7 @@ work/
 *.dmp
 data/
 simconnect-sdk-path.txt
+src/Alpha6Ops.Desktop/alpha6-identity.json
 outputs/Alpha6OPS-Desktop/
 outputs/Alpha6OPS-Setup-*.exe
 outputs/Alpha6OPS-Desktop-*.zip

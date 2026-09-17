@@ -1,14 +1,28 @@
 @page "/Account"
 @model Alpha6Ops.Server.Pages.Account.IndexModel
-@{ ViewData["Title"] = "Your workspaces"; }
+@inject Microsoft.Extensions.Options.IOptions<ReleaseSettings> Release
+@{ ViewData["Title"] = "Your workspaces"; var release = Release.Value; }
 <partial name="_AccountError" model="Model" />
 @if (Model.Account is { } account) {
 <div class="page-heading">
     <div class="eyebrow">02 / SELECT YOUR WORKSPACE</div>
     <h1>Where are you flying today?</h1>
     <p class="lead">Fly independently or connect with your crew. Choose the workspace for your next desktop sign-in.</p>
-    <div class="account-summary"><strong>@account.Account.DisplayName</strong><span>@account.Account.Email</span><span class="badge">Personal @account.PersonalEntitlement.Plan</span></div>
+    <div class="account-summary"><strong>@account.Account.DisplayName</strong><span>@account.Account.Email</span><a class="badge" asp-page="Plan">Personal @account.PersonalEntitlement.Plan</a>@if (!account.Account.EmailVerified) { <span class="badge warn">Email not verified</span> }</div>
 </div>
+<section class="grid two account-panels" aria-label="Account">
+    <article class="card"><div class="eyebrow">ACCOUNT</div><h2>@account.Account.DisplayName</h2>
+        <dl class="facts"><dt>Email</dt><dd>@account.Account.Email @(account.Account.EmailVerified ? "· verified" : "· not verified")</dd>
+        <dt>Status</dt><dd>@account.Account.Status</dd>
+        <dt>Personal level</dt><dd>@account.PersonalEntitlement.Plan · @account.PersonalEntitlement.Status</dd>
+        @if (account.Profile is { } profile) { <dt>Home base</dt><dd>@(profile.HomeBaseIcao.Length > 0 ? profile.HomeBaseIcao : "—") @(profile.Callsign.Length > 0 ? $"· {profile.Callsign}" : "")</dd> }</dl>
+        @if (!account.Account.EmailVerified) { <p>Verify your email from the message Alpha 6 sent you, then sign in again to join or create airlines.</p> }
+        <div class="actions"><a class="button secondary small" asp-page="Profile">Pilot profile</a><a class="button secondary small" asp-page="Plan">Account level</a><a href="/Support">Security &amp; sign-in</a></div></article>
+    <article class="card"><div class="eyebrow">DESKTOP APP / WINDOWS</div><h2>Alpha 6 OPS for the flight deck</h2>
+        @if (account.Profile is { LastSeenAt: { } seen } desktop) { <p>Last signed in @seen.ToString("u")@(desktop.LastSeenVersion.Length > 0 ? $" from v{desktop.LastSeenVersion}" : "").</p> } else { <p>The desktop app has not signed in with this account yet.</p> }
+        @if (release.Available) { <p>Current release: v@(release.Version)@(account.Profile?.LastSeenVersion == release.Version ? " · you are up to date" : "").</p> } else { <p class="muted">A verified public release has not been published yet.</p> }
+        <div class="actions"><a class="button small" href="/Download">Download</a><span class="muted">Sign in with this account after installing.</span></div></article>
+</section>
 <section class="card personal-workspace @(account.LastWorkspace.AirlineId is null ? "selected" : "")" aria-label="Personal workspace">
     <div class="workspace-icon" aria-hidden="true">✈</div>
     <div class="workspace-copy"><div class="workspace-title"><h2>Flying as a Pilot</h2><span class="badge">@account.PersonalEntitlement.Plan</span></div><p>Your flights, your progress. All in your own space.</p><div class="eyebrow">LOGBOOK / DISPATCH / TRACKING / WEATHER</div></div>

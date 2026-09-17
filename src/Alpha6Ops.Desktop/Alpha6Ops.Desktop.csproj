@@ -27,6 +27,9 @@
     <Content Include="Assets/alpha6.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Resource Include="Assets/alpha6-mark.png" />
     <Resource Include="Assets/Dashboard/*.png" />
+    <Resource Include="Assets/Dashboard/*.jpg" />
     <None Update="alpha6-identity.example.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- Machine-local, gitignored: mirrors alpha6-identity.example.json so a real config survives every fresh build/launcher run. -->
+    <None Update="alpha6-identity.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="Exists('alpha6-identity.json')" />
   </ItemGroup>
 </Project>

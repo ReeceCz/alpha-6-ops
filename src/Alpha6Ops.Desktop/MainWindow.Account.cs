@@ -23,6 +23,24 @@ public partial class MainWindow
         OpsNoticeWindow.Show(this, "Sign-in required", "Your local authorization has expired. Open Account and reconnect before starting a new flight. Recorded flights are preserved.");
         return false;
     }
+    // Best effort: the local cache already has the value; the profile just makes it follow the account.
+    private async Task RememberSimBriefAsync(string username)
+    {
+        if (account?.Bootstrap is null || account.IsOffline || username.Length < 2 || account.Profile.SimBriefUsername == username) return;
+        var p = account.Profile;
+        try { await account.UpdateProfileAsync(new(username, p.Callsign, p.HomeBaseIcao, p.WeightUnit, p.AltitudeUnit, p.LandingDistanceUnit, p.PreferredWorkspace, p.TimeZone, p.AvatarInitials), lifetime.Token); }
+        catch (Exception error) when (error is AccountSessionException or System.Net.Http.HttpRequestException or OperationCanceledException) { }
+    }
+
+    private async Task SyncUnitsToProfileAsync(GeneralSettings settings)
+    {
+        if (account?.Bootstrap is null || account.IsOffline) return;
+        var p = account.Profile;
+        if (p.WeightUnit == settings.WeightUnit && p.AltitudeUnit == settings.AltitudeUnit && p.LandingDistanceUnit == settings.LandingDistanceUnit) return;
+        try { await account.UpdateProfileAsync(new(p.SimBriefUsername, p.Callsign, p.HomeBaseIcao, settings.WeightUnit, settings.AltitudeUnit, settings.LandingDistanceUnit, p.PreferredWorkspace, p.TimeZone, p.AvatarInitials), lifetime.Token); }
+        catch (Exception error) when (error is AccountSessionException or System.Net.Http.HttpRequestException or OperationCanceledException) { }
+    }
+
     private void InitializeAccountWorkspace()
     {
         if (diagnosticMode && account is null && !pilotPreview) return;

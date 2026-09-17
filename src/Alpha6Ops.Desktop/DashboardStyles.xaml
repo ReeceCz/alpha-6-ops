@@ -98,6 +98,7 @@
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
               <Setter TargetName="Chrome" Property="BorderBrush" Value="#FFDA00" />
+              <Setter Property="Foreground" Value="#FFDA00" />
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
               <Setter TargetName="Chrome" Property="Opacity" Value="0.75" />
@@ -115,6 +116,12 @@
     <Setter Property="Foreground" Value="#090D10" />
     <Setter Property="BorderBrush" Value="#FFE653" />
     <Setter Property="FontWeight" Value="SemiBold" />
+    <Style.Triggers>
+      <Trigger Property="IsMouseOver" Value="True">
+        <Setter Property="Background" Value="#FFE653" />
+        <Setter Property="Foreground" Value="#090D10" />
+      </Trigger>
+    </Style.Triggers>
   </Style>
   <Style x:Key="OpsExit" TargetType="Button" BasedOn="{StaticResource OpsButton}">
     <Setter Property="Background" Value="#101B23" />
@@ -135,6 +142,9 @@
     <Setter Property="Foreground" Value="#42ACFF" />
     <Setter Property="Padding" Value="6,4" />
     <Setter Property="FontSize" Value="11" />
+    <Style.Triggers>
+      <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="#FFDA00" /></Trigger>
+    </Style.Triggers>
   </Style>
   <Style x:Key="OpsNav" TargetType="Button" BasedOn="{StaticResource OpsButton}">
     <Setter Property="Background" Value="Transparent" />

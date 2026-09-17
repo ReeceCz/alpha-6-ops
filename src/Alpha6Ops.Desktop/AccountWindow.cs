@@ -8,7 +8,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using Alpha6Ops.Identity;
 
 namespace Alpha6Ops.Desktop;
@@ -41,6 +43,7 @@ internal sealed partial class AccountWindow : Window
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         PreviewBanner.Visibility = preview ? Visibility.Visible : Visibility.Collapsed;
         PreviewWorkspaceBanner.Visibility = preview ? Visibility.Visible : Visibility.Collapsed;
+        FooterVersionText.Text = $"ALPHA 6 OPS     v{typeof(App).Assembly.GetName().Version?.ToString(3) ?? "0.0.0"}";
         Closed += (_, _) => lifetime.Cancel();
         SizeChanged += (_, _) => UpdateCompactLayout();
         if (account?.Bootstrap is not null) ShowWorkspaces(); else ShowLogin();
@@ -48,9 +51,26 @@ internal sealed partial class AccountWindow : Window
         if (restore && account is not null) Loaded += async (_, _) => await RunAsync(async () =>
         {
             SetStatus("Checking your saved session…");
-            if (await account.RestoreAsync(lifetime.Token)) { Accepted = true; Close(); }
-            else ShowLogin();
+            if (!await account.RestoreAsync(lifetime.Token)) { ShowLogin(); return; }
+            await OpenPreferredWorkspaceAsync();
         });
+    }
+
+    // Honors the profile's "Open at sign-in" choice once a saved session is restored: "portal" stops on
+    // the workspace picker, "personal" always opens the pilot workspace, anything else resumes the last one.
+    private async Task OpenPreferredWorkspaceAsync()
+    {
+        switch (account!.Profile.PreferredWorkspace)
+        {
+            case "portal":
+                ShowWorkspaces();
+                SetStatus("Welcome back. Choose where you’re flying today.");
+                return;
+            case "personal" when account.Workspace.AirlineId is not null:
+                await account.SelectWorkspaceAsync(WorkspaceSelection.Personal, lifetime.Token);
+                break;
+        }
+        Accepted = true; Close();
     }
 
     private void UpdateCompactLayout()
@@ -126,14 +146,20 @@ internal sealed partial class AccountWindow : Window
         var bootstrap = account?.Bootstrap;
         var offline = account?.IsOffline == true;
         AccountNameText.Text = preview ? "Alex Morgan" : bootstrap!.Account.DisplayName;
-        AccountEmailText.Text = preview ? "Design preview · sample memberships" : bootstrap!.Account.Email;
-        AccountInitialsText.Text = string.Concat(AccountNameText.Text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
+        AccountEmailText.Text = (preview ? "Design preview · sample memberships" : bootstrap!.Account.Email).ToUpperInvariant();
+        AccountInitialsText.Text = account?.Profile.AvatarInitials is { Length: > 0 } initials ? initials
+            : string.Concat(AccountNameText.Text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
         ConnectionText.Text = preview ? "DESIGN PREVIEW" : offline ? "OFFLINE ACCESS" : "SIGNED IN";
+        PresenceDot.Fill = OpsUi.Brush(preview ? "#8C9AA6" : offline ? "#D6A34A" : "#5FAE6E");
         PlanText.Text = preview ? "FREE" : bootstrap!.PersonalEntitlement.Plan.ToString().ToUpperInvariant();
+        var unverified = !preview && !bootstrap!.Account.EmailVerified;
         SetStatus(offline ? "You’re offline. Continue with your current workspace or fly personally. Reconnect to switch airlines." : "");
+        CrewHintText.Text = unverified ? "Verify your email address from the message in your inbox, then select Refresh to create or join airlines." : "A new crew. A new destination.";
+        CrewHintText.Foreground = OpsUi.Brush(unverified ? "#E5C977" : "#9EAFBD");
         ReconnectButton.Visibility = preview ? Visibility.Collapsed : Visibility.Visible;
-        ReconnectButton.Content = offline ? "Reconnect" : "Refresh";
-        ManageButton.IsEnabled = JoinButton.IsEnabled = CreateButton.IsEnabled = !offline;
+        ReconnectLabel.Text = offline ? "Reconnect" : "Refresh";
+        ManageButton.IsEnabled = ProfileButton.IsEnabled = PlanButton.IsEnabled = UpdatesButton.IsEnabled = !offline;
+        JoinButton.IsEnabled = CreateButton.IsEnabled = !offline && !unverified;
         selection = account?.Workspace ?? WorkspaceSelection.Personal;
         var airlines = preview ? PreviewAirlines : bootstrap!.Airlines;
         AirlineCountText.Text = $"YOUR VIRTUAL AIRLINES  /  {airlines.Length:00}";
@@ -160,9 +186,16 @@ internal sealed partial class AccountWindow : Window
         var header = new Grid();
         var monogram = Copy(airline.Callsign.Length > 3 ? airline.Callsign[..3] : airline.Callsign, 12, "#D5E2ED", FontWeights.SemiBold);
         monogram.HorizontalAlignment = HorizontalAlignment.Center; monogram.VerticalAlignment = VerticalAlignment.Center;
-        header.Children.Add(new Border { Background = OpsUi.Brush("#233443"), CornerRadius = new CornerRadius(8), Width = 42, Height = 42, HorizontalAlignment = HorizontalAlignment.Left, Child = monogram });
+        header.Children.Add(new Border { Background = OpsUi.Brush("#0F1922"), BorderBrush = OpsUi.Brush("#3A4B5B"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), Width = 42, Height = 42, HorizontalAlignment = HorizontalAlignment.Left, Child = monogram });
         var tier = Copy(airline.Plan.ToString().ToUpperInvariant(), 10, "#A2B0BD"); tier.HorizontalAlignment = HorizontalAlignment.Right; tier.VerticalAlignment = VerticalAlignment.Center;
         header.Children.Add(tier); content.Children.Add(header);
+        if (!preview && airline.Capabilities.Contains(Capabilities.MembersManage))
+        {
+            var manage = new Button { Content = "Manage", Style = (Style)FindResource("PortalLink"), FontSize = 12, Padding = new Thickness(0, 4, 0, 4), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 0, 22) };
+            System.Windows.Automation.AutomationProperties.SetName(manage, "Manage " + airline.Name);
+            manage.Click += async (_, e) => { e.Handled = true; await RunAsync(() => ManageAirlineAsync(airline)); };
+            var cardHeader = new Grid(); cardHeader.Children.Add(manage); Grid.SetRow(cardHeader, 2); cardHeader.VerticalAlignment = VerticalAlignment.Bottom; cardHeader.HorizontalAlignment = HorizontalAlignment.Right; content.Children.Add(cardHeader);
+        }
         var name = Copy(airline.Name, 19, "#E8EDF2", FontWeights.SemiBold); name.Margin = new Thickness(0, 17, 0, 8); Grid.SetRow(name, 1); content.Children.Add(name);
         var roles = Copy(string.Join(" · ", airline.Roles) + (airline.IsFounder ? " · Founder" : ""), 12, "#A2B0BD"); Grid.SetRow(roles, 2); content.Children.Add(roles);
         card.Content = content;
@@ -178,17 +211,28 @@ internal sealed partial class AccountWindow : Window
 
     private void UpdateSelection()
     {
-        PersonalCard.BorderBrush = OpsUi.Brush(selection.AirlineId is null ? "#C3A94E" : "#304050");
-        PersonalCard.Background = OpsUi.Brush(selection.AirlineId is null ? "#242820" : "#121F2A");
-        PersonalSelected.Text = selection.AirlineId is null ? "●  SELECTED" : "SELECT  ↗";
-        foreach (var card in AirlineCards.Children.OfType<Button>())
+        var personalSelected = selection.AirlineId is null;
+        Style(PersonalCard, personalSelected);
+        PersonalSelected.Inlines.Clear();
+        if (personalSelected)
         {
-            var selected = (WorkspaceSelection)card.Tag == selection;
-            card.BorderBrush = OpsUi.Brush(selected ? "#C3A94E" : "#304050");
-            card.Background = OpsUi.Brush(selected ? "#242820" : "#121F2A");
+            PersonalSelected.Inlines.Add(new Run("●  ") { Foreground = OpsUi.Brush("#5FAE6E") });
+            PersonalSelected.Inlines.Add(new Run("ACTIVE") { Foreground = OpsUi.Brush("#E5C44A") });
         }
+        else PersonalSelected.Inlines.Add(new Run("SELECT  ↗") { Foreground = OpsUi.Brush("#D8E1E6") });
+        foreach (var card in AirlineCards.Children.OfType<Button>())
+            Style(card, (WorkspaceSelection)card.Tag == selection);
         SelectedNameText.Text = selectedName;
-        SelectedTypeText.Text = selection.AirlineId is null ? "PERSONAL WORKSPACE" : "VIRTUAL AIRLINE WORKSPACE";
+        SelectedTypeText.Text = personalSelected ? "PERSONAL WORKSPACE" : "VIRTUAL AIRLINE WORKSPACE";
+
+        // Selection is a lit gold frame with a soft glow; the card surface itself never changes so the
+        // photo gradient inside the card stays seamless.
+        static void Style(Button card, bool selected)
+        {
+            card.BorderBrush = OpsUi.Brush(selected ? "#E5C44A" : "#2E3F4E");
+            card.BorderThickness = new Thickness(selected ? 2 : 1);
+            card.Effect = selected ? new DropShadowEffect { Color = (Color)ColorConverter.ConvertFromString("#E5C44A"), BlurRadius = 26, ShadowDepth = 0, Opacity = 0.32 } : null;
+        }
     }
 
     private async void OpenWorkspace_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
@@ -204,6 +248,60 @@ internal sealed partial class AccountWindow : Window
     });
 
     private void Back_Click(object sender, RoutedEventArgs e) { if (preview) ShowLogin(); else Close(); }
+
+    private bool RequireAccount(string previewMessage)
+    {
+        if (preview) { SetStatus(previewMessage); return false; }
+        if (account?.Bootstrap is null) { SetStatus("Sign in to use account services."); return false; }
+        if (account.IsOffline) { SetStatus("Connect to the internet and select Reconnect to use account services."); return false; }
+        return true;
+    }
+
+    private async void Profile_Click(object sender, RoutedEventArgs e) => await RunAsync(() =>
+    {
+        if (!RequireAccount("In the connected app, this opens your pilot profile: SimBrief username, callsign, home base and units.")) return Task.CompletedTask;
+        var dialog = new ProfileWindow(this, account!, account!.DataDirectory); dialog.ShowDialog();
+        if (dialog.Saved is not null) { ShowWorkspaces(); SetStatus("Profile saved. Dispatch will use your SimBrief username automatically."); }
+        return Task.CompletedTask;
+    });
+
+    private async void Plan_Click(object sender, RoutedEventArgs e) => await RunAsync(() =>
+    {
+        if (!RequireAccount("In the connected app, this lets you choose between the Free and Premium account levels.")) return Task.CompletedTask;
+        var dialog = new PlanSelectionWindow(this, account!); dialog.ShowDialog();
+        if (dialog.Changed) { ShowWorkspaces(); SetStatus($"Your account level is now {account!.Bootstrap!.PersonalEntitlement.Plan}."); }
+        return Task.CompletedTask;
+    });
+
+    private async void Create_Click(object sender, RoutedEventArgs e) => await RunAsync(() =>
+    {
+        if (!RequireAccount("In the connected app, this creates your own virtual airline right here.")) return Task.CompletedTask;
+        var dialog = new CreateAirlineWindow(this, account!); dialog.ShowDialog();
+        if (dialog.Created is { } created) { ShowWorkspaces(); selection = new WorkspaceSelection(created.Id); selectedName = created.Name; UpdateSelection(); SetStatus($"{created.Name} is ready. Invite your crew from Manage, or open the workspace now."); }
+        return Task.CompletedTask;
+    });
+
+    private async void Join_Click(object sender, RoutedEventArgs e) => await RunAsync(() =>
+    {
+        if (!RequireAccount("In the connected app, this accepts an invitation code from an airline administrator.")) return Task.CompletedTask;
+        var dialog = new JoinAirlineWindow(this, account!); dialog.ShowDialog();
+        if (dialog.Joined is { } joined) { ShowWorkspaces(); selection = new WorkspaceSelection(joined.Id); selectedName = joined.Name; UpdateSelection(); SetStatus($"Welcome to {joined.Name}. Open the workspace to start flying with your crew."); }
+        return Task.CompletedTask;
+    });
+
+    private async void Updates_Click(object sender, RoutedEventArgs e) => await RunAsync(() =>
+    {
+        if (!RequireAccount("In the connected app, this shows the installed version and any published release.")) return Task.CompletedTask;
+        new ReleaseWindow(this, account!).ShowDialog();
+        return Task.CompletedTask;
+    });
+
+    private async Task ManageAirlineAsync(AirlineWorkspace airline)
+    {
+        if (!RequireAccount("In the connected app, this opens the airline's members and invitations.")) return;
+        var dialog = new AirlineMembersWindow(this, account!, airline); dialog.ShowDialog();
+        if (dialog.Changed && await account!.RestoreAsync(lifetime.Token)) ShowWorkspaces();
+    }
 
     private void Portal_Click(object sender, RoutedEventArgs e)
     {

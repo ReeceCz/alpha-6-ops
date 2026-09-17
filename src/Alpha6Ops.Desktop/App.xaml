@@ -3,6 +3,7 @@
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="DashboardStyles.xaml" />
+        <ResourceDictionary Source="PortalStyles.xaml" />
       </ResourceDictionary.MergedDictionaries>
       <SolidColorBrush x:Key="Yellow" Color="#F9D928" />
       <Style TargetType="TextBlock">

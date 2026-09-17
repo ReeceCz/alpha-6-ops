@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
 var migrateAccounts = args.Contains("--migrate-accounts", StringComparer.Ordinal);
@@ -117,6 +118,9 @@ if (settings.IsConfigured)
         o.MapInboundClaims = false;
         o.SaveTokens = false;
         o.GetClaimsFromUserInfoEndpoint = false;
+        // The handler's default claim actions strip "iss" after OnTokenValidated; the cookie principal must keep it
+        // because TrustedActor pins every request to the configured authority.
+        o.ClaimActions.Remove("iss");
         o.CallbackPath = "/signin-oidc";
         o.SignedOutCallbackPath = "/signout-callback-oidc";
         o.Scope.Clear(); o.Scope.Add("openid"); o.Scope.Add("profile"); o.Scope.Add("email");
@@ -159,13 +163,16 @@ app.UseExceptionHandler("/Error");
 if (!app.Environment.IsDevelopment()) app.UseHsts();
 app.Use(async (context, next) =>
 {
-    context.Response.Headers["Content-Security-Policy"] = "default-src 'self'; style-src 'self'; img-src 'self'; script-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'";
+    // Browsers apply form-action to the redirect that follows a form post, so sign-out (a POST that
+    // bounces through the identity provider's end-session endpoint) needs the authority listed too.
+    context.Response.Headers["Content-Security-Policy"] = $"default-src 'self'; style-src 'self'; img-src 'self'; script-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'{(settings.IsConfigured ? " " + settings.Authority.TrimEnd('/') : "")}; object-src 'none'";
     context.Response.Headers["X-Content-Type-Options"] = "nosniff";
     context.Response.Headers["Referrer-Policy"] = "no-referrer";
     context.Response.Headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
     if (context.Request.Path.StartsWithSegments("/Account") || context.Request.Path.StartsWithSegments("/api") || context.Request.Path.StartsWithSegments("/auth"))
         context.Response.Headers.CacheControl = "no-store";
-    if (!settings.IsConfigured && (context.Request.Path.StartsWithSegments("/auth") || context.Request.Path.StartsWithSegments("/Account") || context.Request.Path.StartsWithSegments("/api")))
+    if (!settings.IsConfigured && (context.Request.Path.StartsWithSegments("/auth") || context.Request.Path.StartsWithSegments("/Account")
+        || (context.Request.Path.StartsWithSegments("/api") && !context.Request.Path.StartsWithSegments("/api/v1/release"))))
     {
         await Results.Problem(statusCode: 503, title: "Account services are not configured.", extensions: new Dictionary<string, object?> { ["code"] = "identity_unavailable" }).ExecuteAsync(context);
         return;
@@ -209,6 +216,11 @@ app.MapGet("/auth/step-up", () =>
     return Results.Challenge(properties, ["Auth0"]);
 }).RequireAuthorization().RequireRateLimiting("requests");
 if (settings.IsConfigured) app.MapAccountApi();
+// Public release descriptor for the desktop updater; 404 until a signed installer is configured.
+app.MapGet("/api/v1/release", (IOptions<ReleaseSettings> release) => release.Value.Available
+    ? Results.Ok(new ReleaseInfo(release.Value.Version, release.Value.DownloadUrl, release.Value.Sha256))
+    : Results.Problem(statusCode: 404, title: "No release is published yet.", extensions: new Dictionary<string, object?> { ["code"] = "release_unavailable" }))
+    .RequireRateLimiting("requests");
 app.Run();
 
 public partial class Program { }

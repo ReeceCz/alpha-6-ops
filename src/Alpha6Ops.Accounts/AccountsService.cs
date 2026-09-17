@@ -48,8 +48,14 @@ public sealed class AccountsService(AccountsDbContext db, TimeProvider? timeProv
         return result;
     }
 
-    public Task<BootstrapResponse> BootstrapAsync(ActorIdentity actor, CancellationToken ct = default) => Execute(actor, async (user, now) =>
+    public Task<BootstrapResponse> BootstrapAsync(ActorIdentity actor, CancellationToken ct = default) => BootstrapAsync(actor, null, ct);
+
+    public Task<BootstrapResponse> BootstrapAsync(ActorIdentity actor, string? clientVersion, CancellationToken ct = default) => Execute(actor, async (user, now) =>
     {
+        var profile = await EnsureProfile(user, ct);
+        profile.LastSeenAt = now;
+        var version = AccountRules.ClientVersion(clientVersion);
+        if (version.Length > 0) profile.LastSeenVersion = version;
         var memberships = await db.Memberships.Include(x => x.Roles).Where(x => x.UserId == user.Id && x.Status == MembershipStatus.Active).ToArrayAsync(ct);
         var ids = memberships.Select(x => x.AirlineId).ToArray();
         var airlines = await db.Airlines.Where(x => ids.Contains(x.Id) && x.Status == "active").ToArrayAsync(ct);
@@ -58,7 +64,64 @@ public sealed class AccountsService(AccountsDbContext db, TimeProvider? timeProv
         var plan = IsCurrent(user.SubscriptionStatus, user.SubscriptionExpiresAt, now) && Enum.IsDefined(user.Plan) ? user.Plan : PersonalPlan.Free;
         return new BootstrapResponse(new(user.Id, user.DisplayName, user.Email, user.EmailVerified, user.Status),
             new(plan, user.SubscriptionStatus, user.SubscriptionExpiresAt), Capabilities.Personal, workspaces,
-            new(user.LastAirlineId), now, now.AddDays(30));
+            new(user.LastAirlineId), now, now.AddDays(30), ProfileView(profile));
+    }, ct);
+
+    public Task<UserProfile> GetProfileAsync(ActorIdentity actor, CancellationToken ct = default) => Execute(actor, async (user, now) =>
+        ProfileView(await EnsureProfile(user, ct)), ct);
+
+    public Task<UserProfile> UpdateProfileAsync(ActorIdentity actor, UpdateProfileRequest request, CancellationToken ct = default) => Execute(actor, async (user, now) =>
+    {
+        var clean = AccountRules.Profile(request);
+        var profile = await EnsureProfile(user, ct);
+        var changed = new List<string>();
+        void Set(string field, string current, string next, Action apply) { if (current != next) { changed.Add(field); apply(); } }
+        Set("simbrief", profile.SimBriefUsername, clean.SimBriefUsername, () => profile.SimBriefUsername = clean.SimBriefUsername);
+        Set("callsign", profile.Callsign, clean.Callsign, () => profile.Callsign = clean.Callsign);
+        Set("home_base", profile.HomeBaseIcao, clean.HomeBaseIcao, () => profile.HomeBaseIcao = clean.HomeBaseIcao);
+        Set("weight_unit", profile.WeightUnit, clean.WeightUnit, () => profile.WeightUnit = clean.WeightUnit);
+        Set("altitude_unit", profile.AltitudeUnit, clean.AltitudeUnit, () => profile.AltitudeUnit = clean.AltitudeUnit);
+        Set("landing_unit", profile.LandingDistanceUnit, clean.LandingDistanceUnit, () => profile.LandingDistanceUnit = clean.LandingDistanceUnit);
+        Set("workspace", profile.PreferredWorkspace, clean.PreferredWorkspace, () => profile.PreferredWorkspace = clean.PreferredWorkspace);
+        Set("time_zone", profile.TimeZone, clean.TimeZone, () => profile.TimeZone = clean.TimeZone);
+        Set("initials", profile.AvatarInitials, clean.AvatarInitials, () => profile.AvatarInitials = clean.AvatarInitials);
+        if (changed.Count > 0)
+        {
+            profile.UpdatedAt = now;
+            // Field names only: profile values are personal data and never belong in the audit trail.
+            Audit(user.Id, null, "profile.updated", user.Id, string.Join(",", changed), now);
+        }
+        return ProfileView(profile);
+    }, ct);
+
+    public Task<PersonalEntitlement> SetPersonalPlanAsync(ActorIdentity actor, SetPersonalPlanRequest request, CancellationToken ct = default) => Execute(actor, (user, now) =>
+    {
+        if (!Enum.IsDefined(request.Plan)) throw new IdentityException("invalid_plan", "Choose Free or Premium.", 400);
+        if (!actor.EmailVerified) throw new IdentityException("email_verification_required", "Verify your email before changing your plan.");
+        var current = IsCurrent(user.SubscriptionStatus, user.SubscriptionExpiresAt, now);
+        var before = current ? user.Plan : PersonalPlan.Free;
+        if (before != request.Plan || !current)
+        {
+            user.Plan = request.Plan; user.SubscriptionStatus = SubscriptionStatuses.Complimentary; user.SubscriptionExpiresAt = null;
+            Audit(user.Id, null, "account.plan_changed", user.Id, $"{before} -> {request.Plan} (complimentary)", now);
+        }
+        return Task.FromResult(new PersonalEntitlement(request.Plan, user.SubscriptionStatus, user.SubscriptionExpiresAt));
+    }, ct);
+
+    public Task<AirlineWorkspace> SetAirlinePlanAsync(ActorIdentity actor, Guid airlineId, SetAirlinePlanRequest request, CancellationToken ct = default) => Execute(actor, async (user, now) =>
+    {
+        if (!Enum.IsDefined(request.Plan)) throw new IdentityException("invalid_plan", "Choose Community or Pro.", 400);
+        var (airline, member) = await MemberAccess(user, airlineId, true, actor, now, ct);
+        if (airline.OwnerUserId != user.Id) throw new IdentityException("owner_required", "Only the airline owner can change its plan.");
+        var before = EffectivePlan(airline, now);
+        if (before != request.Plan)
+        {
+            if (request.Plan == AirlinePlan.Community && await HasCommunityAirline(user.Id, now, ct, excluding: airlineId))
+                throw new IdentityException("plan_limit_reached", "You already own another Community airline.", 409);
+            airline.Plan = request.Plan; airline.SubscriptionStatus = SubscriptionStatuses.Complimentary; airline.SubscriptionExpiresAt = null;
+            Audit(user.Id, airlineId, "airline.plan_changed", airlineId, $"{before} -> {request.Plan} (complimentary)", now);
+        }
+        return Workspace(airline, member, user, now);
     }, ct);
 
     public async Task SetWorkspaceAsync(ActorIdentity actor, WorkspaceSelection request, CancellationToken ct = default) =>
@@ -117,6 +180,15 @@ public sealed class AccountsService(AccountsDbContext db, TimeProvider? timeProv
         db.Invitations.Add(invitation);
         Audit(user.Id, airlineId, "invitation.issued", invitation.Id, string.Join(',', roles), now);
         return new IssuedInvitation(InvitationView(invitation, now), token);
+    }, ct);
+
+    public Task<ActivityEntry[]> ListActivityAsync(ActorIdentity actor, Guid airlineId, CancellationToken ct = default) => Execute(actor, async (user, now) =>
+    {
+        await MemberAccess(user, airlineId, true, actor, now, ct);
+        var events = await db.AuditEvents.Where(x => x.AirlineId == airlineId).OrderByDescending(x => x.CreatedAt).Take(100).ToArrayAsync(ct);
+        var actorIds = events.Select(x => x.ActorUserId).Distinct().ToArray();
+        var names = await db.Users.Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
+        return events.Select(x => new ActivityEntry(x.Id, x.Action, x.Details, x.CreatedAt, names.GetValueOrDefault(x.ActorUserId, "Former member"))).ToArray();
     }, ct);
 
     public Task<InvitationResponse[]> ListInvitationsAsync(ActorIdentity actor, Guid airlineId, CancellationToken ct = default) => Execute(actor, async (user, now) =>
@@ -226,10 +298,19 @@ public sealed class AccountsService(AccountsDbContext db, TimeProvider? timeProv
         return (airline.OwnerUserId == member.UserId ? roles.Append(AirlineRole.Owner) : roles).Distinct().Order().ToArray();
     }
 
-    private static bool IsCurrent(string status, DateTimeOffset? expires, DateTimeOffset now) => status == "active" && (expires is null || expires > now);
-    private Task<bool> HasCommunityAirline(Guid userId, DateTimeOffset now, CancellationToken ct) => db.Airlines.AnyAsync(x =>
-        x.OwnerUserId == userId && x.Status == "active" && !(x.Plan == AirlinePlan.Pro && x.SubscriptionStatus == "active" &&
+    private static bool IsCurrent(string status, DateTimeOffset? expires, DateTimeOffset now) => SubscriptionStatuses.IsCurrent(status, expires, now);
+    private Task<bool> HasCommunityAirline(Guid userId, DateTimeOffset now, CancellationToken ct, Guid? excluding = null) => db.Airlines.AnyAsync(x =>
+        x.OwnerUserId == userId && x.Status == "active" && x.Id != excluding && !(x.Plan == AirlinePlan.Pro &&
+        (x.SubscriptionStatus == SubscriptionStatuses.Active || x.SubscriptionStatus == SubscriptionStatuses.Complimentary) &&
         (x.SubscriptionExpiresAt == null || x.SubscriptionExpiresAt > now)), ct);
+    private async Task<UserProfileRecord> EnsureProfile(UserAccount user, CancellationToken ct)
+    {
+        var profile = await db.Profiles.SingleOrDefaultAsync(x => x.UserId == user.Id, ct);
+        if (profile is null) { profile = new() { UserId = user.Id }; db.Profiles.Add(profile); }
+        return profile;
+    }
+    private static UserProfile ProfileView(UserProfileRecord p) => new(p.SimBriefUsername, p.Callsign, p.HomeBaseIcao, p.WeightUnit, p.AltitudeUnit,
+        p.LandingDistanceUnit, p.PreferredWorkspace, p.TimeZone, p.AvatarInitials, p.LastSeenAt, p.LastSeenVersion, p.UpdatedAt);
     private static AirlinePlan EffectivePlan(VirtualAirline airline, DateTimeOffset now) => airline.Plan == AirlinePlan.Pro &&
         IsCurrent(airline.SubscriptionStatus, airline.SubscriptionExpiresAt, now) ? AirlinePlan.Pro : AirlinePlan.Community;
     private static AirlineWorkspace Workspace(VirtualAirline airline, Membership member, UserAccount user, DateTimeOffset now)

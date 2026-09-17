@@ -1,0 +1,18 @@
+@page "/Account/Plan"
+@model Alpha6Ops.Server.Pages.Account.PlanModel
+@{ ViewData["Title"] = "Account level"; var current = Model.Account?.PersonalEntitlement.Plan ?? PersonalPlan.Free; }
+<div class="page-heading"><a href="/Account">← Your workspaces</a><div class="eyebrow">ACCOUNT LEVEL</div><h1>Choose your account level.</h1><p class="lead">Complimentary during early access — no payment is collected. Levels are independent: a personal level never grants airline administration.</p></div>
+<partial name="_AccountError" model="Model" />
+@if (Model.Account is not null) {
+<form method="post">
+<section class="grid two plan-grid" aria-label="Account levels">
+    <label class="card plan-card @(current == PersonalPlan.Free ? "selected" : "")"><input type="radio" name="plan" value="Free" checked="@(current == PersonalPlan.Free)" />
+        <div class="eyebrow">PERSONAL</div><h2>Flying as a Pilot</h2><span class="badge">Included</span>
+        <ul><li>Personal logbook and flight tracking</li><li>Dispatch and SimBrief import</li><li>Weather briefings</li><li>Membership in any number of airlines</li><li>Create one Community airline</li></ul></label>
+    <label class="card plan-card @(current == PersonalPlan.Premium ? "selected" : "")"><input type="radio" name="plan" value="Premium" checked="@(current == PersonalPlan.Premium)" />
+        <div class="eyebrow">PERSONAL</div><h2>Premium pilot</h2><span class="badge">Complimentary · early access</span>
+        <ul><li>Everything in Free</li><li>Cloud logbook sync (in development)</li><li>Extended flight history retention</li><li>Early access to new flight tools</li><li>Priority support</li></ul></label>
+</section>
+<div class="actions"><button class="button">Apply level</button><span class="muted">Current level: @current · @Model.Account.PersonalEntitlement.Status</span></div>
+</form>
+}

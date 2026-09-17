@@ -55,7 +55,8 @@ small { font-size: 13px; }
 .notice { border: 1px solid #5a5130; background: #25271f; color: #d6c17b; padding: 16px 20px; border-radius: 6px; margin: 24px 0; }
 .notice p { margin: 4px 0 14px; }
 .validation { color: #ffb6a8; }
-.validation:empty { display: none; }
+.validation:empty, .validation-summary-valid { display: none; }
+.validation ul { margin: 0 0 18px; padding-left: 20px; }
 .table-scroll { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
 th, td { padding: 18px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -101,6 +102,24 @@ footer { max-width: 1120px; margin: auto; padding: 24px 0; border-top: 1px solid
 .airline-card { display: flex; flex-direction: column; }
 .airline-card .actions { margin-top: auto; padding-top: 16px; }
 .account-summary { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 14px; color: var(--muted); margin-top: 18px; }
+.account-summary code { font-size: 13px; color: var(--text); }
+a.badge { text-decoration: none; }
+a.badge:hover { color: var(--yellow); border-color: var(--yellow); }
+.badge.warn { background: #3a2a20; color: #f0b58d; }
+.account-panels { margin-bottom: 26px; }
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 0 0 14px; font-size: 14px; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; }
+.plan-grid { margin-bottom: 4px; }
+.plan-card { position: relative; cursor: pointer; padding-top: 24px; transition: border-color .15s, background .15s; }
+.plan-card:hover { border-color: #6b7f8c; }
+.plan-card input[type=radio] { position: absolute; top: 22px; right: 22px; width: 18px; height: 18px; accent-color: var(--yellow); margin: 0; }
+.plan-card h2 { margin: 6px 0 10px; }
+.plan-card ul { margin: 16px 0 0; padding-left: 18px; color: var(--muted); font-size: 14px; line-height: 1.8; }
+.plan-card:has(input:checked) { border-color: #c3a94e; background: #242820; }
+.nowrap { white-space: nowrap; }
+.activity code { font-size: 12px; color: var(--accent); }
+.activity td, .activity th { padding: 12px; font-size: 13px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 @media (max-width: 900px) {
   .topbar { padding: 20px 24px; } main { padding: 0 24px 36px; }

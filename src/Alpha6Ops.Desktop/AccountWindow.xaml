@@ -3,41 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         FontFamily="Segoe UI" Foreground="#E8EDF2" Background="#0C141D">
   <Window.Resources>
-    <Style TargetType="TextBlock"><Setter Property="FontFamily" Value="Segoe UI"/><Setter Property="FontWeight" Value="Normal"/><Setter Property="Foreground" Value="#E8EDF2"/><Setter Property="TextWrapping" Value="Wrap"/></Style>
-    <Style TargetType="ScrollBar">
-      <Setter Property="Width" Value="7"/><Setter Property="Background" Value="Transparent"/>
-      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar">
-        <Grid Background="Transparent"><Track x:Name="PART_Track" IsDirectionReversed="True" Orientation="Vertical">
-          <Track.DecreaseRepeatButton><RepeatButton Command="ScrollBar.PageUpCommand" Opacity="0" Focusable="False"/></Track.DecreaseRepeatButton>
-          <Track.Thumb><Thumb><Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="#425565" CornerRadius="3" Margin="1,0"/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb>
-          <Track.IncreaseRepeatButton><RepeatButton Command="ScrollBar.PageDownCommand" Opacity="0" Focusable="False"/></Track.IncreaseRepeatButton>
-        </Track></Grid>
-      </ControlTemplate></Setter.Value></Setter>
-    </Style>
-    <Style x:Key="PortalButton" TargetType="Button">
-      <Setter Property="FontFamily" Value="Segoe UI"/><Setter Property="FontSize" Value="13"/><Setter Property="FontWeight" Value="SemiBold"/>
-      <Setter Property="Foreground" Value="#DCE6EF"/><Setter Property="Background" Value="#121F2A"/><Setter Property="BorderBrush" Value="#304050"/><Setter Property="BorderThickness" Value="1"/>
-      <Setter Property="Padding" Value="20,15"/><Setter Property="Cursor" Value="Hand"/><Setter Property="HorizontalContentAlignment" Value="Center"/>
-      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
-        <Border x:Name="Chrome" CornerRadius="6" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
-          <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"><ContentPresenter.Resources><Style TargetType="TextBlock"><Setter Property="FontFamily" Value="Segoe UI"/><Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/><Setter Property="FontWeight" Value="Normal"/><Setter Property="TextWrapping" Value="Wrap"/></Style></ContentPresenter.Resources></ContentPresenter>
-        </Border><ControlTemplate.Triggers>
-          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Opacity" Value="0.8"/></Trigger>
-          <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="#C3A94E"/><Setter TargetName="Chrome" Property="BorderThickness" Value="2"/></Trigger>
-          <Trigger Property="IsPressed" Value="True"><Setter TargetName="Chrome" Property="Opacity" Value="0.6"/></Trigger>
-          <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/></Trigger>
-        </ControlTemplate.Triggers>
-      </ControlTemplate></Setter.Value></Setter>
-    </Style>
-    <Style x:Key="PortalPrimary" TargetType="Button" BasedOn="{StaticResource PortalButton}"><Setter Property="Background" Value="#E5C44A"/><Setter Property="Foreground" Value="#101923"/><Setter Property="BorderBrush" Value="#E5C44A"/></Style>
-    <Style x:Key="PortalLink" TargetType="Button" BasedOn="{StaticResource PortalButton}"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="2,5"/></Style>
-    <Style x:Key="WorkspaceCard" TargetType="Button" BasedOn="{StaticResource PortalButton}"><Setter Property="Padding" Value="24"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/></Style>
-    <Style x:Key="Eyebrow" TargetType="TextBlock"><Setter Property="FontFamily" Value="Consolas"/><Setter Property="FontSize" Value="10"/><Setter Property="Foreground" Value="#96A6B4"/><Setter Property="TextWrapping" Value="Wrap"/></Style>
-    <Style x:Key="PortalInput" TargetType="TextBox">
-      <Setter Property="FontFamily" Value="Segoe UI"/><Setter Property="FontSize" Value="14"/><Setter Property="Foreground" Value="#E8EDF2"/><Setter Property="Background" Value="#121F2A"/><Setter Property="CaretBrush" Value="#E8EDF2"/>
-      <Setter Property="Padding" Value="14"/><Setter Property="BorderBrush" Value="#3A4B5B"/><Setter Property="BorderThickness" Value="1"/>
-      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TextBox"><Border x:Name="InputBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6"><ScrollViewer x:Name="PART_ContentHost"/></Border><ControlTemplate.Triggers><Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="InputBorder" Property="BorderBrush" Value="#C3A94E"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
-    </Style>
+    <Style TargetType="TextBlock" BasedOn="{StaticResource PortalText}"/>
+    <Style TargetType="ScrollBar" BasedOn="{StaticResource PortalScrollBar}"/>
   </Window.Resources>
   <Grid x:Name="InteractionRoot" Background="#0C141D">
     <Grid x:Name="LoginPage">
@@ -97,35 +64,125 @@
       </Grid>
     </Grid>
 
-    <Grid x:Name="WorkspacePage" Visibility="Collapsed" Margin="44,25,44,25">
+    <Grid x:Name="WorkspacePage" Visibility="Collapsed" ClipToBounds="True">
+      <Grid x:Name="WorkspaceBackdrop" IsHitTestVisible="False" RenderTransformOrigin="0.8,0.2">
+        <Grid.RenderTransform><TransformGroup><ScaleTransform x:Name="BackdropScale" ScaleX="1" ScaleY="1"/><TranslateTransform x:Name="BackdropDrift" X="0" Y="0"/></TransformGroup></Grid.RenderTransform>
+        <Grid.Triggers><EventTrigger RoutedEvent="Loaded"><BeginStoryboard><Storyboard RepeatBehavior="Forever" AutoReverse="True">
+          <DoubleAnimation Storyboard.TargetName="BackdropScale" Storyboard.TargetProperty="ScaleX" From="1" To="1.06" Duration="0:0:48"><DoubleAnimation.EasingFunction><SineEase EasingMode="EaseInOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+          <DoubleAnimation Storyboard.TargetName="BackdropScale" Storyboard.TargetProperty="ScaleY" From="1" To="1.06" Duration="0:0:48"><DoubleAnimation.EasingFunction><SineEase EasingMode="EaseInOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+          <DoubleAnimation Storyboard.TargetName="BackdropDrift" Storyboard.TargetProperty="X" From="0" To="-26" Duration="0:0:48"><DoubleAnimation.EasingFunction><SineEase EasingMode="EaseInOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+        </Storyboard></BeginStoryboard></EventTrigger></Grid.Triggers>
+        <Rectangle Height="540" VerticalAlignment="Top" Opacity="0.72">
+          <Rectangle.Fill><ImageBrush ImageSource="Assets/Dashboard/workspace-backdrop.jpg" Stretch="UniformToFill" AlignmentX="Right" AlignmentY="Top"/></Rectangle.Fill>
+          <Rectangle.OpacityMask><LinearGradientBrush StartPoint="0,0" EndPoint="1,0"><GradientStop Color="#40000000" Offset="0"/><GradientStop Color="#A0000000" Offset="0.5"/><GradientStop Color="#FF000000" Offset="0.8"/></LinearGradientBrush></Rectangle.OpacityMask>
+        </Rectangle>
+        <Rectangle Height="540" VerticalAlignment="Top"><Rectangle.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#000C141D" Offset="0"/><GradientStop Color="#000C141D" Offset="0.30"/><GradientStop Color="#C80C141D" Offset="0.70"/><GradientStop Color="#FF0C141D" Offset="1"/></LinearGradientBrush></Rectangle.Fill></Rectangle>
+        <Rectangle Height="540" VerticalAlignment="Top"><Rectangle.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="1,0"><GradientStop Color="#D00C141D" Offset="0"/><GradientStop Color="#000C141D" Offset="0.55"/></LinearGradientBrush></Rectangle.Fill></Rectangle>
+      </Grid>
+      <Grid HorizontalAlignment="Right" VerticalAlignment="Top" Width="400" Height="200" Margin="0,44,72,0" IsHitTestVisible="False">
+        <Path Data="M 0,140 C 110,20 260,10 400,100" Stroke="#59E5C44A" StrokeThickness="1"/>
+        <Ellipse Width="5" Height="5" Fill="#E5C44A" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-2,138,0,0"/>
+        <Ellipse Width="5" Height="5" Stroke="#E5C44A" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="398,98,0,0"/>
+        <TextBlock Text="✈" FontFamily="Segoe UI Symbol" Foreground="#E5C44A" FontSize="15" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-8,-9,0,0">
+          <TextBlock.RenderTransform><MatrixTransform x:Name="PlaneTransform"/></TextBlock.RenderTransform>
+          <TextBlock.Triggers><EventTrigger RoutedEvent="Loaded"><BeginStoryboard><Storyboard RepeatBehavior="Forever">
+            <MatrixAnimationUsingPath Storyboard.TargetName="PlaneTransform" Storyboard.TargetProperty="Matrix" Duration="0:0:36" DoesRotateWithTangent="True"><MatrixAnimationUsingPath.PathGeometry><PathGeometry Figures="M 0,140 C 110,20 260,10 400,100"/></MatrixAnimationUsingPath.PathGeometry></MatrixAnimationUsingPath>
+          </Storyboard></BeginStoryboard></EventTrigger></TextBlock.Triggers>
+        </TextBlock>
+      </Grid>
+      <Grid Margin="44,25,44,25">
       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-      <Grid Margin="0,0,0,18"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><Border Width="34" Height="34" Background="#182A35" CornerRadius="4"><TextBlock Text="A6" Foreground="#E5C44A" FontSize="17" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><TextBlock Text="ALPHA 6 OPS" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" Margin="12,0,20,0"/><TextBlock Text="/  WORKSPACES" Style="{StaticResource Eyebrow}" VerticalAlignment="Center"/></StackPanel>
-        <StackPanel Grid.Column="1" Orientation="Horizontal"><Border Background="#243544" Width="36" Height="36" CornerRadius="18" Margin="0,0,10,0"><TextBlock x:Name="AccountInitialsText" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><StackPanel VerticalAlignment="Center"><TextBlock x:Name="AccountNameText" FontSize="12" FontWeight="SemiBold"/><TextBlock x:Name="AccountEmailText" FontSize="10" Foreground="#9EAFBD" Margin="0,3,0,0"/></StackPanel><Button x:Name="SignOutButton" Content="Sign out" Style="{StaticResource PortalLink}" Margin="20,0,0,0" Click="SignOut_Click"/></StackPanel>
+      <Grid Margin="0,0,12,16"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><Border Width="40" Height="40" Background="#0F1922" BorderBrush="#E5C44A" BorderThickness="1" CornerRadius="4"><TextBlock Text="A6" Foreground="#E5C44A" FontSize="17" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><TextBlock Text="ALPHA 6 OPS" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" Margin="16,0,20,0"/><TextBlock Text="/" FontSize="13" Foreground="#6E828F" VerticalAlignment="Center" Margin="0,0,20,0"/><TextBlock Text="WORKSPACES" Style="{StaticResource Eyebrow}" VerticalAlignment="Center"/></StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal">
+          <Grid Width="40" Height="40" Margin="0,0,12,0">
+            <Border Background="#131F29" BorderBrush="#3A4B5B" BorderThickness="1" CornerRadius="4"><TextBlock x:Name="AccountInitialsText" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+            <Ellipse x:Name="PresenceDot" Width="9" Height="9" Fill="#5FAE6E" Stroke="#0D1D27" StrokeThickness="1.5" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-2,-2"/>
+          </Grid>
+          <StackPanel VerticalAlignment="Center"><TextBlock x:Name="AccountNameText" FontSize="13"/><TextBlock x:Name="AccountEmailText" Style="{StaticResource Eyebrow}" Margin="0,5,0,0"/></StackPanel>
+          <Rectangle Width="1" Height="30" Fill="#2A3A49" Margin="22,0,22,0" VerticalAlignment="Center"/>
+          <Button x:Name="ProfileButton" Style="{StaticResource PortalLink}" FontSize="14" Margin="0,0,18,0" Click="Profile_Click" AutomationProperties.Name="Pilot profile"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE77B;" Style="{StaticResource ButtonIcon}" Margin="0,0,10,0"/><TextBlock Text="Profile" Style="{StaticResource ButtonLabel}"/></StackPanel></Button>
+          <Button x:Name="SignOutButton" Style="{StaticResource PortalLink}" FontSize="14" Click="SignOut_Click"><StackPanel Orientation="Horizontal"><TextBlock Text="Sign out" Style="{StaticResource ButtonLabel}"/><TextBlock Text="&#xE72A;" Style="{StaticResource ButtonIcon}" Margin="12,0,0,0"/></StackPanel></Button>
+        </StackPanel>
       </Grid>
       <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="0,8,0,10">
-          <Grid><TextBlock Text="02  /  SELECT YOUR WORKSPACE" Style="{StaticResource Eyebrow}"/><TextBlock x:Name="ConnectionText" Style="{StaticResource Eyebrow}" Foreground="#A6C4AA" HorizontalAlignment="Right"/></Grid>
-          <TextBlock Text="Where are you flying today?" FontSize="32" FontWeight="SemiBold" Margin="0,12,0,7"/>
-          <TextBlock Text="Fly independently or connect with your crew. You can switch workspaces anytime." FontSize="13" Foreground="#A2B0BD" Margin="0,0,0,24"/>
-          <Button x:Name="PersonalCard" Style="{StaticResource WorkspaceCard}" Padding="22" Click="Personal_Click" AutomationProperties.Name="Flying as a Pilot, personal workspace">
-            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="74"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-              <Border Width="52" Height="52" CornerRadius="10" Background="#343325" VerticalAlignment="Top"><TextBlock Text="✈" FontFamily="Segoe UI Symbol" FontSize="25" Foreground="#E1C35D" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-              <StackPanel Grid.Column="1"><StackPanel Orientation="Horizontal"><TextBlock Text="Flying as a Pilot" FontSize="23" FontWeight="SemiBold"/><Border Background="#26372F" CornerRadius="3" Padding="7,4" Margin="12,2,0,0" VerticalAlignment="Center"><TextBlock x:Name="PlanText" Style="{StaticResource Eyebrow}" Foreground="#ACC6A5"/></Border></StackPanel><TextBlock Text="Your logbook, dispatch, flight tracking and weather. All in your own space." FontSize="13" Foreground="#A2B0BD" Margin="0,9,20,16"/><TextBlock Text="LOGBOOK    /    DISPATCH    /    TRACKING    /    WEATHER" Style="{StaticResource Eyebrow}" Foreground="#A0B2C1"/></StackPanel>
-              <TextBlock x:Name="PersonalSelected" Grid.Column="2" Style="{StaticResource Eyebrow}" Foreground="#DCC46B" VerticalAlignment="Top" Margin="20,6,0,0"/>
+        <StackPanel Margin="0,6,12,6">
+          <Grid Margin="0,0,0,18"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <StackPanel>
+              <StackPanel Orientation="Horizontal"><Rectangle Width="30" Height="2" Fill="#E5C44A" Margin="0,0,12,0"/><TextBlock Text="02  /  SELECT YOUR WORKSPACE" Style="{StaticResource Eyebrow}" FontSize="11" Foreground="#C9D4DC"/></StackPanel>
+              <TextBlock Text="Where are you flying today?" FontSize="37" FontWeight="SemiBold" Margin="0,12,0,6"/>
+              <TextBlock Text="Fly independently or connect with your crew. You can switch workspaces anytime." FontSize="14.5" Foreground="#A2B0BD"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" VerticalAlignment="Bottom" Margin="24,0,0,0">
+              <TextBlock x:Name="ConnectionText" Style="{StaticResource Eyebrow}" Foreground="#A6C4AA" TextAlignment="Right"/>
+              <TextBlock Text="GLOBAL&#xA;FLIGHT OPERATIONS" Style="{StaticResource Eyebrow}" Foreground="#AFBFCB" TextAlignment="Right" LineHeight="15" Margin="0,8,0,18"/>
+              <TextBlock Text="ALT  37,000 FT" Style="{StaticResource Eyebrow}" Foreground="#C9D4DC" TextAlignment="Right"/>
+              <TextBlock Text="SPD  492 KT" Style="{StaticResource Eyebrow}" Foreground="#C9D4DC" TextAlignment="Right" Margin="0,3,0,0"/>
+              <TextBlock Text="TRK  284°" Style="{StaticResource Eyebrow}" Foreground="#C9D4DC" TextAlignment="Right" Margin="0,3,0,0"/>
+            </StackPanel>
+          </Grid>
+          <Button x:Name="PersonalCard" Style="{StaticResource WorkspaceCard}" Padding="24" MinHeight="170" Click="Personal_Click" AutomationProperties.Name="Flying as a Pilot, personal workspace">
+            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="0.8*"/></Grid.ColumnDefinitions>
+              <Grid Grid.ColumnSpan="3" Margin="-24" ClipToBounds="True"><Grid.ColumnDefinitions><ColumnDefinition Width="0.4*"/><ColumnDefinition Width="0.6*"/></Grid.ColumnDefinitions>
+                <Border Grid.Column="1" CornerRadius="0,5,5,0"><Border.Background><ImageBrush ImageSource="Assets/Dashboard/workspace-runway.jpg" Stretch="UniformToFill" Viewbox="0.15,0.14,0.7,0.64" AlignmentX="Center" AlignmentY="Center"/></Border.Background>
+                  <Border.OpacityMask><LinearGradientBrush StartPoint="0,0" EndPoint="1,0"><GradientStop Color="#00000000" Offset="0"/><GradientStop Color="#B0000000" Offset="0.32"/><GradientStop Color="#FF000000" Offset="0.55"/></LinearGradientBrush></Border.OpacityMask></Border>
+                <Border Grid.Column="1" CornerRadius="0,5,5,0"><Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#90121F2A" Offset="0"/><GradientStop Color="#00121F2A" Offset="0.3"/><GradientStop Color="#00121F2A" Offset="0.6"/><GradientStop Color="#C8121F2A" Offset="1"/></LinearGradientBrush></Border.Background></Border>
+              </Grid>
+              <Border Width="84" Height="84" CornerRadius="6" Background="#0F1922" BorderBrush="#E5C44A" BorderThickness="1" VerticalAlignment="Center" Margin="0,0,28,0"><TextBlock Text="✈" FontFamily="Segoe UI Symbol" FontSize="36" Foreground="#E5C44A" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+              <StackPanel Grid.Column="1" VerticalAlignment="Center"><StackPanel Orientation="Horizontal"><TextBlock Text="Flying as a Pilot" FontSize="28" FontWeight="SemiBold"/><Button x:Name="PlanButton" Style="{StaticResource PortalLink}" Background="#0F1B1A" BorderBrush="#3E5A46" BorderThickness="1" Padding="10,5" Margin="18,4,0,0" VerticalAlignment="Center" Click="Plan_Click" AutomationProperties.Name="Account level"><StackPanel Orientation="Horizontal"><TextBlock x:Name="PlanText" Style="{StaticResource Eyebrow}" FontSize="11" FontWeight="Bold" Foreground="#8FD19A"/><TextBlock Text="&#xE70D;" Style="{StaticResource ButtonIcon}" FontSize="9" Foreground="#8FD19A" Margin="8,0,0,0"/></StackPanel></Button></StackPanel><TextBlock Text="Your logbook, dispatch, flight tracking and weather. All in your own space." FontSize="14" Foreground="#A2B0BD" Margin="0,10,12,18"/><TextBlock Text="LOGBOOK    /    DISPATCH    /    TRACKING    /    WEATHER" Style="{StaticResource Eyebrow}" FontSize="11" Foreground="#C9D4DC"/></StackPanel>
+              <Grid Grid.Column="2" Margin="0,-24,-24,-24">
+                <TextBlock x:Name="PersonalSelected" Style="{StaticResource Eyebrow}" FontSize="12" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,24,24,0"/>
+                <TextBlock Text="&#xE76C;" Style="{StaticResource ButtonIcon}" FontSize="14" Foreground="#C9D4DC" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,24,0"/>
+                <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,24,18">
+                  <TextBlock Text="SAME SKY." Style="{StaticResource Eyebrow}" Foreground="#A9B8C4" HorizontalAlignment="Right"/>
+                  <TextBlock Text="A BRIGHTER TOMORROW." Style="{StaticResource Eyebrow}" Foreground="#A9B8C4" HorizontalAlignment="Right" Margin="0,4,0,0"/>
+                </StackPanel>
+              </Grid>
             </Grid>
           </Button>
-          <Grid Margin="0,20,0,10"><TextBlock x:Name="AirlineCountText" Style="{StaticResource Eyebrow}" VerticalAlignment="Center"/><Button x:Name="ManageButton" Content="Manage memberships ↗" Tag="Account" Style="{StaticResource PortalLink}" HorizontalAlignment="Right" Click="Portal_Click"/></Grid>
+          <Grid Margin="0,20,0,10"><StackPanel Orientation="Horizontal"><Rectangle Width="20" Height="2" Fill="#E5C44A" Margin="0,0,10,0"/><TextBlock x:Name="AirlineCountText" Style="{StaticResource Eyebrow}" FontSize="11" Foreground="#C9D4DC" VerticalAlignment="Center"/></StackPanel><Button x:Name="ManageButton" Tag="Account" Style="{StaticResource PortalLink}" FontSize="14" HorizontalAlignment="Right" Click="Portal_Click"><StackPanel Orientation="Horizontal"><TextBlock Text="Manage on the web" Style="{StaticResource ButtonLabel}"/><TextBlock Text="&#xE8A7;" Style="{StaticResource ButtonIcon}" FontSize="12" Margin="12,0,0,0"/></StackPanel></Button></Grid>
           <SystemControls:UniformGrid xmlns:SystemControls="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework" x:Name="AirlineCards" Columns="2" Margin="0,0,-16,0"/>
-          <Border x:Name="EmptyAirlines" BorderBrush="#304050" BorderThickness="1" CornerRadius="6" Padding="22" Margin="0,0,0,16" Visibility="Collapsed"><StackPanel><TextBlock Text="Your crew is out there." FontSize="17" FontWeight="SemiBold"/><TextBlock Text="Join with an invitation or create a virtual airline of your own." Foreground="#A2B0BD" FontSize="13" Margin="0,6,0,0"/></StackPanel></Border>
-          <Grid><TextBlock Text="A new crew. A new destination." FontSize="12" Foreground="#9EAFBD" VerticalAlignment="Center"/><StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><Button x:Name="JoinButton" Content="Join with an invite ↗" Tag="Account/Join" Style="{StaticResource PortalLink}" Margin="0,0,22,0" Click="Portal_Click"/><Button x:Name="CreateButton" Content="+ Create an airline" Tag="Account/Create" Style="{StaticResource PortalLink}" Click="Portal_Click"/></StackPanel></Grid>
+          <Grid x:Name="EmptyAirlines" MinHeight="126" Margin="0,0,0,14" Visibility="Collapsed">
+            <Rectangle Fill="#0F1A24" RadiusX="6" RadiusY="6" Stroke="#3A4B5B" StrokeThickness="1" StrokeDashArray="4 3"/>
+            <Grid Margin="24"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="0.9*"/></Grid.ColumnDefinitions>
+              <Grid Grid.ColumnSpan="3" Margin="-24" ClipToBounds="True"><Grid.ColumnDefinitions><ColumnDefinition Width="0.42*"/><ColumnDefinition Width="0.58*"/></Grid.ColumnDefinitions>
+                <Border Grid.Column="1" CornerRadius="0,5,5,0" Opacity="0.7"><Border.Background><ImageBrush ImageSource="Assets/Dashboard/workspace-routes.jpg" Stretch="UniformToFill" Viewbox="0.05,0.08,0.9,0.8" AlignmentX="Center" AlignmentY="Center"/></Border.Background>
+                  <Border.OpacityMask><LinearGradientBrush StartPoint="0,0" EndPoint="1,0"><GradientStop Color="#00000000" Offset="0"/><GradientStop Color="#A0000000" Offset="0.35"/><GradientStop Color="#FF000000" Offset="0.6"/><GradientStop Color="#B0000000" Offset="1"/></LinearGradientBrush></Border.OpacityMask></Border>
+                <Border Grid.Column="1" CornerRadius="0,5,5,0"><Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#A00F1A24" Offset="0"/><GradientStop Color="#000F1A24" Offset="0.32"/><GradientStop Color="#000F1A24" Offset="0.68"/><GradientStop Color="#A00F1A24" Offset="1"/></LinearGradientBrush></Border.Background></Border>
+              </Grid>
+              <Border Width="84" Height="84" CornerRadius="6" Background="#0F1922" BorderBrush="#3A4B5B" BorderThickness="1" VerticalAlignment="Center" Margin="0,0,28,0"><TextBlock Text="&#xE716;" FontFamily="Segoe MDL2 Assets" FontSize="30" Foreground="#8FA3B1" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+              <StackPanel Grid.Column="1" VerticalAlignment="Center"><TextBlock Text="Your crew is out there." FontSize="22" FontWeight="SemiBold"/><TextBlock Text="Join with an invitation or create a virtual airline of your own." Foreground="#A2B0BD" FontSize="14.5" Margin="0,8,0,0"/></StackPanel>
+              <Grid Grid.Column="2" Margin="0,-24,-24,-24">
+                <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,24,0">
+                  <TextBlock Text="PEOPLE" Style="{StaticResource Eyebrow}" Foreground="#A9B8C4" HorizontalAlignment="Right"/>
+                  <TextBlock Text="ROUTES" Style="{StaticResource Eyebrow}" Foreground="#A9B8C4" HorizontalAlignment="Right" Margin="0,5,0,0"/>
+                  <TextBlock Text="POSSIBILITIES" Style="{StaticResource Eyebrow}" Foreground="#A9B8C4" HorizontalAlignment="Right" Margin="0,5,0,0"/>
+                  <Rectangle Height="1" Fill="#3A4B5B" Width="28" HorizontalAlignment="Right" Margin="0,10,0,0"/>
+                </StackPanel>
+              </Grid>
+            </Grid>
+          </Grid>
+          <Grid Margin="0,4,0,0"><TextBlock x:Name="CrewHintText" Text="A new crew. A new destination." FontSize="14" Foreground="#9EAFBD" VerticalAlignment="Center" MaxWidth="560" HorizontalAlignment="Left"/><StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="JoinButton" Style="{StaticResource PortalButton}" Padding="20,12" Margin="0,0,14,0" Click="Join_Click"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE71B;" Style="{StaticResource ButtonIcon}" Margin="0,0,12,0"/><TextBlock Text="Join with an invite" FontSize="14" Style="{StaticResource ButtonLabel}"/></StackPanel></Button>
+            <Button x:Name="CreateButton" Style="{StaticResource PortalButton}" Padding="20,12" Click="Create_Click"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE710;" Style="{StaticResource ButtonIcon}" Margin="0,0,12,0"/><TextBlock Text="Create an airline" FontSize="14" Style="{StaticResource ButtonLabel}"/></StackPanel></Button>
+          </StackPanel></Grid>
           <Border x:Name="PreviewWorkspaceBanner" Background="#25271F" CornerRadius="4" Padding="12,9" Margin="0,14,0,0" Visibility="Collapsed"><TextBlock Text="DESIGN PREVIEW  ·  These memberships are examples. No account is signed in." Foreground="#D6C17B" FontSize="11"/></Border>
           <TextBlock x:Name="WorkspaceStatus" Foreground="#E5C977" FontSize="12" LineHeight="19" Margin="0,12,0,0" AutomationProperties.LiveSetting="Polite" Visibility="Collapsed"/>
         </StackPanel>
       </ScrollViewer>
-      <Border Grid.Row="2" BorderBrush="#304050" BorderThickness="0,1,0,0" Padding="0,20,0,0" Margin="0,15,0,0">
-        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><Button x:Name="BackButton" Content="← Back" Style="{StaticResource PortalLink}" Margin="0,0,25,0" Click="Back_Click"/><StackPanel Grid.Column="1" VerticalAlignment="Center"><TextBlock x:Name="SelectedTypeText" Style="{StaticResource Eyebrow}"/><TextBlock x:Name="SelectedNameText" FontSize="14" FontWeight="SemiBold" Margin="0,4,0,0"/></StackPanel><Button x:Name="ReconnectButton" Grid.Column="2" Content="Reconnect" Style="{StaticResource PortalButton}" Margin="0,0,12,0" Click="Reconnect_Click" Visibility="Collapsed"/><Button x:Name="OpenWorkspaceButton" Grid.Column="3" Content="Open workspace    →" Style="{StaticResource PortalPrimary}" Padding="26,16" Click="OpenWorkspace_Click"/></Grid>
+      <Border Grid.Row="2" BorderBrush="#304050" BorderThickness="0,1,0,0" Padding="0,16,0,0" Margin="0,10,12,0">
+        <StackPanel>
+          <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <Button x:Name="BackButton" Style="{StaticResource PortalLink}" FontSize="15" VerticalAlignment="Center" Click="Back_Click"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE72B;" Style="{StaticResource ButtonIcon}" Margin="0,0,14,0"/><TextBlock Text="Back" Style="{StaticResource ButtonLabel}"/></StackPanel></Button>
+            <Rectangle Grid.Column="1" Width="1" Height="40" Fill="#2A3A49" Margin="26,0,26,0" VerticalAlignment="Center"/>
+            <StackPanel Grid.Column="2" VerticalAlignment="Center"><TextBlock x:Name="SelectedTypeText" Style="{StaticResource Eyebrow}" FontSize="11" Foreground="#C9D4DC"/><TextBlock x:Name="SelectedNameText" FontSize="17" FontWeight="SemiBold" Margin="0,4,0,0"/></StackPanel>
+            <Button x:Name="ReconnectButton" Grid.Column="3" Style="{StaticResource PortalButton}" FontSize="15" Padding="24,15" Margin="0,0,14,0" Click="Reconnect_Click" Visibility="Collapsed"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE72C;" Style="{StaticResource ButtonIcon}" FontSize="14" Margin="0,0,14,0"/><TextBlock x:Name="ReconnectLabel" Text="Reconnect" Style="{StaticResource ButtonLabel}"/></StackPanel></Button>
+            <Button x:Name="OpenWorkspaceButton" Grid.Column="4" Style="{StaticResource PortalPrimary}" FontSize="15" Padding="34,15" Click="OpenWorkspace_Click"><StackPanel Orientation="Horizontal"><TextBlock Text="Open workspace" FontWeight="SemiBold" Style="{StaticResource ButtonLabel}"/><TextBlock Text="&#xE72A;" Style="{StaticResource ButtonIcon}" FontSize="14" Margin="16,0,0,0"/></StackPanel></Button>
+          </Grid>
+          <Grid Margin="0,14,0,0"><Button x:Name="UpdatesButton" Style="{StaticResource PortalLink}" Padding="0" HorizontalAlignment="Left" Click="Updates_Click" AutomationProperties.Name="Download and updates"><TextBlock x:Name="FooterVersionText" Text="ALPHA 6 OPS" Style="{StaticResource Eyebrow}" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/></Button><TextBlock Text="FLY FURTHER TOGETHER  ————" Style="{StaticResource Eyebrow}" Foreground="#5E7280" HorizontalAlignment="Right"/></Grid>
+        </StackPanel>
       </Border>
+      </Grid>
     </Grid>
     <Button x:Name="CancelSignInButton" Content="Cancel sign-in" Style="{StaticResource PortalButton}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="24" Visibility="Collapsed" Click="CancelSignIn_Click"/>
   </Grid>

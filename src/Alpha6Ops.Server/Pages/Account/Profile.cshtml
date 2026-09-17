@@ -1,0 +1,26 @@
+@page "/Account/Profile"
+@model Alpha6Ops.Server.Pages.Account.ProfileModel
+@{ ViewData["Title"] = "Pilot profile"; }
+<div class="page-heading"><a href="/Account">← Your workspaces</a><div class="eyebrow">PILOT PROFILE</div><h1>Your pilot profile.</h1><p class="lead">Kept with your account, so every installation of the desktop app picks up the same SimBrief details, units and preferences.</p></div>
+@if (Model.Saved) { <div class="notice" role="status"><p>Profile saved. The desktop app applies it the next time it refreshes your account.</p></div> }
+<section class="card narrow"><partial name="_AccountError" model="Model" />
+<form method="post" class="stack">
+    <label asp-for="SimBriefUsername">SimBrief username</label><input asp-for="SimBriefUsername" maxlength="80" autocomplete="off" /><small>Used to fetch your OFP in Dispatch. Leave blank if you don’t use SimBrief.</small>
+    <div class="grid two">
+        <div class="stack"><label asp-for="Callsign">Pilot callsign</label><input asp-for="Callsign" maxlength="20" style="text-transform:uppercase" /></div>
+        <div class="stack"><label asp-for="HomeBaseIcao">Home base (ICAO)</label><input asp-for="HomeBaseIcao" maxlength="4" style="text-transform:uppercase" /></div>
+    </div>
+    <div class="grid two">
+        <div class="stack"><label asp-for="WeightUnit">Weight unit</label><select asp-for="WeightUnit"><option value="LBS">Pounds (LBS)</option><option value="KG">Kilograms (KG)</option></select></div>
+        <div class="stack"><label asp-for="AltitudeUnit">Altitude unit</label><select asp-for="AltitudeUnit"><option value="FT">Feet (FT)</option><option value="M">Metres (M)</option></select></div>
+    </div>
+    <div class="grid two">
+        <div class="stack"><label asp-for="LandingDistanceUnit">Landing distance unit</label><select asp-for="LandingDistanceUnit"><option value="FT">Feet (FT)</option><option value="M">Metres (M)</option></select></div>
+        <div class="stack"><label asp-for="PreferredWorkspace">Open at sign-in</label><select asp-for="PreferredWorkspace"><option value="last_used">Last used workspace</option><option value="personal">Always my personal flight deck</option><option value="portal">Account portal — choose every time</option></select></div>
+    </div>
+    <label asp-for="TimeZone">Time zone</label><select asp-for="TimeZone">@foreach (var (id, name) in Alpha6Ops.Server.Pages.Account.ProfileModel.TimeZones) { <option value="@id" selected="@(id == Model.TimeZone)">@name</option> }</select>
+    <label asp-for="AvatarInitials">Avatar initials</label><input asp-for="AvatarInitials" maxlength="3" style="text-transform:uppercase" /><small>Up to 3 letters shown on your account badge. Blank uses your name.</small>
+    <button class="button">Save profile</button>
+</form>
+@if (Model.Profile is { } profile) { <p class="muted">@(profile.LastSeenAt is { } seen ? $"Last desktop sign-in {seen:u}" : "The desktop app has not signed in yet.")@(profile.LastSeenVersion.Length > 0 ? $" · Alpha 6 OPS v{profile.LastSeenVersion}" : "")</p> }
+</section>

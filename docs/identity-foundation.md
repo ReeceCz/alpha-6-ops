@@ -116,6 +116,42 @@ Cancel sign-in stops the pending attempt without closing the app; retry starts a
 Browser timeout is reported separately, and incomplete loopback requests do not cancel login.
 First sign-in also works when no local Identity cache directory exists yet.
 
+### Native account flows (17 September)
+
+The desktop no longer sends pilots to the website for everyday account work. From the workspace
+selector: **Profile** (SimBrief username, callsign, home base, units, preferred workspace, time zone,
+avatar initials — stored in `user_profile`, returned with bootstrap, cached in the protected session and
+used to pre-fill Dispatch and the unit settings), the plan chip (**Free / Premium**, complimentary during
+early access), **Create an airline**, **Join with an invite**, and per-card **Manage** for administrators
+(members, role changes, invitations with the code shown once, revocation, ownership transfer, airline
+level). The footer version opens **Updates**, which reports the installed version and the published
+release from `/api/v1/release` (a placeholder until a signed installer exists). **Manage on the web**
+keeps the website available for anything else.
+
+Every administrative request needs a multi-factor proof no older than five minutes. When the API
+answers `mfa_required`, the desktop asks before opening the browser, runs a step-up login for the same
+account (`DesktopAccountSession.StepUpAsync`), keeps the current workspace, and retries once. Declining
+or cancelling leaves the session untouched. The tenant therefore needs at least one factor enabled and
+**Customize MFA Factors using Actions** turned on so the `01 Security Challenge` action can challenge or
+enrol; see the Auth0 setup list in the server README. On the development tenant (17 September) One-time
+Password and Recovery Code are the enabled factors and the action only offers those; WebAuthn is not on
+this plan.
+
+**Open at sign-in** in the profile has three settings: `last_used` resumes the previous workspace,
+`personal` always opens the pilot workspace, and `portal` stops on the workspace picker every time the
+desktop restores a saved session.
+
+### Web portal (17 September)
+
+The website mirrors the desktop for account administration: `/Account` (status, personal level,
+profile links, last desktop version seen, download), `/Account/Profile`, `/Account/Plan`, and
+`/Account/Airline/{id}` (invitations, roster, roles, ownership transfer, owner-only airline level, and
+the activity log from `ListActivityAsync`). Two portal-only rules matter: the OIDC handler must keep
+the `iss` claim in the cookie principal (`ClaimActions.Remove("iss")` — the default actions strip it
+after `OnTokenValidated`, which made every page after login fail), and the Content-Security-Policy
+`form-action` must list the Auth0 authority because browsers apply it to the redirect that follows the
+sign-out POST.
+
 After joining or creating an airline on the website, use **Refresh** in the desktop selector
 to reload memberships. **Reconnect** retries saved credentials while offline, opening browser
 sign-in when no renewable credential remains. Opening an online workspace refreshes available

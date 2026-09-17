@@ -105,6 +105,11 @@ public partial class MainWindow : Window
         if(activePlan is not null)RestoreFlightRecovery(FlightRecoveryStore.Load(activePlan,stateDirectory));
         preferences = diagnosticDirectory is null ? UserPreferencesStore.Load(stateDirectory) : null;
         generalSettings = GeneralSettingsStore.Load(stateDirectory);
+        if (account?.Bootstrap?.Profile is { } profile && (profile.WeightUnit != generalSettings.WeightUnit || profile.AltitudeUnit != generalSettings.AltitudeUnit || profile.LandingDistanceUnit != generalSettings.LandingDistanceUnit))
+        {
+            generalSettings = generalSettings with { WeightUnit = profile.WeightUnit, AltitudeUnit = profile.AltitudeUnit, LandingDistanceUnit = profile.LandingDistanceUnit };
+            GeneralSettingsStore.Save(generalSettings, stateDirectory);
+        }
         FixtureCombo.ItemsSource = EmbeddedReplay.Fixtures;
         RestoreDashboardPreferences(preferences);
         ResetPreview();
@@ -166,6 +171,7 @@ public partial class MainWindow : Window
     private void ApplyGeneralSettings(GeneralSettings settings)
     {
         generalSettings = settings;
+        _ = SyncUnitsToProfileAsync(settings);
         AdvancedButton.Visibility = settings.ShowAdvancedControls && !IsPilotWorkspace ? Visibility.Visible : Visibility.Collapsed;
         if (!settings.ShowAdvancedControls) SetAdvanced(false);
     }

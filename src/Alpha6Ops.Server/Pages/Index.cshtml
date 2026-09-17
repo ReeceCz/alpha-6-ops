@@ -30,3 +30,51 @@
         <p class="signin-footnote">Flying as a Pilot is free. Your airlines stay connected to one account.</p>
     </div>
 </section>
+
+<section class="intro" aria-label="What Alpha 6 OPS is">
+    <div class="intro-copy">
+        <h2>Operations for Microsoft Flight Simulator 2024, on your desktop.</h2>
+        <p>Alpha 6 OPS watches your flight as it happens — pushback, taxi, takeoff, cruise, approach, block-in — and turns it into a logbook you didn't have to type, a dispatch board your crew can see, and an airline you can run with friends. It's a Windows app that signs in with this account, not a website you fly from.</p>
+    </div>
+    <dl class="intro-facts">
+        <div><dt>Flight phases</dt><dd>Detected from the sim, not self-reported</dd></div>
+        <div><dt>Works offline</dt><dd>Sign in once; fly without a connection</dd></div>
+        <div><dt>One account</dt><dd>Your own flying and every airline you join</dd></div>
+    </dl>
+</section>
+
+<section class="two-worlds" aria-label="For pilots and for airlines">
+    <article>
+        <h2>For pilots</h2>
+        <ul class="plain">
+            <li><strong>Logbook</strong> — every flight recorded with times, route and aircraft, from the replay or the live sim.</li>
+            <li><strong>Dispatch</strong> — import a SimBrief plan with your username saved to your account.</li>
+            <li><strong>Tracking</strong> — see the flight's phase and progress as you fly.</li>
+            <li><strong>Weather</strong> — briefings for departure and destination.</li>
+        </ul>
+    </article>
+    <article>
+        <h2>For airlines</h2>
+        <ul class="plain">
+            <li><strong>Crew roster</strong> — pilots, dispatchers and administrators, with roles you control.</li>
+            <li><strong>Invitations</strong> — a code your invitee redeems once; nothing leaks in email.</li>
+            <li><strong>Shared dispatch</strong> — the same board for everyone on the schedule.</li>
+            <li><strong>Security</strong> — every administrative change asks for a fresh security check.</li>
+        </ul>
+    </article>
+</section>
+
+<section class="how" aria-label="How to start">
+    <h2>How to start</h2>
+    <ol class="how-steps">
+        <li><span class="step-n">1</span><div><strong>Create your account</strong><p>Email and password, a passkey, or Microsoft / Google. Verify your email.</p></div></li>
+        <li><span class="step-n">2</span><div><strong>Download for Windows</strong><p>Install Alpha 6 OPS and sign in once. It remembers you.</p></div></li>
+        <li><span class="step-n">3</span><div><strong>Fly, or found an airline</strong><p>Log your first flight, join a crew with a code, or start your own operation.</p></div></li>
+    </ol>
+    <div class="actions">
+        @if (User.Identity?.IsAuthenticated == true) { <a class="button" href="/Account">Go to your workspaces</a> }
+        else if (Settings.IsConfigured) { <a class="button" href="/auth/signup">Create an account</a> }
+        <a class="button secondary" href="/Download">Download for Windows</a>
+        <a href="/Pricing">See levels and pricing</a>
+    </div>
+</section>

@@ -120,6 +120,68 @@ a.badge:hover { color: var(--yellow); border-color: var(--yellow); }
 .nowrap { white-space: nowrap; }
 .activity code { font-size: 12px; color: var(--accent); }
 .activity td, .activity th { padding: 12px; font-size: 13px; }
+/* Front door: intro, pilots/airlines, how to start */
+.intro { display: grid; grid-template-columns: 1.4fr 1fr; gap: 48px; align-items: start; padding: 64px 0 40px; border-bottom: 1px solid var(--line); }
+.intro h2 { font-size: clamp(26px, 3vw, 36px); letter-spacing: -.8px; line-height: 1.2; max-width: 620px; }
+.intro p { color: var(--muted); font-size: 17px; max-width: 620px; }
+.intro-facts { margin: 8px 0 0; display: grid; gap: 18px; }
+.intro-facts div { border-left: 2px solid var(--yellow); padding-left: 16px; }
+.intro-facts dt { font-weight: 650; }
+.intro-facts dd { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+.two-worlds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; padding: 40px 0; border-bottom: 1px solid var(--line); }
+.two-worlds article { padding: 0 40px 0 0; }
+.two-worlds article + article { border-left: 1px solid var(--line); padding: 0 0 0 40px; }
+.plain { list-style: none; margin: 0; padding: 0; }
+.plain li { padding: 10px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 15px; line-height: 1.55; }
+.plain li:first-child { border-top: 0; }
+.plain strong { color: var(--text); }
+.how { padding: 44px 0 20px; }
+.how-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; }
+.how-steps li { display: flex; gap: 16px; align-items: flex-start; }
+.how-steps p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+.step-n { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--yellow); color: var(--yellow); font-weight: 650; }
+
+/* Pricing: tiers as flight progress strips */
+.pricing-heading h1 { max-width: 760px; }
+.early-access { display: inline-block; margin: 8px 0 0; padding: 12px 16px; border: 1px solid #5a5130; border-left: 4px solid var(--yellow); background: #1a1f1c; color: #e7d99a; font-size: 14px; max-width: 760px; }
+.strip-board { display: grid; gap: 10px; margin: 8px 0 10px; }
+.strip-group { font-size: 13px; font-weight: 650; color: var(--muted); padding: 18px 0 4px; }
+.strip { display: grid; grid-template-columns: 96px 1fr 210px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.strip-code { display: grid; place-items: center; background: #0f1922; border-right: 1px solid var(--line); font: 600 16px/1 Consolas, monospace; letter-spacing: 1px; color: #d5e2ed; }
+.strip.paid .strip-code { color: var(--yellow); background: #1d2119; border-right-color: #5a5130; }
+.strip-body { display: grid; grid-template-columns: 260px 1fr; gap: 24px; padding: 20px 24px; align-items: start; }
+.strip-name h2 { font-size: 20px; margin: 0 0 4px; }
+.strip-name p { margin: 0; color: var(--muted); font-size: 14px; }
+.strip-fields { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 20px; font-size: 14px; color: var(--muted); }
+.strip-fields li::before { content: "■"; color: #3f5265; font-size: 8px; vertical-align: 2px; margin-right: 8px; }
+.strip.paid .strip-fields li::before { color: var(--yellow); }
+.strip-price { display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 18px 22px; border-left: 1px dashed var(--line); text-align: right; }
+.amount { font-size: 26px; font-weight: 650; letter-spacing: -.6px; }
+.amount small { font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 4px; }
+.yearly { color: var(--muted); font-size: 13px; }
+.strip-price .badge { align-self: flex-end; margin-top: 6px; }
+.placeholder-note { font-size: 13px; margin: 0 0 32px; }
+.pay-grid { margin-bottom: 40px; }
+.pay-card p { color: var(--muted); }
+.pay-card strong { color: var(--text); }
+.link-mock { display: flex; align-items: center; gap: 14px; margin: 18px 0; }
+.link-pill { display: inline-block; padding: 12px 26px; border-radius: 999px; background: #33d691; color: #06251a; font-weight: 700; font-size: 15px; letter-spacing: .2px; }
+.link-or { color: var(--muted); font-size: 13px; }
+.steps-list { margin: 0 0 8px; padding-left: 22px; color: var(--muted); display: grid; gap: 10px; }
+.steps-list strong { color: var(--text); }
+.faq { padding: 8px 0 24px; }
+.faq-list { display: grid; grid-template-columns: 1fr 1.4fr; gap: 22px 40px; margin: 18px 0 0; align-items: start; }
+.faq-list dt { font-weight: 650; }
+.faq-list dd { margin: 6px 0 0; color: var(--muted); font-size: 15px; }
+@media (max-width: 900px) {
+  .strip { grid-template-columns: 72px 1fr; }
+  .strip-price { grid-column: 2; border-left: 0; border-top: 1px dashed var(--line); text-align: left; align-items: flex-start; }
+  .strip-price .badge { align-self: flex-start; }
+  .strip-body { grid-template-columns: 1fr; gap: 12px; }
+  .intro, .two-worlds, .how-steps, .faq-list { grid-template-columns: 1fr; }
+  .two-worlds article, .two-worlds article + article { padding: 0; border-left: 0; }
+  .two-worlds article + article { margin-top: 28px; }
+}
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 @media (max-width: 900px) {
   .topbar { padding: 20px 24px; } main { padding: 0 24px 36px; }

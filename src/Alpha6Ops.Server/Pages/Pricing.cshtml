@@ -1,0 +1,55 @@
+@page
+@model Alpha6Ops.Server.Pages.PricingModel
+@inject ServerSettings Settings
+@{ ViewData["Title"] = "Pricing"; }
+<div class="page-heading pricing-heading">
+    <h1>Fly free. Pay only when your operation grows.</h1>
+    <p class="lead">One account covers your own flying and every airline you belong to. Personal and airline levels are separate, so a pilot on the free level can still fly for a Pro airline.</p>
+    <p class="early-access" role="status">Early access: every level is complimentary right now. Choose one from your account and it applies immediately — no card, no trial clock.</p>
+</div>
+
+<div class="strip-board" aria-label="Levels">
+    <div class="strip-group">Personal</div>
+    @foreach (var tier in Alpha6Ops.Server.Pages.PricingModel.Tiers.Where(t => t.Group == "Personal")) { <partial name="_TierStrip" model="tier" /> }
+    <div class="strip-group">Airline</div>
+    @foreach (var tier in Alpha6Ops.Server.Pages.PricingModel.Tiers.Where(t => t.Group == "Airline")) { <partial name="_TierStrip" model="tier" /> }
+</div>
+<p class="muted placeholder-note">Prices shown are placeholders for the public release and will be confirmed before anything is charged. Yearly prices are shown per year.</p>
+
+<section class="grid two pay-grid" aria-label="Paying and starting">
+    <article class="card pay-card">
+        <h2>How you'll pay</h2>
+        <p>Paid levels will check out with <strong>Link</strong>, the one-tap wallet from Stripe: your email, a one-time code, and a saved card you never re-type. Anyone without Link sees a normal card form on the same page. Alpha 6 never sees or stores card numbers.</p>
+        <div class="link-mock" aria-hidden="true"><span class="link-pill">Pay with Link</span><span class="link-or">or card · Apple Pay · Google Pay</span></div>
+        <ul class="plain">
+            <li>Cancel any time from your account; the level runs to the end of the period you paid for.</li>
+            <li>Airline levels are paid by the airline's owner and cover every crew member.</li>
+            <li>Receipts and card changes live in a billing page linked from your account.</li>
+        </ul>
+        <p class="muted">Arrives with the public release. Nothing is charged during early access.</p>
+    </article>
+    <article class="card pay-card">
+        <h2>Start in three steps</h2>
+        <ol class="steps-list">
+            <li><strong>Create your account.</strong> Email and password, a passkey, or your Microsoft or Google sign-in. Verify your email from the message we send.</li>
+            <li><strong>Download Alpha 6 OPS for Windows.</strong> Sign in once; the app remembers you and works offline for your next flights.</li>
+            <li><strong>Fly.</strong> Log flights on your own, join a crew with an invitation code, or found your own airline.</li>
+        </ol>
+        <div class="actions">
+            @if (Model.SignedIn) { <a class="button" href="/Account/Plan">Choose your level</a> }
+            else if (Settings.IsConfigured) { <a class="button" href="/auth/signup">Create an account</a><a class="button secondary" href="/auth/login">Sign in</a> }
+            else { <a class="button" href="/Download">Download</a> }
+            <a href="/Download">Download for Windows</a>
+        </div>
+    </article>
+</section>
+
+<section class="faq" aria-label="Questions">
+    <h2>Questions people ask first</h2>
+    <dl class="faq-list">
+        <dt>Do I need a paid level to fly for an airline?</dt><dd>No. Airline membership is free at every personal level. Only the owner's choice of airline level affects the airline.</dd>
+        <dt>What happens to my logbook if I stop paying?</dt><dd>Nothing is deleted. Your flights stay in your logbook; the level returns to Flying as a Pilot and premium features pause.</dd>
+        <dt>Can one account own more than one airline?</dt><dd>One Community airline per owner. Pro airlines don't count toward that limit.</dd>
+        <dt>Which simulator does this support?</dt><dd>Microsoft Flight Simulator 2024 on Windows. Live SimConnect tracking is in testing; replay works today.</dd>
+    </dl>
+</section>

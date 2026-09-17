@@ -1,0 +1,12 @@
+@model Alpha6Ops.Server.Pages.PricingModel.Tier
+<article class="strip @(Model.Paid ? "paid" : "")" aria-label="@Model.Name">
+    <div class="strip-code">@Model.Code</div>
+    <div class="strip-body">
+        <div class="strip-name"><h2>@Model.Name</h2><p>@Model.Summary</p></div>
+        <ul class="strip-fields">@foreach (var item in Model.Included) { <li>@item</li> }</ul>
+    </div>
+    <div class="strip-price">
+        @if (Model.Paid) { <span class="amount">@Model.Monthly<small>/month</small></span><span class="yearly">@Model.Yearly per year</span><span class="badge">Free in early access</span> }
+        else { <span class="amount">@Model.Monthly</span><span class="yearly">Always</span> }
+    </div>
+</article>

@@ -41,6 +41,12 @@ using (var client = setup.CreateClient(new() { BaseAddress = new("https://localh
     var release = await client.GetAsync("/api/v1/release");
     Check(release.StatusCode == HttpStatusCode.NotFound && (await release.Content.ReadAsStringAsync()).Contains("release_unavailable"), "Release descriptor answers 404 without a published installer, even unconfigured");
     Check(landing.Headers.Contains("Content-Security-Policy"), "Security headers present");
+    var landingHtml = await landing.Content.ReadAsStringAsync();
+    Check(landingHtml.Contains("How to start") && landingHtml.Contains("/Pricing") && !landingHtml.Contains("/auth/signup"), "Landing explains the product and never offers sign-up while unconfigured");
+    var pricing = await client.GetAsync("/Pricing");
+    var pricingHtml = await pricing.Content.ReadAsStringAsync();
+    Check(pricing.IsSuccessStatusCode && new[] { "Flying as a Pilot", "Premium pilot", "Community airline", "Pro airline", "Link", "placeholders" }.All(pricingHtml.Contains) && !pricingHtml.Contains("<script"),
+        "Pricing page lists every level anonymously, names Link, flags placeholder prices and stays script-free");
 }
 var connection = Environment.GetEnvironmentVariable("ALPHA6_SERVER_TEST_DATABASE");
 if (string.IsNullOrWhiteSpace(connection))
@@ -66,6 +72,7 @@ using var host = new ServerFactory(connection);
 using var anonymous = host.CreateClient(new() { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
 using (var scope = host.Services.CreateScope()) await scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Database.MigrateAsync();
 Check((await anonymous.GetAsync("/api/v1/me/bootstrap")).StatusCode == HttpStatusCode.Unauthorized, "Anonymous API is 401, never a browser redirect");
+Check((await anonymous.GetStringAsync("/Pricing")).Contains("href=\"/auth/signup\""), "Configured pricing page sends new visitors to sign-up");
 var run = Guid.NewGuid().ToString("N");
 var owner = "owner-" + run;
 using var pilot = host.Client(owner);

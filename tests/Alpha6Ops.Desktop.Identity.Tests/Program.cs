@@ -326,7 +326,7 @@ mode = "mfa-required"; airlineCreates = 0;
 var viaApp = await session.WithStepUpAsync(() => session.CreateAirlineAsync(new("App Airline", "app-airline", "APP"), default),
     () => { choices++; mode = "online"; return Task.FromResult(StepUpChoice.Completed); }, default);
 Check(viaApp.Name == "Created Airline" && airlineCreates == 2 && choices == 1, "an in-app security check retries without opening the browser");
-Check(SystemLoginBrowser.CallbackPage(false).Contains("You’re signed in") && SystemLoginBrowser.CallbackPage(true).Contains("didn’t complete") && !SystemLoginBrowser.CallbackPage(false).Contains("<script"), "the browser callback page is branded and script-free");
+Check(SystemLoginBrowser.CallbackPage(false).Contains("Almost there") && SystemLoginBrowser.CallbackPage(true).Contains("didn’t complete") && !SystemLoginBrowser.CallbackPage(false).Contains("<script"), "the browser callback page is branded and script-free");
 await BrowserChecks.RunAsync(Check);
 Console.WriteLine($"{count} desktop identity checks passed. Artifacts: {directory}");
 

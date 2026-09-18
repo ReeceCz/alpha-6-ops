@@ -26,7 +26,7 @@ internal sealed class AccountSessionException(string message, string code = "") 
     internal string Code { get; } = code;
 }
 internal sealed record ProblemBody(string? Title, string? Code);
-internal sealed record BrowserLoginResult(string AccessToken, string? RefreshToken, bool IsError = false);
+internal sealed record BrowserLoginResult(string AccessToken, string? RefreshToken, bool IsError = false, string? Error = null);
 // Success means the session is established. Otherwise MfaToken carries the provider's challenge token; when
 // NeedsEnrollment is set the pilot has no authenticator yet and must add one before the code is accepted.
 internal sealed record PasswordLoginOutcome(bool Success, string? MfaToken, bool NeedsEnrollment);
@@ -87,7 +87,9 @@ internal sealed class DesktopAccountSession
         token.ThrowIfCancellationRequested();
         if (browser.LastResultType == Duende.IdentityModel.OidcClient.Browser.BrowserResultType.Timeout)
             throw new AccountSessionException("Sign-in timed out. Try again and complete sign-in in your browser within three minutes.");
-        return new(result.AccessToken, result.RefreshToken, result.IsError);
+        // The provider's own error text is the only way to diagnose a failed code exchange; it is shown, never logged.
+        var detail = result.IsError ? string.Join(": ", new[] { result.Error, result.ErrorDescription }.Where(x => !string.IsNullOrWhiteSpace(x))) : null;
+        return new(result.AccessToken, result.RefreshToken, result.IsError, detail);
     }
 
     internal async Task LoginAsync(CancellationToken token, string? loginHint = null, bool createAccount = false)
@@ -103,11 +105,21 @@ internal sealed class DesktopAccountSession
             { FrontChannelExtraParameters = new Parameters(parameters) }, token);
             token.ThrowIfCancellationRequested();
             if (result.IsError || string.IsNullOrWhiteSpace(result.AccessToken))
-                throw new AccountSessionException("Sign-in was canceled or could not be verified. Try again in your browser.");
+                throw new AccountSessionException(BrowserFailure(result), "browser_login_failed");
             await EstablishAsync(result.AccessToken, result.RefreshToken, token, preserveWorkspace: false);
         }
         finally { gate.Release(); }
     }
+
+    private static string BrowserFailure(BrowserLoginResult result)
+    {
+        if (result.Error is not { Length: > 0 } error) return "Sign-in was canceled or could not be verified. Try again in your browser.";
+        if (error.Contains("access_denied", StringComparison.OrdinalIgnoreCase) && error.Contains("consent", StringComparison.OrdinalIgnoreCase)) return "Sign-in was declined at the consent screen. Try again and choose Accept.";
+        if (error.Contains("unauthorized_client", StringComparison.OrdinalIgnoreCase)) return "This installation's sign-in client is not allowed to use browser sign-in. The provider said: " + Trim(error);
+        if (error.Contains("invalid_grant", StringComparison.OrdinalIgnoreCase)) return "The browser sign-in could not be completed by the app (the sign-in code was rejected). Try again; if it repeats, the provider said: " + Trim(error);
+        return "The browser sign-in finished but the app could not complete it. The provider said: " + Trim(error);
+    }
+    private static string Trim(string text) => text.Length > 220 ? text[..220] + "…" : text;
 
     internal async Task<bool> RestoreAsync(CancellationToken token)
     {
@@ -132,7 +144,7 @@ internal sealed class DesktopAccountSession
             var result = await login(new LoginRequest { FrontChannelExtraParameters = new Parameters(parameters) }, token);
             token.ThrowIfCancellationRequested();
             if (result.IsError || string.IsNullOrWhiteSpace(result.AccessToken))
-                throw new AccountSessionException("Identity confirmation was canceled or could not be verified. Try again.", "step_up_failed");
+                throw new AccountSessionException("Identity confirmation was canceled or could not be verified. " + (result.Error is { Length: > 0 } e ? $"The provider said: {Trim(e)}" : "Try again."), "step_up_failed");
             await EstablishAsync(result.AccessToken, result.RefreshToken, token);
         }
         finally { gate.Release(); }

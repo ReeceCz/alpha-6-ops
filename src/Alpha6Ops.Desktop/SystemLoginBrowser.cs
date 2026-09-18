@@ -89,9 +89,11 @@ internal sealed class SystemLoginBrowser : IBrowser, IDisposable
     // external requests, nothing that could carry the authorization code anywhere else.
     internal static string CallbackPage(bool failed)
     {
-        var title = failed ? "Sign-in didn’t complete" : "You’re signed in";
+        // The app still exchanges the code and loads the account after this page appears, so the copy promises
+        // only what has happened: the browser part is done.
+        var title = failed ? "Sign-in didn’t complete" : "Almost there";
         var lead = failed ? "Alpha 6 OPS didn’t receive a valid sign-in. Return to the app and try again."
-            : "Return to Alpha 6 OPS — it has already picked up your sign-in. You can close this tab.";
+            : "The browser part is done. Alpha 6 OPS is finishing your sign-in now — switch back to the app. If it shows a message instead of your workspaces, follow it there. You can close this tab.";
         var mark = failed ? "<span class=\"dot warn\"></span>SIGN-IN INTERRUPTED" : "<span class=\"dot\"></span>SIGN-IN RECEIVED";
         return "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>" + title + " · Alpha 6 OPS</title><style>"
             + "html{background:#070c12}body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:'Segoe UI',system-ui,sans-serif;color:#e8edf2;background:#070c12}"

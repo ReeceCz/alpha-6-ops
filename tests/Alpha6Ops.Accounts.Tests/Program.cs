@@ -63,6 +63,21 @@ Check(AccountRules.Profile(profileRequest with { TimeZone = "UTC" }).TimeZone ==
 Check(AccountRules.Profile(profileRequest with { PreferredWorkspace = "portal" }).PreferredWorkspace == "portal", "portal start preference accepted");
 Check(AccountRules.ClientVersion("Alpha6OPS/0.16.0 (Windows)") == "0.16.0" && AccountRules.ClientVersion("curl/8 <script>").Length <= 32 && !AccountRules.ClientVersion("curl/8 <script>").Contains('<'), "client version extraction is sanitized");
 Check(SubscriptionStatuses.IsCurrent("complimentary", null, now) && !SubscriptionStatuses.IsCurrent("canceled", null, now) && !SubscriptionStatuses.IsCurrent("active", now.AddMinutes(-1), now), "complimentary counts as current until expiry");
+var routeRequest = new RouteRequest(" a6 101 ", "kmke", "kord", "14:35", 65, AccountRules.Days("12345"), "a20n", " First wave ", true);
+var cleanRoute = AccountRules.Route(routeRequest);
+Check(cleanRoute is { FlightNumber: "A6101", Origin: "KMKE", Destination: "KORD", DepartureUtc: "14:35", DaysOfWeek: 31, AircraftType: "A20N", Notes: "First wave" }, "route normalization");
+Reject(() => AccountRules.Route(routeRequest with { Destination = "KMKE" }), "invalid_route");
+Reject(() => AccountRules.Route(routeRequest with { DepartureUtc = "25:00" }), "invalid_route");
+Reject(() => AccountRules.Route(routeRequest with { BlockMinutes = 0 }), "invalid_route");
+Reject(() => AccountRules.Route(routeRequest with { DaysOfWeek = 0 }), "invalid_route");
+Reject(() => AccountRules.Route(routeRequest with { FlightNumber = "A" }), "invalid_route");
+Reject(() => AccountRules.Days("8"), "invalid_route");
+Check(AccountRules.Days("7") == 64 && AccountRules.DaysText(AccountRules.AllDays) == "1234567" && AccountRules.DaysText(AccountRules.Days("6 7".Replace(" ", ""))) == "67", "day masks round trip");
+var aircraftRequest = new AircraftRequest(" n123a6 ", "b738", " Spirit of Milwaukee ", "kmke", "Active", null);
+Check(AccountRules.Aircraft(aircraftRequest) is { Registration: "N123A6", TypeIcao: "B738", Name: "Spirit of Milwaukee", HomeBase: "KMKE", Status: "active", Notes: "" }, "aircraft normalization");
+Reject(() => AccountRules.Aircraft(aircraftRequest with { Registration = "-" }), "invalid_aircraft");
+Reject(() => AccountRules.Aircraft(aircraftRequest with { TypeIcao = "" }), "invalid_aircraft");
+Reject(() => AccountRules.Aircraft(aircraftRequest with { Status = "flying" }), "invalid_aircraft");
 
 if (string.IsNullOrWhiteSpace(connection))
 {
@@ -100,7 +115,7 @@ await using (var db = Context())
     Check(!db.Database.HasPendingModelChanges(), "migration snapshot matches current model");
     await db.Database.MigrateAsync();
     await db.Database.MigrateAsync();
-    Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 3, "migrations are repeatable");
+    Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 4, "migrations are repeatable");
 }
 var prefix = Guid.NewGuid().ToString("N")[..10];
 actor = actor with { Subject = prefix + "-owner", Email = prefix + "-owner@example.com" };
@@ -225,6 +240,37 @@ await RejectAsync(() => Mutation(s => s.ChangeRolesAsync(outsider, outsiderVa.Id
 var otherInvite = await Run(s => s.InviteAsync(outsider, outsiderVa.Id, new(pilot.Email, [AirlineRole.Dispatcher])));
 await Run(s => s.AcceptInvitationAsync(pilot, otherInvite.Token));
 Check((await Run(s => s.BootstrapAsync(pilot))).Airlines.Length == 2, "pilot can belong to multiple airlines");
+// Schedules and fleet: any member reads, dispatchers and up write without a security check.
+var route = await Run(s => s.SaveRouteAsync(actor, va.Id, null, routeRequest));
+Check(route.FlightNumber == "A6101" && route.DaysOfWeek == 31, "owner adds a route");
+await RejectAsync(() => Run(s => s.SaveRouteAsync(actor, va.Id, null, routeRequest)), "route_exists");
+await RejectAsync(() => Run(s => s.SaveRouteAsync(pilot, va.Id, null, routeRequest with { FlightNumber = "A6102" })), "dispatcher_required");
+await RejectAsync(() => Run(s => s.ListRoutesAsync(outsider, va.Id)), "membership_required");
+Check((await Run(s => s.ListRoutesAsync(pilot, va.Id))).Length == 1, "pilot reads the schedule");
+Check((await Run(s => s.SaveRouteAsync(pilot, outsiderVa.Id, null, routeRequest))).Origin == "KMKE", "dispatcher edits the schedule without MFA");
+var edited = await Run(s => s.SaveRouteAsync(actor, va.Id, route.Id, routeRequest with { BlockMinutes = 70, Active = false }));
+Check(edited.Id == route.Id && edited.BlockMinutes == 70 && !edited.Active, "route update keeps its identity");
+await RejectAsync(() => Run(s => s.SaveRouteAsync(actor, outsiderVa.Id, route.Id, routeRequest)), "membership_required");
+var import = await Run(s => s.ImportRoutesAsync(actor, va.Id, new("flight,origin,destination,departure_utc,block_minutes,days,aircraft_type,notes\nA6101,KMKE,KORD,15:00,60,1234567,A20N,Updated by import\nA6102,KORD,KMKE,17:10,55,67,,Weekend return\nbad,KMKE,KMKE,17:10,55,12\n")));
+Check(import is { Created: 1, Updated: 1, Skipped: 1 } && import.Errors[0].StartsWith("Line 4"), "CSV import creates, updates and reports bad rows");
+var schedule = await Run(s => s.ListRoutesAsync(actor, va.Id));
+Check(schedule.Length == 2 && schedule.Single(x => x.FlightNumber == "A6101").DepartureUtc == "15:00" && schedule.Single(x => x.FlightNumber == "A6102").DaysOfWeek == 96, "imported schedule is stored");
+await RejectDatabaseAsync(async () =>
+{
+    await using var db = Context();
+    db.Routes.Add(new() { Id = Guid.NewGuid(), AirlineId = va.Id, FlightNumber = "A6103", Origin = "KMKE", Destination = "KMKE", DepartureUtc = new(1, 0), BlockMinutes = 30, DaysOfWeek = 1, CreatedAt = now, UpdatedAt = now });
+    await db.SaveChangesAsync();
+}, "database rejects a route to its own origin");
+await Mutation(s => s.DeleteRouteAsync(actor, va.Id, schedule.Single(x => x.FlightNumber == "A6102").Id));
+await RejectAsync(() => Mutation(s => s.DeleteRouteAsync(actor, va.Id, Guid.NewGuid())), "route_not_found");
+var tail = await Run(s => s.SaveAircraftAsync(actor, va.Id, null, aircraftRequest));
+Check(tail.Registration == "N123A6" && tail.Status == "active", "owner adds an aircraft");
+await RejectAsync(() => Run(s => s.SaveAircraftAsync(actor, va.Id, null, aircraftRequest)), "aircraft_exists");
+await RejectAsync(() => Run(s => s.SaveAircraftAsync(pilot, va.Id, null, aircraftRequest with { Registration = "N124A6" })), "dispatcher_required");
+Check((await Run(s => s.SaveAircraftAsync(actor, va.Id, tail.Id, aircraftRequest with { Status = "maintenance" }))).Status == "maintenance", "aircraft status changes");
+Check((await Run(s => s.ListFleetAsync(pilot, va.Id))).Single().Status == "maintenance", "pilot reads the fleet");
+await Mutation(s => s.DeleteAircraftAsync(actor, va.Id, tail.Id));
+Check((await Run(s => s.ListFleetAsync(actor, va.Id))).Length == 0, "aircraft removed");
 var revoked = await Run(s => s.InviteAsync(actor, va.Id, new(outsider.Email, [AirlineRole.Pilot])));
 await Mutation(s => s.RevokeInvitationAsync(actor, va.Id, revoked.Invitation.Id));
 await RejectAsync(() => Run(s => s.AcceptInvitationAsync(outsider, revoked.Token)), "invitation_invalid");

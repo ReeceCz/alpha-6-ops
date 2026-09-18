@@ -1,0 +1,64 @@
+@page "/Account/Airline/{id:guid}/Schedule"
+@model Alpha6Ops.Server.Pages.Account.ScheduleModel
+@{ ViewData["Title"] = (Model.Airline?.Name ?? "Airline") + " schedule"; var e = Model.Editing; }
+<partial name="_AccountError" model="Model" />
+@if (Model.Airline is { } airline) {
+<partial name="_AirlineNav" model='(airline, "schedule")' />
+@if (Model.Saved is { } saved) { <div class="notice" role="status"><p>@saved</p></div> }
+@if (Model.Import is { } import) {
+    <div class="notice" role="status"><p>Import finished: @import.Created created, @import.Updated updated, @import.Skipped skipped.</p>
+    @if (import.Errors.Length > 0) { <ul class="import-errors">@foreach (var error in import.Errors) { <li>@error</li> }</ul> }</div>
+}
+<div class="console-grid">
+<section class="console-main">
+    <div class="console-bar"><h2>Routes <span class="count">@Model.Routes.Length</span></h2>
+        @if (Model.Routes.Length > 0) { <a class="button secondary small" href="/Account/Airline/@airline.Id/Schedule?handler=Export">Export CSV</a> }</div>
+    @if (Model.Routes.Length == 0) {
+        <div class="empty"><h3>No routes yet.</h3><p>Add your first route on the right, or paste a CSV below. Pilots bid on these from the desktop app.</p></div>
+    } else {
+    <div class="table-scroll"><table class="console-table"><thead><tr><th scope="col">Flight</th><th scope="col">Route</th><th scope="col">Dep UTC</th><th scope="col">Block</th><th scope="col">Days</th><th scope="col">Type</th><th scope="col">Status</th>@if (Model.CanEdit) { <th scope="col"><span class="visually-hidden">Actions</span></th> }</tr></thead><tbody>
+    @foreach (var r in Model.Routes) {
+        <tr class="@(r.Active ? "" : "inactive") @(e?.Id == r.Id ? "editing" : "")">
+            <td><strong>@r.FlightNumber</strong></td><td class="nowrap">@r.Origin <span class="muted">→</span> @r.Destination</td><td>@r.DepartureUtc</td>
+            <td>@(r.BlockMinutes / 60)h @(r.BlockMinutes % 60)m</td>
+            <td><span class="days">@for (var i = 0; i < 7; i++) { <i class="@((r.DaysOfWeek & (1 << i)) != 0 ? "on" : "")" title="@Alpha6Ops.Server.Pages.Account.ScheduleModel.DayLabels[i]">@Alpha6Ops.Server.Pages.Account.ScheduleModel.DayLabels[i][0]</i> }</span></td>
+            <td>@(r.AircraftType.Length > 0 ? r.AircraftType : "—")</td><td>@(r.Active ? "Active" : "Suspended")</td>
+            @if (Model.CanEdit) { <td class="row-actions"><a href="/Account/Airline/@airline.Id/Schedule?edit=@r.Id#route-form">Edit</a><form method="post" asp-page-handler="Delete"><input type="hidden" name="routeId" value="@r.Id" /><button class="text-button danger">Remove</button></form></td> }
+        </tr>
+        @if (r.Notes.Length > 0) { <tr class="note-row"><td colspan="8"><span class="muted">@r.Notes</span></td></tr> }
+    }
+    </tbody></table></div>
+    }
+    @if (Model.CanEdit) {
+    <details class="import" open="@(Model.Import is not null)"><summary>Import routes from CSV</summary>
+        <form method="post" asp-page-handler="Import" class="stack">
+            <label for="csv">One route per line: <code>flight,origin,destination,departure_utc,block_minutes,days,aircraft_type,notes</code>. Days are digits 1 (Monday) to 7 (Sunday). Existing flight + route rows are updated.</label>
+            <textarea id="csv" name="csv" rows="6" required placeholder="A6101,KMKE,KORD,14:35,65,12345,A20N,First wave&#10;A6102,KORD,KMKE,17:10,55,67,,Weekend return"></textarea>
+            <button class="button secondary">Import</button>
+        </form></details>
+    }
+</section>
+@if (Model.CanEdit) {
+<aside class="console-side" id="route-form">
+    <div class="card"><h2>@(e is null ? "Add a route" : $"Edit {e.FlightNumber}")</h2>
+    <form method="post" asp-page-handler="Save" class="stack">
+        @if (e is not null) { <input type="hidden" name="routeId" value="@e.Id" /> }
+        <label for="flightNumber">Flight number</label><input id="flightNumber" name="flightNumber" maxlength="10" required value="@e?.FlightNumber" placeholder="A6101" style="text-transform:uppercase" />
+        <div class="grid two">
+            <div class="stack"><label for="origin">From</label><input id="origin" name="origin" maxlength="4" required value="@e?.Origin" placeholder="KMKE" style="text-transform:uppercase" /></div>
+            <div class="stack"><label for="destination">To</label><input id="destination" name="destination" maxlength="4" required value="@e?.Destination" placeholder="KORD" style="text-transform:uppercase" /></div>
+        </div>
+        <div class="grid two">
+            <div class="stack"><label for="departureUtc">Departure (UTC)</label><input id="departureUtc" name="departureUtc" type="time" required value="@(e?.DepartureUtc ?? "12:00")" /></div>
+            <div class="stack"><label for="blockMinutes">Block minutes</label><input id="blockMinutes" name="blockMinutes" type="number" min="5" max="1440" required value="@(e?.BlockMinutes ?? 90)" /></div>
+        </div>
+        <fieldset><legend>Days</legend><div class="day-picks">@for (var i = 0; i < 7; i++) { <label class="check"><input type="checkbox" name="days" value="@i" checked="@(e is null ? i < 5 : (e.DaysOfWeek & (1 << i)) != 0)" />@Alpha6Ops.Server.Pages.Account.ScheduleModel.DayLabels[i]</label> }</div></fieldset>
+        <label for="aircraftType">Aircraft type (ICAO, optional)</label><input id="aircraftType" name="aircraftType" maxlength="4" value="@e?.AircraftType" placeholder="A20N" style="text-transform:uppercase" />
+        <label for="notes">Notes</label><textarea id="notes" name="notes" rows="2" maxlength="500">@e?.Notes</textarea>
+        <label class="check"><input type="checkbox" name="active" value="true" checked="@(e?.Active ?? true)" />Active — pilots can bid on it</label>
+        <div class="actions"><button class="button">@(e is null ? "Add route" : "Save changes")</button>@if (e is not null) { <a href="/Account/Airline/@airline.Id/Schedule">Cancel</a> }</div>
+    </form></div>
+</aside>
+}
+</div>
+}

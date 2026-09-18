@@ -275,20 +275,136 @@ public sealed class AccountsService(AccountsDbContext db, TimeProvider? timeProv
         return true;
     }, ct);
 
-    private async Task<(VirtualAirline Airline, Membership Member)> MemberAccess(UserAccount user, Guid airlineId, bool manage, ActorIdentity actor, DateTimeOffset now, CancellationToken ct)
+    // Read: any active member. Operations: dispatchers and up, no security check (schedules, fleet).
+    // Admin: administrators and owners with a recent MFA proof (people, invitations, ownership, level).
+    private enum Access { Read, Operations, Admin }
+
+    private Task<(VirtualAirline Airline, Membership Member)> MemberAccess(UserAccount user, Guid airlineId, bool manage, ActorIdentity actor, DateTimeOffset now, CancellationToken ct)
+        => MemberAccess(user, airlineId, manage ? Access.Admin : Access.Read, actor, now, ct);
+
+    private async Task<(VirtualAirline Airline, Membership Member)> MemberAccess(UserAccount user, Guid airlineId, Access access, ActorIdentity actor, DateTimeOffset now, CancellationToken ct)
     {
         var member = await db.Memberships.Include(x => x.Roles).SingleOrDefaultAsync(x => x.AirlineId == airlineId && x.UserId == user.Id && x.Status == MembershipStatus.Active, ct);
         var airline = await db.Airlines.SingleOrDefaultAsync(x => x.Id == airlineId && x.Status == "active", ct);
         if (member is null || airline is null) throw new IdentityException("membership_required", "An active airline membership is required.");
         var roles = Roles(airline, member);
-        if (manage)
+        switch (access)
         {
-            if (!roles.Contains(AirlineRole.Owner) && !roles.Contains(AirlineRole.Administrator))
-                throw new IdentityException("administrator_required", "An airline administrator is required.");
-            AccountRules.RequireRecentMfa(actor, now);
+            case Access.Operations when !roles.Contains(AirlineRole.Owner) && !roles.Contains(AirlineRole.Administrator) && !roles.Contains(AirlineRole.Dispatcher):
+                throw new IdentityException("dispatcher_required", "A dispatcher or administrator role is required.");
+            case Access.Admin:
+                if (!roles.Contains(AirlineRole.Owner) && !roles.Contains(AirlineRole.Administrator))
+                    throw new IdentityException("administrator_required", "An airline administrator is required.");
+                AccountRules.RequireRecentMfa(actor, now);
+                break;
         }
         return (airline, member);
     }
+
+    public Task<RouteResponse[]> ListRoutesAsync(ActorIdentity actor, Guid airlineId, CancellationToken ct = default) => Execute(actor, async (user, now) =>
+    {
+        await MemberAccess(user, airlineId, Access.Read, actor, now, ct);
+        var routes = await db.Routes.Where(x => x.AirlineId == airlineId).OrderBy(x => x.FlightNumber).ThenBy(x => x.Origin).ToArrayAsync(ct);
+        return routes.Select(RouteView).ToArray();
+    }, ct);
+
+    public Task<RouteResponse> SaveRouteAsync(ActorIdentity actor, Guid airlineId, Guid? routeId, RouteRequest request, CancellationToken ct = default) => Execute(actor, async (user, now) =>
+    {
+        await MemberAccess(user, airlineId, Access.Operations, actor, now, ct);
+        var clean = AccountRules.Route(request);
+        var route = routeId is { } id
+            ? await db.Routes.SingleOrDefaultAsync(x => x.Id == id && x.AirlineId == airlineId, ct) ?? throw new IdentityException("route_not_found", "Route not found.", 404)
+            : null;
+        var duplicate = await db.Routes.AnyAsync(x => x.AirlineId == airlineId && x.FlightNumber == clean.FlightNumber && x.Origin == clean.Origin && x.Destination == clean.Destination && x.Id != routeId, ct);
+        if (duplicate) throw new IdentityException("route_exists", $"{clean.FlightNumber} {clean.Origin}-{clean.Destination} already exists.", 409);
+        if (route is null) { route = new() { Id = Guid.NewGuid(), AirlineId = airlineId, CreatedAt = now }; db.Routes.Add(route); }
+        Apply(route, clean, now);
+        Audit(user.Id, airlineId, routeId is null ? "route.created" : "route.updated", route.Id, $"{clean.FlightNumber} {clean.Origin}-{clean.Destination}", now);
+        return RouteView(route);
+    }, ct);
+
+    public async Task DeleteRouteAsync(ActorIdentity actor, Guid airlineId, Guid routeId, CancellationToken ct = default) => await Execute(actor, async (user, now) =>
+    {
+        await MemberAccess(user, airlineId, Access.Operations, actor, now, ct);
+        var route = await db.Routes.SingleOrDefaultAsync(x => x.Id == routeId && x.AirlineId == airlineId, ct) ?? throw new IdentityException("route_not_found", "Route not found.", 404);
+        db.Routes.Remove(route);
+        Audit(user.Id, airlineId, "route.deleted", routeId, $"{route.FlightNumber} {route.Origin}-{route.Destination}", now);
+        return true;
+    }, ct);
+
+    // CSV columns: flight,origin,destination,departure_utc,block_minutes,days,aircraft_type,notes. A header row
+    // is optional. Existing flight+origin+destination rows are updated, others created; bad rows are reported.
+    public Task<ScheduleImportResult> ImportRoutesAsync(ActorIdentity actor, Guid airlineId, ScheduleImportRequest request, CancellationToken ct = default) => Execute(actor, async (user, now) =>
+    {
+        await MemberAccess(user, airlineId, Access.Operations, actor, now, ct);
+        var lines = (request.Csv ?? "").Split('\n').Select(l => l.TrimEnd('\r').Trim()).Where(l => l.Length > 0).ToArray();
+        if (lines.Length == 0) throw new IdentityException("invalid_route", "Paste at least one route.", 400);
+        if (lines.Length > 2000) throw new IdentityException("invalid_route", "Import at most 2,000 routes at a time.", 400);
+        var existing = await db.Routes.Where(x => x.AirlineId == airlineId).ToListAsync(ct);
+        int created = 0, updated = 0; var errors = new List<string>();
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var cells = lines[i].Split(',').Select(c => c.Trim().Trim('"')).ToArray();
+            if (i == 0 && cells.Length > 0 && cells[0].Equals("flight", StringComparison.OrdinalIgnoreCase)) continue;
+            try
+            {
+                if (cells.Length < 6) throw new IdentityException("invalid_route", "Expected flight,origin,destination,departure_utc,block_minutes,days[,aircraft_type,notes].", 400);
+                if (!int.TryParse(cells[4], out var block)) throw new IdentityException("invalid_route", "Block minutes must be a whole number.", 400);
+                var clean = AccountRules.Route(new(cells[0], cells[1], cells[2], cells[3], block, AccountRules.Days(cells[5]),
+                    cells.Length > 6 ? cells[6] : "", cells.Length > 7 ? string.Join(",", cells.Skip(7)) : "", true));
+                var route = existing.FirstOrDefault(x => x.FlightNumber == clean.FlightNumber && x.Origin == clean.Origin && x.Destination == clean.Destination);
+                if (route is null) { route = new() { Id = Guid.NewGuid(), AirlineId = airlineId, CreatedAt = now }; db.Routes.Add(route); existing.Add(route); created++; }
+                else updated++;
+                Apply(route, clean, now);
+            }
+            catch (IdentityException ex) { if (errors.Count < 50) errors.Add($"Line {i + 1}: {ex.Message}"); }
+        }
+        if (created + updated > 0) Audit(user.Id, airlineId, "schedule.imported", airlineId, $"{created} created, {updated} updated, {errors.Count} skipped", now);
+        return new ScheduleImportResult(created, updated, errors.Count, errors.ToArray());
+    }, ct);
+
+    public Task<AircraftResponse[]> ListFleetAsync(ActorIdentity actor, Guid airlineId, CancellationToken ct = default) => Execute(actor, async (user, now) =>
+    {
+        await MemberAccess(user, airlineId, Access.Read, actor, now, ct);
+        var fleet = await db.Fleet.Where(x => x.AirlineId == airlineId).OrderBy(x => x.TypeIcao).ThenBy(x => x.Registration).ToArrayAsync(ct);
+        return fleet.Select(AircraftView).ToArray();
+    }, ct);
+
+    public Task<AircraftResponse> SaveAircraftAsync(ActorIdentity actor, Guid airlineId, Guid? aircraftId, AircraftRequest request, CancellationToken ct = default) => Execute(actor, async (user, now) =>
+    {
+        await MemberAccess(user, airlineId, Access.Operations, actor, now, ct);
+        var clean = AccountRules.Aircraft(request);
+        var aircraft = aircraftId is { } id
+            ? await db.Fleet.SingleOrDefaultAsync(x => x.Id == id && x.AirlineId == airlineId, ct) ?? throw new IdentityException("aircraft_not_found", "Aircraft not found.", 404)
+            : null;
+        if (await db.Fleet.AnyAsync(x => x.AirlineId == airlineId && x.Registration == clean.Registration && x.Id != aircraftId, ct))
+            throw new IdentityException("aircraft_exists", $"{clean.Registration} is already in the fleet.", 409);
+        if (aircraft is null) { aircraft = new() { Id = Guid.NewGuid(), AirlineId = airlineId, CreatedAt = now }; db.Fleet.Add(aircraft); }
+        aircraft.Registration = clean.Registration; aircraft.TypeIcao = clean.TypeIcao; aircraft.Name = clean.Name;
+        aircraft.HomeBase = clean.HomeBase; aircraft.Status = clean.Status; aircraft.Notes = clean.Notes ?? ""; aircraft.UpdatedAt = now;
+        Audit(user.Id, airlineId, aircraftId is null ? "aircraft.added" : "aircraft.updated", aircraft.Id, $"{clean.Registration} {clean.TypeIcao} {clean.Status}", now);
+        return AircraftView(aircraft);
+    }, ct);
+
+    public async Task DeleteAircraftAsync(ActorIdentity actor, Guid airlineId, Guid aircraftId, CancellationToken ct = default) => await Execute(actor, async (user, now) =>
+    {
+        await MemberAccess(user, airlineId, Access.Operations, actor, now, ct);
+        var aircraft = await db.Fleet.SingleOrDefaultAsync(x => x.Id == aircraftId && x.AirlineId == airlineId, ct) ?? throw new IdentityException("aircraft_not_found", "Aircraft not found.", 404);
+        db.Fleet.Remove(aircraft);
+        Audit(user.Id, airlineId, "aircraft.removed", aircraftId, aircraft.Registration, now);
+        return true;
+    }, ct);
+
+    private static void Apply(AirlineRoute route, RouteRequest clean, DateTimeOffset now)
+    {
+        route.FlightNumber = clean.FlightNumber; route.Origin = clean.Origin; route.Destination = clean.Destination;
+        route.DepartureUtc = TimeOnly.ParseExact(clean.DepartureUtc, "HH:mm"); route.BlockMinutes = clean.BlockMinutes;
+        route.DaysOfWeek = clean.DaysOfWeek; route.AircraftType = clean.AircraftType; route.Notes = clean.Notes ?? "";
+        route.Active = clean.Active; route.UpdatedAt = now;
+    }
+    private static RouteResponse RouteView(AirlineRoute r) => new(r.Id, r.FlightNumber, r.Origin, r.Destination, r.DepartureUtc.ToString("HH:mm"),
+        r.BlockMinutes, r.DaysOfWeek, r.AircraftType, r.Notes, r.Active, r.UpdatedAt);
+    private static AircraftResponse AircraftView(AirlineAircraft a) => new(a.Id, a.Registration, a.TypeIcao, a.Name, a.HomeBase, a.Status, a.Notes, a.UpdatedAt);
 
     private static AirlineRole[] Roles(VirtualAirline airline, Membership member)
     {

@@ -63,11 +63,11 @@ The API rejects missing/malformed claims; future proof timestamps beyond 30 seco
 
 ## Routes and invitation safety
 
-Public routes: `/`, `/Download`, `/Support`. Account portal: `/Account`, `/Account/Create`, `/Account/Join`, `/Account/Airline/{id}`. Every state-changing browser form uses Razor antiforgery protection.
+Public routes: `/`, `/Levels`, `/Download`, `/Support`. Account portal: `/Account`, `/Account/Profile`, `/Account/Plan`, `/Account/Create`, `/Account/Join`; airline console: `/Account/Airline/{id}` (crew, invitations, level, ownership, activity), `/Account/Airline/{id}/Schedule` and `/Account/Airline/{id}/Fleet` (any member reads; dispatchers, administrators and owners edit without a security check; CSV import/export on the schedule). Every state-changing browser form uses Razor antiforgery protection.
 
 The `/api/v1` group accepts only RS256 JWT bearer access tokens for the configured issuer and audience. Website cookies cannot authorize desktop API requests. Membership and subscription authorization comes from PostgreSQL on every operation. Errors use problem details with stable `code` values. Cross-tenant requests are denied.
 
-API routes include `GET /me/bootstrap` (now carrying the pilot profile and stamping the desktop version from the `Alpha6OPS/x.y.z` user agent), `PUT /me/workspace`, `GET`/`PUT /me/profile`, `PUT /me/plan`, `POST /virtual-airlines`, `PUT /virtual-airlines/{id}/plan` (owner only), airline detail/member/invitation routes, member role updates, invitation revocation, and ownership transfer. `GET /api/v1/release` is anonymous and answers 404 with code `release_unavailable` until `Release__*` is configured; the desktop's Updates dialog polls it.
+API routes include `GET /me/bootstrap` (now carrying the pilot profile and stamping the desktop version from the `Alpha6OPS/x.y.z` user agent), `PUT /me/workspace`, `GET`/`PUT /me/profile`, `PUT /me/plan`, `POST /virtual-airlines`, `PUT /virtual-airlines/{id}/plan` (owner only), airline detail/member/invitation routes, member role updates, invitation revocation, ownership transfer, `GET /virtual-airlines/{id}/activity`, and the operations set `GET`/`POST /virtual-airlines/{id}/routes`, `PUT`/`DELETE …/routes/{routeId}`, `POST …/routes/import` (CSV), `GET`/`POST …/fleet`, `PUT`/`DELETE …/fleet/{aircraftId}` (capability `airline.operations.manage`). `GET /api/v1/release` is anonymous and answers 404 with code `release_unavailable` until `Release__*` is configured; the desktop's Updates dialog polls it.
 
 The desktop keys on the problem-details `code` field: `mfa_required` triggers an in-app identity confirmation followed by an Auth0 step-up login (`prompt=login`, `max_age=0`, `acr_values=…multi-factor`) and a single retry.
 

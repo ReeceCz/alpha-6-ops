@@ -6,7 +6,7 @@ namespace Alpha6Ops.Accounts.Migrations;
 [DbContext(typeof(AccountsDbContext))]
 public sealed class AccountsDbContextModelSnapshot : ModelSnapshot
 {
-    protected override void BuildModel(ModelBuilder modelBuilder) => ProfileAndPlansModel.Build(modelBuilder);
+    protected override void BuildModel(ModelBuilder modelBuilder) => ScheduleAndFleetModel.Build(modelBuilder);
 }
 
 // Frozen initial EF model. The migration's PostgreSQL constraints and triggers are maintained in SQL.

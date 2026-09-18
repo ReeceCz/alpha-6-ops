@@ -35,7 +35,7 @@
             <div class="airline-heading"><div class="workspace-icon airline" aria-hidden="true">@airline.Callsign</div><div class="eyebrow">@airline.Plan</div></div>
             <h2>@airline.Name</h2><p>@string.Join(" · ", airline.Roles) @(airline.IsFounder ? "· Founder" : "")</p><p class="muted">Membership: @airline.MembershipStatus</p>
             <div class="actions"><form method="post" asp-page-handler="Workspace"><input type="hidden" name="airlineId" value="@airline.Id" /><button class="button secondary">@(account.LastWorkspace.AirlineId == airline.Id ? "Selected for next launch" : "Use airline workspace")</button></form>
-            @if (airline.Capabilities.Contains(Capabilities.MembersManage)) { <a asp-page="Airline" asp-route-id="@airline.Id">Manage airline ↗</a> }</div>
+            <a href="/Account/Airline/@airline.Id/Schedule">@(airline.Capabilities.Contains(Capabilities.OperationsManage) ? "Open console" : "Schedule & fleet")</a></div>
         </article>
     }
 </section>

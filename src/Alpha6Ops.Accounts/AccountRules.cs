@@ -86,6 +86,71 @@ public static partial class AccountRules
         return value.Length > 32 ? value[..32] : value;
     }
 
+    public const int AllDays = 127;
+
+    public static RouteRequest Route(RouteRequest request)
+    {
+        static IdentityException Invalid(string message) => new("invalid_route", message, 400);
+        var flight = (request.FlightNumber ?? "").Trim().ToUpperInvariant().Replace(" ", "");
+        if (!FlightNumberPattern().IsMatch(flight)) throw Invalid("Flight number must be 2 to 10 letters or digits, such as A6101.");
+        var origin = (request.Origin ?? "").Trim().ToUpperInvariant();
+        var destination = (request.Destination ?? "").Trim().ToUpperInvariant();
+        if (!AirportPattern().IsMatch(origin) || !AirportPattern().IsMatch(destination)) throw Invalid("Origin and destination must be 3 or 4 character airport codes.");
+        if (origin == destination) throw Invalid("Origin and destination must differ.");
+        if (!TimeOnly.TryParseExact((request.DepartureUtc ?? "").Trim(), "HH:mm", out var departure)) throw Invalid("Departure must be a UTC time such as 14:35.");
+        if (request.BlockMinutes is < 5 or > 1440) throw Invalid("Block time must be between 5 minutes and 24 hours.");
+        if (request.DaysOfWeek is < 1 or > AllDays) throw Invalid("Choose at least one day of the week.");
+        var type = (request.AircraftType ?? "").Trim().ToUpperInvariant();
+        if (!TypePattern().IsMatch(type)) throw Invalid("Aircraft type must be a 2 to 4 character ICAO designator such as A20N, or blank.");
+        var notes = Notes(request.Notes, Invalid);
+        return new(flight, origin, destination, departure.ToString("HH:mm"), request.BlockMinutes, request.DaysOfWeek, type, notes, request.Active);
+    }
+
+    public static AircraftRequest Aircraft(AircraftRequest request)
+    {
+        static IdentityException Invalid(string message) => new("invalid_aircraft", message, 400);
+        var registration = (request.Registration ?? "").Trim().ToUpperInvariant();
+        if (!RegistrationPattern().IsMatch(registration)) throw Invalid("Registration must be 2 to 10 letters, digits or hyphens, such as N123A6.");
+        var type = (request.TypeIcao ?? "").Trim().ToUpperInvariant();
+        if (type.Length == 0 || !TypePattern().IsMatch(type)) throw Invalid("Type must be a 2 to 4 character ICAO designator such as B738.");
+        var name = (request.Name ?? "").Trim();
+        if (name.Length > 100 || name.Any(char.IsControl)) throw Invalid("Name must be 100 characters or fewer.");
+        var homeBase = (request.HomeBase ?? "").Trim().ToUpperInvariant();
+        if (!HomeBasePattern().IsMatch(homeBase)) throw Invalid("Home base must be a 3 or 4 character airport code, or blank.");
+        var status = (request.Status ?? "").Trim().ToLowerInvariant();
+        if (!AircraftStatuses.All.Contains(status)) throw Invalid("Status must be active, maintenance or retired.");
+        return new(registration, type, name, homeBase, status, Notes(request.Notes, Invalid));
+    }
+
+    // Days in CSV are digits 1 (Monday) to 7 (Sunday), in any order, e.g. "12345" or "67".
+    public static int Days(string value)
+    {
+        var mask = 0;
+        foreach (var c in (value ?? "").Trim())
+        {
+            if (c is < '1' or > '7') throw new IdentityException("invalid_route", "Days must use the digits 1 (Monday) to 7 (Sunday).", 400);
+            mask |= 1 << (c - '1');
+        }
+        return mask;
+    }
+
+    public static string DaysText(int mask) => string.Concat(Enumerable.Range(0, 7).Where(i => (mask & (1 << i)) != 0).Select(i => (char)('1' + i)));
+
+    private static string Notes(string? value, Func<string, IdentityException> invalid)
+    {
+        var notes = (value ?? "").Trim();
+        if (notes.Length > 500 || notes.Any(c => char.IsControl(c) && c != '\n')) throw invalid("Notes must be 500 characters or fewer.");
+        return notes;
+    }
+
+    [GeneratedRegex("^[A-Z0-9]{2,10}$")]
+    private static partial Regex FlightNumberPattern();
+    [GeneratedRegex("^[A-Z0-9]{3,4}$")]
+    private static partial Regex AirportPattern();
+    [GeneratedRegex("^([A-Z0-9]{2,4})?$")]
+    private static partial Regex TypePattern();
+    [GeneratedRegex("^[A-Z0-9][A-Z0-9-]{0,8}[A-Z0-9]$")]
+    private static partial Regex RegistrationPattern();
     [GeneratedRegex("^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$")]
     private static partial Regex SlugPattern();
     [GeneratedRegex("^([A-Z0-9]{3,4})?$")]

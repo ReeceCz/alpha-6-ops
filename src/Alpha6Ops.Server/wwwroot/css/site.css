@@ -120,6 +120,59 @@ a.badge:hover { color: var(--yellow); border-color: var(--yellow); }
 .nowrap { white-space: nowrap; }
 .activity code { font-size: 12px; color: var(--accent); }
 .activity td, .activity th { padding: 12px; font-size: 13px; }
+/* Airline console */
+.console-heading { padding-bottom: 12px; }
+.console-title { display: flex; align-items: center; gap: 18px; }
+.console-title h1 { margin: 0 0 2px; font-size: clamp(26px, 3vw, 34px); }
+.console-title p { margin: 0; font-size: 14px; }
+.console-title code { color: var(--text); }
+.console-nav { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 26px; }
+.console-nav a { padding: 12px 16px; text-decoration: none; font-size: 14px; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.console-nav a:hover { color: var(--text); }
+.console-nav a.current { color: var(--text); border-bottom-color: var(--yellow); }
+.console-note { margin-left: auto; font-size: 13px; }
+.console-lead { margin: 0 0 22px; }
+.console-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 28px; align-items: start; }
+.console-main { min-width: 0; }
+.console-side { position: sticky; top: 16px; }
+.console-side .card { margin: 0; padding: 24px; }
+.console-side .stack label { font-size: 13px; }
+.console-side .grid { gap: 12px; }
+.console-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.console-bar h2 { margin: 0; display: flex; align-items: center; gap: 10px; }
+.count { display: inline-block; min-width: 26px; padding: 1px 8px; border-radius: 999px; background: #233443; color: var(--muted); font: 600 13px/1.6 Consolas, monospace; text-align: center; }
+.console-table th, .console-table td { padding: 12px 10px; font-size: 14px; }
+.console-table th { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; }
+.console-table tr.inactive td { color: var(--muted); }
+.console-table tr.inactive strong { color: var(--muted); text-decoration: line-through; text-decoration-color: #6b7f8c; }
+.console-table tr.editing td { background: #1d2119; }
+.console-table .note-row td { padding-top: 0; border-top: 0; font-size: 13px; }
+.row-actions { white-space: nowrap; text-align: right; }
+.row-actions a { font-size: 13px; margin-right: 14px; }
+.row-actions form { display: inline; }
+.text-button.danger { color: #f0a58f; font-size: 13px; }
+.text-button.danger:hover { color: #ffc2b0; text-decoration: underline; }
+.reg { font-family: Consolas, monospace; letter-spacing: .5px; }
+.days { display: inline-flex; gap: 3px; }
+.days i { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 3px; background: #1a2530; color: #4f6273; font: 600 11px/1 Consolas, monospace; font-style: normal; }
+.days i.on { background: #3a3a22; color: var(--yellow); }
+.day-picks { display: flex; flex-wrap: wrap; gap: 2px 8px; }
+.status { display: inline-block; padding: 3px 8px; border-radius: 4px; font: 12px Consolas, monospace; text-transform: uppercase; background: #26372f; color: #acc6a5; }
+.status.maintenance { background: #3a3222; color: #e5c977; }
+.status.retired { background: #2a2f36; color: #a2b0bd; }
+.empty { border: 1px dashed var(--line); border-radius: 8px; padding: 36px 28px; text-align: center; }
+.empty h3 { margin: 0 0 8px; }
+.empty p { margin: 0 auto; max-width: 460px; color: var(--muted); }
+textarea { width: 100%; padding: 12px 14px; background: #0c1721; color: var(--text); border: 1px solid #3a4b5b; border-radius: 5px; font: inherit; resize: vertical; }
+.import { margin-top: 26px; border: 1px solid var(--line); border-radius: 8px; padding: 0 20px; }
+.import summary { cursor: pointer; padding: 14px 0; font-weight: 600; }
+.import form { padding: 0 0 20px; }
+.import label { font-weight: 400; color: var(--muted); font-size: 13px; }
+.import code { color: var(--text); font-size: 12px; }
+.import-errors { margin: 8px 0 0; padding-left: 18px; font-size: 13px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+@media (max-width: 1000px) { .console-grid { grid-template-columns: 1fr; } .console-side { position: static; } }
+
 /* Front door: intro, pilots/airlines, how to start */
 .intro { display: grid; grid-template-columns: 1.4fr 1fr; gap: 48px; align-items: start; padding: 64px 0 40px; border-bottom: 1px solid var(--line); }
 .intro h2 { font-size: clamp(26px, 3vw, 36px); letter-spacing: -.8px; line-height: 1.2; max-width: 620px; }

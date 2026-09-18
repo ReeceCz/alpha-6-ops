@@ -1,0 +1,12 @@
+@model (AirlineWorkspace Airline, string Active)
+@{ var a = Model.Airline; var ops = a.Capabilities.Contains(Capabilities.OperationsManage); var admin = a.Capabilities.Contains(Capabilities.MembersManage); }
+<div class="page-heading console-heading">
+    <a href="/Account">← Your workspaces</a>
+    <div class="console-title"><span class="workspace-icon airline" aria-hidden="true">@(a.Callsign.Length > 3 ? a.Callsign[..3] : a.Callsign)</span><div><h1>@a.Name</h1><p class="muted">@a.Callsign · @a.Plan · <code>@a.Slug</code> · @string.Join(", ", a.Roles)</p></div></div>
+</div>
+<nav class="console-nav" aria-label="Airline console">
+    <a href="/Account/Airline/@a.Id/Schedule" class="@(Model.Active == "schedule" ? "current" : "")">Schedule</a>
+    <a href="/Account/Airline/@a.Id/Fleet" class="@(Model.Active == "fleet" ? "current" : "")">Fleet</a>
+    @if (admin) { <a href="/Account/Airline/@a.Id" class="@(Model.Active == "crew" ? "current" : "")">Crew &amp; settings</a> }
+    @if (!ops) { <span class="muted console-note">Dispatchers and administrators can edit the schedule and fleet.</span> }
+</nav>

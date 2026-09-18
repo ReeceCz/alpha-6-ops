@@ -21,6 +21,17 @@ public static class AccountApi
         api.MapGet("/virtual-airlines/{id:guid}/members", (HttpContext c, AccountsService s, Guid id, CancellationToken ct) => s.ListMembersAsync(Actor(c), id, ct));
         api.MapGet("/virtual-airlines/{id:guid}/invitations", (HttpContext c, AccountsService s, Guid id, CancellationToken ct) => s.ListInvitationsAsync(Actor(c), id, ct));
         api.MapGet("/virtual-airlines/{id:guid}/activity", (HttpContext c, AccountsService s, Guid id, CancellationToken ct) => s.ListActivityAsync(Actor(c), id, ct));
+        api.MapGet("/virtual-airlines/{id:guid}/routes", (HttpContext c, AccountsService s, Guid id, CancellationToken ct) => s.ListRoutesAsync(Actor(c), id, ct));
+        api.MapPost("/virtual-airlines/{id:guid}/routes", (HttpContext c, AccountsService s, Guid id, RouteRequest request, CancellationToken ct) => s.SaveRouteAsync(Actor(c), id, null, request, ct));
+        api.MapPut("/virtual-airlines/{id:guid}/routes/{routeId:guid}", (HttpContext c, AccountsService s, Guid id, Guid routeId, RouteRequest request, CancellationToken ct) => s.SaveRouteAsync(Actor(c), id, routeId, request, ct));
+        api.MapDelete("/virtual-airlines/{id:guid}/routes/{routeId:guid}", async (HttpContext c, AccountsService s, Guid id, Guid routeId, CancellationToken ct) =>
+        { await s.DeleteRouteAsync(Actor(c), id, routeId, ct); return Results.NoContent(); });
+        api.MapPost("/virtual-airlines/{id:guid}/routes/import", (HttpContext c, AccountsService s, Guid id, ScheduleImportRequest request, CancellationToken ct) => s.ImportRoutesAsync(Actor(c), id, request, ct));
+        api.MapGet("/virtual-airlines/{id:guid}/fleet", (HttpContext c, AccountsService s, Guid id, CancellationToken ct) => s.ListFleetAsync(Actor(c), id, ct));
+        api.MapPost("/virtual-airlines/{id:guid}/fleet", (HttpContext c, AccountsService s, Guid id, AircraftRequest request, CancellationToken ct) => s.SaveAircraftAsync(Actor(c), id, null, request, ct));
+        api.MapPut("/virtual-airlines/{id:guid}/fleet/{aircraftId:guid}", (HttpContext c, AccountsService s, Guid id, Guid aircraftId, AircraftRequest request, CancellationToken ct) => s.SaveAircraftAsync(Actor(c), id, aircraftId, request, ct));
+        api.MapDelete("/virtual-airlines/{id:guid}/fleet/{aircraftId:guid}", async (HttpContext c, AccountsService s, Guid id, Guid aircraftId, CancellationToken ct) =>
+        { await s.DeleteAircraftAsync(Actor(c), id, aircraftId, ct); return Results.NoContent(); });
         api.MapPost("/virtual-airlines/{id:guid}/invitations", (HttpContext c, AccountsService s, Guid id, InviteMemberRequest request, CancellationToken ct) => s.InviteAsync(Actor(c), id, request, ct));
         api.MapPost("/invitations/accept", (HttpContext c, AccountsService s, AcceptInvitationBody request, CancellationToken ct) => s.AcceptInvitationAsync(Actor(c), request.Token, ct));
         api.MapDelete("/virtual-airlines/{id:guid}/invitations/{invitationId:guid}", async (HttpContext c, AccountsService s, Guid id, Guid invitationId, CancellationToken ct) =>

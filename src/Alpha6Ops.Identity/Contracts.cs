@@ -46,6 +46,22 @@ public static class SubscriptionStatuses
     public static bool IsCurrent(string status, DateTimeOffset? expiresAt, DateTimeOffset now) =>
         status is Active or Complimentary && (expiresAt is null || expiresAt > now);
 }
+// Airline operations data: schedules and fleet. Days use a bitmask, Monday = 1 through Sunday = 64.
+public sealed record RouteRequest(string FlightNumber, string Origin, string Destination, string DepartureUtc, int BlockMinutes,
+    int DaysOfWeek, string AircraftType, string? Notes, bool Active);
+public sealed record RouteResponse(Guid Id, string FlightNumber, string Origin, string Destination, string DepartureUtc, int BlockMinutes,
+    int DaysOfWeek, string AircraftType, string Notes, bool Active, DateTimeOffset UpdatedAt);
+public sealed record AircraftRequest(string Registration, string TypeIcao, string Name, string HomeBase, string Status, string? Notes);
+public sealed record AircraftResponse(Guid Id, string Registration, string TypeIcao, string Name, string HomeBase, string Status, string Notes, DateTimeOffset UpdatedAt);
+public sealed record ScheduleImportRequest(string Csv);
+public sealed record ScheduleImportResult(int Created, int Updated, int Skipped, string[] Errors);
+public static class AircraftStatuses
+{
+    public const string Active = "active";
+    public const string Maintenance = "maintenance";
+    public const string Retired = "retired";
+    public static readonly string[] All = [Active, Maintenance, Retired];
+}
 public sealed record CreateAirlineRequest(string Name, string Slug, string Callsign);
 public sealed record InviteMemberRequest(string Email, AirlineRole[] Roles);
 public sealed record ChangeRolesRequest(AirlineRole[] Roles);
@@ -69,6 +85,8 @@ public static class Capabilities
     public const string AirlineRead = "airline.read";
     public const string DispatchRead = "airline.dispatch.read";
     public const string DispatchManage = "airline.dispatch.manage";
+    // Schedules and fleet: everyday operations work for dispatchers and up, without a security check.
+    public const string OperationsManage = "airline.operations.manage";
     public const string MembersManage = "airline.members.manage";
     public const string OwnershipManage = "airline.ownership.manage";
     public static string[] Personal => [Logbook, Dispatch, Tracker, Weather, Import];
@@ -78,7 +96,7 @@ public static class Capabilities
         if (status != MembershipStatus.Active) return [];
         var set = roles.ToHashSet();
         var result = new List<string> { AirlineRead, DispatchRead };
-        if (set.Overlaps([AirlineRole.Dispatcher, AirlineRole.Administrator, AirlineRole.Owner])) result.Add(DispatchManage);
+        if (set.Overlaps([AirlineRole.Dispatcher, AirlineRole.Administrator, AirlineRole.Owner])) { result.Add(DispatchManage); result.Add(OperationsManage); }
         if (set.Overlaps([AirlineRole.Administrator, AirlineRole.Owner])) result.Add(MembersManage);
         if (set.Contains(AirlineRole.Owner)) result.Add(OwnershipManage);
         return result.ToArray();

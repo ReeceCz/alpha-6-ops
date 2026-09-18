@@ -1,0 +1,47 @@
+@page "/Account/Airline/{id:guid}/Fleet"
+@model Alpha6Ops.Server.Pages.Account.FleetModel
+@{ ViewData["Title"] = (Model.Airline?.Name ?? "Airline") + " fleet"; var e = Model.Editing; }
+<partial name="_AccountError" model="Model" />
+@if (Model.Airline is { } airline) {
+<partial name="_AirlineNav" model='(airline, "fleet")' />
+@if (Model.Saved is { } saved) { <div class="notice" role="status"><p>@saved</p></div> }
+<div class="console-grid">
+<section class="console-main">
+    <div class="console-bar"><h2>Fleet <span class="count">@Model.Fleet.Length</span></h2>
+        <span class="muted">@Model.Fleet.Count(a => a.Status == AircraftStatuses.Active) active · @Model.Fleet.Count(a => a.Status == AircraftStatuses.Maintenance) in maintenance · @Model.Fleet.Select(a => a.TypeIcao).Distinct().Count() types</span></div>
+    @if (Model.Fleet.Length == 0) {
+        <div class="empty"><h3>No aircraft yet.</h3><p>Add each aircraft by registration. Rotations and the OCC board are built on real tails, not just types.</p></div>
+    } else {
+    <div class="table-scroll"><table class="console-table"><thead><tr><th scope="col">Registration</th><th scope="col">Type</th><th scope="col">Name</th><th scope="col">Home base</th><th scope="col">Status</th>@if (Model.CanEdit) { <th scope="col"><span class="visually-hidden">Actions</span></th> }</tr></thead><tbody>
+    @foreach (var a in Model.Fleet) {
+        <tr class="@(a.Status == AircraftStatuses.Retired ? "inactive" : "") @(e?.Id == a.Id ? "editing" : "")">
+            <td><strong class="reg">@a.Registration</strong></td><td>@a.TypeIcao</td><td>@(a.Name.Length > 0 ? a.Name : "—")</td><td>@(a.HomeBase.Length > 0 ? a.HomeBase : "—")</td>
+            <td><span class="status @a.Status">@a.Status</span></td>
+            @if (Model.CanEdit) { <td class="row-actions"><a href="/Account/Airline/@airline.Id/Fleet?edit=@a.Id#aircraft-form">Edit</a><form method="post" asp-page-handler="Delete"><input type="hidden" name="aircraftId" value="@a.Id" /><button class="text-button danger">Remove</button></form></td> }
+        </tr>
+        @if (a.Notes.Length > 0) { <tr class="note-row"><td colspan="6"><span class="muted">@a.Notes</span></td></tr> }
+    }
+    </tbody></table></div>
+    }
+</section>
+@if (Model.CanEdit) {
+<aside class="console-side" id="aircraft-form">
+    <div class="card"><h2>@(e is null ? "Add an aircraft" : $"Edit {e.Registration}")</h2>
+    <form method="post" asp-page-handler="Save" class="stack">
+        @if (e is not null) { <input type="hidden" name="aircraftId" value="@e.Id" /> }
+        <div class="grid two">
+            <div class="stack"><label for="registration">Registration</label><input id="registration" name="registration" maxlength="10" required value="@e?.Registration" placeholder="N123A6" style="text-transform:uppercase" /></div>
+            <div class="stack"><label for="typeIcao">Type (ICAO)</label><input id="typeIcao" name="typeIcao" maxlength="4" required value="@e?.TypeIcao" placeholder="B738" style="text-transform:uppercase" /></div>
+        </div>
+        <label for="name">Name (optional)</label><input id="name" name="name" maxlength="100" value="@e?.Name" placeholder="Spirit of Milwaukee" />
+        <div class="grid two">
+            <div class="stack"><label for="homeBase">Home base</label><input id="homeBase" name="homeBase" maxlength="4" value="@e?.HomeBase" placeholder="KMKE" style="text-transform:uppercase" /></div>
+            <div class="stack"><label for="status">Status</label><select id="status" name="status">@foreach (var s in AircraftStatuses.All) { <option value="@s" selected="@((e?.Status ?? AircraftStatuses.Active) == s)">@char.ToUpperInvariant(s[0])@s[1..]</option> }</select></div>
+        </div>
+        <label for="notes">Notes</label><textarea id="notes" name="notes" rows="2" maxlength="500">@e?.Notes</textarea>
+        <div class="actions"><button class="button">@(e is null ? "Add aircraft" : "Save changes")</button>@if (e is not null) { <a href="/Account/Airline/@airline.Id/Fleet">Cancel</a> }</div>
+    </form></div>
+</aside>
+}
+</div>
+}

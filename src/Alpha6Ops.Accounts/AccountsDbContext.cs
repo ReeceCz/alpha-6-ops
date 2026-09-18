@@ -11,6 +11,8 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
     public DbSet<Invitation> Invitations => Set<Invitation>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<UserProfileRecord> Profiles => Set<UserProfileRecord>();
+    public DbSet<AirlineRoute> Routes => Set<AirlineRoute>();
+    public DbSet<AirlineAircraft> Fleet => Set<AirlineAircraft>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -57,6 +59,22 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
         invitation.HasOne<VirtualAirline>().WithMany().HasForeignKey(x => x.AirlineId).OnDelete(DeleteBehavior.Restrict);
         invitation.HasOne<UserAccount>().WithMany().HasForeignKey(x => x.IssuedByUserId).OnDelete(DeleteBehavior.Restrict);
         invitation.HasOne<UserAccount>().WithMany().HasForeignKey(x => x.AcceptedByUserId).OnDelete(DeleteBehavior.Restrict);
+
+        var route = model.Entity<AirlineRoute>();
+        route.ToTable("airline_route"); route.HasKey(x => x.Id);
+        route.HasIndex(x => new { x.AirlineId, x.FlightNumber, x.Origin, x.Destination }).IsUnique();
+        route.Property(x => x.FlightNumber).HasMaxLength(10); route.Property(x => x.Origin).HasMaxLength(4);
+        route.Property(x => x.Destination).HasMaxLength(4); route.Property(x => x.AircraftType).HasMaxLength(4);
+        route.Property(x => x.Notes).HasMaxLength(500);
+        route.HasOne<VirtualAirline>().WithMany().HasForeignKey(x => x.AirlineId).OnDelete(DeleteBehavior.Restrict);
+
+        var aircraft = model.Entity<AirlineAircraft>();
+        aircraft.ToTable("airline_aircraft"); aircraft.HasKey(x => x.Id);
+        aircraft.HasIndex(x => new { x.AirlineId, x.Registration }).IsUnique();
+        aircraft.Property(x => x.Registration).HasMaxLength(10); aircraft.Property(x => x.TypeIcao).HasMaxLength(4);
+        aircraft.Property(x => x.Name).HasMaxLength(100); aircraft.Property(x => x.HomeBase).HasMaxLength(4);
+        aircraft.Property(x => x.Status).HasMaxLength(20); aircraft.Property(x => x.Notes).HasMaxLength(500);
+        aircraft.HasOne<VirtualAirline>().WithMany().HasForeignKey(x => x.AirlineId).OnDelete(DeleteBehavior.Restrict);
 
         var audit = model.Entity<AuditEvent>(); audit.ToTable("audit_event"); audit.HasKey(x => x.Id);
         audit.Property(x => x.Action).HasMaxLength(80); audit.Property(x => x.Details).HasMaxLength(2000);

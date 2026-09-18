@@ -173,6 +173,36 @@ if (created.IsSuccessStatusCode)
         Check((await browser.PostAsync($"/Account/Airline/{airline.Id}?handler=Plan", new FormUrlEncodedContent(new Dictionary<string, string> { ["plan"] = "Community" }))).StatusCode == HttpStatusCode.BadRequest, "Airline level change without CSRF token is rejected");
         var airlinePlanPost = await SubmitAsync(browser, airlinePage, airlineHtml, $"/Account/Airline/{airline.Id}?handler=Plan", new() { ["plan"] = "Community" });
         Check(airlinePlanPost.StatusCode == HttpStatusCode.Redirect && (await pilot.GetFromJsonAsync<AirlineWorkspace>($"/api/v1/virtual-airlines/{airline.Id}"))?.Plan == AirlinePlan.Community, "Airline level form applies the chosen level");
+
+        // Schedule and fleet: API for the desktop, console pages for the browser, dispatcher-level access without MFA.
+        var routePost = await pilot.PostAsJsonAsync($"/api/v1/virtual-airlines/{airline.Id}/routes", new RouteRequest("a6 101", "kmke", "kord", "14:35", 65, 31, "a20n", "First wave", true));
+        var route = await routePost.Content.ReadFromJsonAsync<RouteResponse>();
+        Check(routePost.IsSuccessStatusCode && route is { FlightNumber: "A6101", Origin: "KMKE", DaysOfWeek: 31 }, "Route created over the API");
+        Check((await pilot.PostAsJsonAsync($"/api/v1/virtual-airlines/{airline.Id}/routes", new RouteRequest("A6101", "KMKE", "KORD", "14:35", 65, 31, "", null, true))).StatusCode == HttpStatusCode.Conflict, "Duplicate route is a conflict");
+        using (var noMfa = host.Client(owner, "no-mfa"))
+            Check((await noMfa.PutAsJsonAsync($"/api/v1/virtual-airlines/{airline.Id}/routes/{route!.Id}", new RouteRequest("A6101", "KMKE", "KORD", "15:00", 70, 127, "A20N", "", true))).IsSuccessStatusCode, "Schedule edits do not require a fresh security check");
+        Check((await outsider.GetAsync($"/api/v1/virtual-airlines/{airline.Id}/routes")).StatusCode == HttpStatusCode.OK, "Members read the schedule");
+        Check((await outsider.PostAsJsonAsync($"/api/v1/virtual-airlines/{airline.Id}/routes", new RouteRequest("A6102", "KORD", "KMKE", "17:10", 55, 96, "", null, true))).StatusCode == HttpStatusCode.Forbidden, "Pilots cannot edit the schedule");
+        var import = await (await pilot.PostAsJsonAsync($"/api/v1/virtual-airlines/{airline.Id}/routes/import", new ScheduleImportRequest("A6102,KORD,KMKE,17:10,55,67,,Weekend return\nbad,KMKE,KMKE,17:10,55,12"))).Content.ReadFromJsonAsync<ScheduleImportResult>();
+        Check(import is { Created: 1, Skipped: 1 }, "CSV import over the API");
+        var tailPost = await pilot.PostAsJsonAsync($"/api/v1/virtual-airlines/{airline.Id}/fleet", new AircraftRequest("n123a6", "b738", "Spirit of Milwaukee", "kmke", "active", null));
+        var tail = await tailPost.Content.ReadFromJsonAsync<AircraftResponse>();
+        Check(tailPost.IsSuccessStatusCode && tail is { Registration: "N123A6", TypeIcao: "B738" }, "Aircraft added over the API");
+        var schedulePage = await browser.GetAsync($"/Account/Airline/{airline.Id}/Schedule");
+        var scheduleHtml = await schedulePage.Content.ReadAsStringAsync();
+        Check(schedulePage.IsSuccessStatusCode && scheduleHtml.Contains("A6101") && scheduleHtml.Contains("A6102") && scheduleHtml.Contains("Add a route") && scheduleHtml.Contains("Export CSV"), "Schedule console lists routes with the editor for operations roles");
+        var routeForm = await SubmitAsync(browser, schedulePage, scheduleHtml, $"/Account/Airline/{airline.Id}/Schedule?handler=Save",
+            new() { ["flightNumber"] = "A6103", ["origin"] = "KMKE", ["destination"] = "KMSP", ["departureUtc"] = "09:15", ["blockMinutes"] = "75", ["days"] = "0", ["aircraftType"] = "", ["notes"] = "", ["active"] = "true" });
+        Check(routeForm.StatusCode == HttpStatusCode.Redirect && (await pilot.GetFromJsonAsync<RouteResponse[]>($"/api/v1/virtual-airlines/{airline.Id}/routes"))!.Any(r => r.FlightNumber == "A6103" && r.DaysOfWeek == 1), "Schedule form adds a route");
+        var export = await browser.GetAsync($"/Account/Airline/{airline.Id}/Schedule?handler=Export");
+        Check(export.Content.Headers.ContentType?.MediaType == "text/csv" && (await export.Content.ReadAsStringAsync()).Contains("A6103,KMKE,KMSP,09:15,75,1,,"), "Schedule exports as CSV");
+        var fleetPage = await browser.GetAsync($"/Account/Airline/{airline.Id}/Fleet");
+        var fleetHtml = await fleetPage.Content.ReadAsStringAsync();
+        Check(fleetPage.IsSuccessStatusCode && fleetHtml.Contains("N123A6") && fleetHtml.Contains("Spirit of Milwaukee"), "Fleet console lists aircraft");
+        var fleetForm = await SubmitAsync(browser, fleetPage, fleetHtml, $"/Account/Airline/{airline.Id}/Fleet?handler=Save",
+            new() { ["aircraftId"] = tail!.Id.ToString(), ["registration"] = "N123A6", ["typeIcao"] = "B738", ["name"] = "Spirit of Milwaukee", ["homeBase"] = "KMKE", ["status"] = "maintenance", ["notes"] = "C check" });
+        Check(fleetForm.StatusCode == HttpStatusCode.Redirect && (await pilot.GetFromJsonAsync<AircraftResponse[]>($"/api/v1/virtual-airlines/{airline.Id}/fleet"))!.Single().Status == "maintenance", "Fleet form updates an aircraft");
+        Check((await browser.PostAsync($"/Account/Airline/{airline.Id}/Fleet?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string> { ["aircraftId"] = tail.Id.ToString() }))).StatusCode == HttpStatusCode.BadRequest, "Fleet removal without CSRF token is rejected");
     }
 }
 using (var limited = host.Client("rate-" + run, "missing-claim"))

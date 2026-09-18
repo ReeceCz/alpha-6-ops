@@ -83,6 +83,37 @@ public sealed class Invitation
     public DateTimeOffset CreatedAt { get; set; }
 }
 
+public sealed class AirlineRoute
+{
+    public Guid Id { get; set; }
+    public Guid AirlineId { get; set; }
+    public string FlightNumber { get; set; } = "";
+    public string Origin { get; set; } = "";
+    public string Destination { get; set; } = "";
+    public TimeOnly DepartureUtc { get; set; }
+    public int BlockMinutes { get; set; }
+    public int DaysOfWeek { get; set; }
+    public string AircraftType { get; set; } = "";
+    public string Notes { get; set; } = "";
+    public bool Active { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public sealed class AirlineAircraft
+{
+    public Guid Id { get; set; }
+    public Guid AirlineId { get; set; }
+    public string Registration { get; set; } = "";
+    public string TypeIcao { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string HomeBase { get; set; } = "";
+    public string Status { get; set; } = "active";
+    public string Notes { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
 public sealed class AuditEvent
 {
     public Guid Id { get; set; }

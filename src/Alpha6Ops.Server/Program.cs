@@ -66,6 +66,14 @@ if (behindProxy)
         o.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
         o.KnownIPNetworks.Clear(); o.KnownProxies.Clear();
     });
+// appsettings.json only admits localhost. The public host name comes from Hosting:PublicHosts (semicolon
+// separated) or, on Render, from the RENDER_EXTERNAL_HOSTNAME the platform injects, so no dashboard entry is needed.
+var publicHosts = (builder.Configuration["Hosting:PublicHosts"] ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    .Concat([Environment.GetEnvironmentVariable("RENDER_EXTERNAL_HOSTNAME") ?? ""])
+    .Where(h => h.Length > 0).ToArray();
+if (publicHosts.Length > 0)
+    builder.Services.PostConfigure<Microsoft.AspNetCore.HostFiltering.HostFilteringOptions>(o =>
+        o.AllowedHosts = o.AllowedHosts.Union(publicHosts, StringComparer.OrdinalIgnoreCase).ToList());
 builder.Services.AddSingleton(settings);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.Configure<ReleaseSettings>(builder.Configuration.GetSection("Release"));

@@ -90,7 +90,7 @@ using (var hosted = new ServerFactory(connection, "Production", hostedPfx))
     using var proxied = new HttpRequestMessage(HttpMethod.Get, "http://localhost/healthz");
     proxied.Headers.Add("X-Forwarded-Proto", "https");
     Check((await hostedClient.SendAsync(proxied)).StatusCode == HttpStatusCode.OK, "Requests arriving through the hosting proxy are treated as HTTPS");
-    // Render's health check arrives with the public host name and no forwarded headers; AllowedHosts must admit it.
+    // Render's health check arrives with the public host name and no forwarded headers; Hosting:PublicHosts admits it.
     using var publicHost = new HttpRequestMessage(HttpMethod.Get, "http://localhost/healthz");
     publicHost.Headers.Host = "alpha6ops.example.test";
     Check((await hostedClient.SendAsync(publicHost)).StatusCode == HttpStatusCode.OK, "Health check under the configured public host name is 200");
@@ -315,7 +315,7 @@ sealed class ServerFactory(string? connection, string environment = "Development
         builder.UseSetting("DataProtection:CertificateBase64", certificateBase64 ?? "");
         builder.UseSetting("DataProtection:CertificatePassword", certificateBase64 is null ? "" : "test-pfx");
         builder.UseSetting("Hosting:BehindProxy", certificateBase64 is null ? "" : "true");
-        if (certificateBase64 is not null) builder.UseSetting("AllowedHosts", "localhost;alpha6ops.example.test");
+        if (certificateBase64 is not null) builder.UseSetting("Hosting:PublicHosts", "alpha6ops.example.test");
         builder.ConfigureServices(services =>
         {
             if (certificateBase64 is null) services.AddDataProtection().UseEphemeralDataProtectionProvider();

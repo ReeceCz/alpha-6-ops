@@ -28,7 +28,7 @@ terminates TLS itself.
 | --- | --- |
 | `ASPNETCORE_ENVIRONMENT` | `Production` |
 | `Hosting__BehindProxy` | `true` on Render or any reverse proxy |
-| `AllowedHosts` | The public host name(s), semicolon separated, e.g. `alpha6ops.onrender.com`. `appsettings.json` only allows `localhost`, so without this every request — including Render's health check — is answered `400 Invalid Hostname` and the deploy never goes live |
+| `Hosting__PublicHosts` | Extra public host names, semicolon separated (a custom domain, for example). `appsettings.json` only allows `localhost`; the app also admits Render's own `RENDER_EXTERNAL_HOSTNAME` automatically. A host that is not admitted is answered `400 Invalid Hostname` — including Render's health check, which then never goes live |
 | `Auth0__Authority` | `https://dev-2m805d64kx5233sh.us.auth0.com/` (trailing slash) |
 | `Auth0__Audience` | `https://api.alpha6ops.dev` |
 | `Auth0__ClientId` / `Auth0__ClientSecret` | The **Portal** (Regular Web Application) client |

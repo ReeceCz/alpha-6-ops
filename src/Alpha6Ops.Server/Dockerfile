@@ -17,7 +17,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app ./
 COPY src/Alpha6Ops.Server/entrypoint.sh ./entrypoint.sh
-RUN chmod +x ./entrypoint.sh
+RUN sed -i "s/$//" ./entrypoint.sh && chmod +x ./entrypoint.sh
 ENV ASPNETCORE_ENVIRONMENT=Production \
     DOTNET_gcServer=0
 EXPOSE 8080

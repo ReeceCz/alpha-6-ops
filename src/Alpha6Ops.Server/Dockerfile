@@ -3,7 +3,7 @@
 # Runtime configuration comes entirely from environment variables (see docs/hosting.md).
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
-COPY global.json ./
+COPY global.json Directory.Build.props NuGet.Config ./
 COPY src/Alpha6Ops.Identity/Alpha6Ops.Identity.csproj src/Alpha6Ops.Identity/
 COPY src/Alpha6Ops.Accounts/Alpha6Ops.Accounts.csproj src/Alpha6Ops.Accounts/
 COPY src/Alpha6Ops.Server/Alpha6Ops.Server.csproj src/Alpha6Ops.Server/

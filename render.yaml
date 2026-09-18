@@ -16,6 +16,10 @@ services:
         value: Production
       - key: Hosting__BehindProxy
         value: "true"
+      # Host filtering rejects any other Host header with 400, including Render's health check.
+      # Add a custom domain here (semicolon separated) when one exists.
+      - key: AllowedHosts
+        value: alpha6ops.onrender.com
       - key: Auth0__Authority
         value: https://dev-2m805d64kx5233sh.us.auth0.com/
       - key: Auth0__Audience

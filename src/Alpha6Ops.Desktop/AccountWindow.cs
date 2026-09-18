@@ -86,13 +86,51 @@ internal sealed partial class AccountWindow : Window
         LoginOptionsHint.Margin = new Thickness(0, compact ? 6 : 8, 0, compact ? 10 : 14);
     }
 
+    private bool passwordRevealed;
+    // The password lives in whichever box is visible; the other one is kept in sync when peeking toggles.
+    private string EnteredPassword => passwordRevealed ? PasswordRevealInput.Text : PasswordInput.Password;
+    private void ClearPassword() { PasswordInput.Clear(); PasswordRevealInput.Clear(); }
+    private void SetPassword(string value) { if (passwordRevealed) PasswordRevealInput.Text = value; else PasswordInput.Password = value; }
+
+    private void Peek_Click(object sender, RoutedEventArgs e)
+    {
+        var current = EnteredPassword;
+        passwordRevealed = !passwordRevealed;
+        PasswordRevealInput.Visibility = passwordRevealed ? Visibility.Visible : Visibility.Collapsed;
+        PasswordInput.Visibility = passwordRevealed ? Visibility.Collapsed : Visibility.Visible;
+        SetPassword(current);
+        PeekIcon.Text = passwordRevealed ? "" : "";
+        PeekButton.ToolTip = passwordRevealed ? "Hide password" : "Show password";
+        System.Windows.Automation.AutomationProperties.SetName(PeekButton, (string)PeekButton.ToolTip);
+        if (passwordRevealed) { PasswordRevealInput.Focus(); PasswordRevealInput.CaretIndex = PasswordRevealInput.Text.Length; } else PasswordInput.Focus();
+    }
+
+    private void PrefillRemembered()
+    {
+        if (account is null) return;
+        var remembered = account.RememberedLogin;
+        if (remembered.Email.Length > 0 && EmailInput.Text.Length == 0) EmailInput.Text = remembered.Email;
+        RememberEmailCheck.IsChecked = remembered.Email.Length > 0 || RememberEmailCheck.IsChecked == true;
+        RememberPasswordCheck.IsChecked = remembered.Password is not null;
+        if (remembered.Password is { } password && EnteredPassword.Length == 0) SetPassword(password);
+    }
+
+    private void SaveRemembered(string email, string password)
+    {
+        if (account is null) return;
+        var keepEmail = RememberEmailCheck.IsChecked == true;
+        var keepPassword = RememberPasswordCheck.IsChecked == true;
+        account.Remember(keepEmail || keepPassword ? email : "", keepPassword ? password : null);
+    }
+
     private void ShowLogin()
     {
         LoginPage.Visibility = Visibility.Visible;
+        PrefillRemembered();
         WorkspacePage.Visibility = Visibility.Collapsed;
         ContinueButton.IsDefault = true; OpenWorkspaceButton.IsDefault = false;
         SetStatus(account is null && !preview ? "This installation is in Local Preview. Account sign-in has not been connected yet." : "");
-        ContinueButton.IsEnabled = OtherLoginButton.IsEnabled = RegisterButton.IsEnabled = RegisterBrowserButton.IsEnabled = ForgotButton.IsEnabled = PasswordInput.IsEnabled = preview || account is not null;
+        ContinueButton.IsEnabled = OtherLoginButton.IsEnabled = RegisterButton.IsEnabled = RegisterBrowserButton.IsEnabled = ForgotButton.IsEnabled = PasswordInput.IsEnabled = PasswordRevealInput.IsEnabled = PeekButton.IsEnabled = RememberEmailCheck.IsEnabled = RememberPasswordCheck.IsEnabled = preview || account is not null;
         ContinueButton.Content = preview ? "Preview your workspaces    →" : "Sign in    →";
     }
 
@@ -104,12 +142,15 @@ internal sealed partial class AccountWindow : Window
         var email = EmailInput.Text.Trim();
         if (!MailAddress.TryCreate(email, out var parsed) || parsed.Address != email)
         { SetStatus("Enter a valid email address to continue."); EmailInput.Focus(); return; }
-        if (PasswordInput.Password.Length == 0) { SetStatus("Enter your password, or use passkey / Microsoft / Google sign-in below."); PasswordInput.Focus(); return; }
+        var password = EnteredPassword;
+        if (password.Length == 0) { SetStatus("Enter your password, or use passkey / Microsoft / Google sign-in below."); PasswordInput.Focus(); return; }
         if (account is null) return;
         SetStatus("Signing in…");
         PasswordLoginOutcome outcome;
-        try { outcome = await account.PasswordLoginAsync(email, PasswordInput.Password, false, lifetime.Token); }
-        finally { PasswordInput.Clear(); }
+        try { outcome = await account.PasswordLoginAsync(email, password, false, lifetime.Token); }
+        finally { ClearPassword(); }
+        // Remembering happens only after the provider accepted the credentials, never for a wrong password.
+        SaveRemembered(email, password);
         await CompleteSignInAsync(outcome);
     });
 

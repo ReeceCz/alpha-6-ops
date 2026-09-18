@@ -52,7 +52,15 @@
                 <TextBlock Text="you@example.com" Foreground="#899CAA" Margin="15,0" VerticalAlignment="Center" IsHitTestVisible="False"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Text, ElementName=EmailInput}" Value=""><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
               </Grid>
               <Label Target="{Binding ElementName=PasswordInput}" Padding="0" Margin="0,12,0,8" HorizontalContentAlignment="Stretch"><Grid><TextBlock Text="Password" FontSize="12" FontWeight="SemiBold" Foreground="#D8E1E8"/><Button x:Name="ForgotButton" Content="Forgot password?" Style="{StaticResource PortalLink}" FontSize="11" HorizontalAlignment="Right" Click="Forgot_Click"/></Grid></Label>
-              <PasswordBox x:Name="PasswordInput" MaxLength="128" Background="#0C1721" Foreground="#E8EDF2" BorderBrush="#3A4B5B" BorderThickness="1" Padding="12,10" FontSize="14" MinHeight="44" CaretBrush="#E5C44A" AutomationProperties.Name="Password"/>
+              <Grid>
+                <PasswordBox x:Name="PasswordInput" MaxLength="128" Background="#0C1721" Foreground="#E8EDF2" BorderBrush="#3A4B5B" BorderThickness="1" Padding="12,10,44,10" FontSize="14" MinHeight="44" CaretBrush="#E5C44A" AutomationProperties.Name="Password"/>
+                <TextBox x:Name="PasswordRevealInput" Style="{StaticResource PortalInput}" MaxLength="128" Padding="12,10,44,10" Visibility="Collapsed" AutomationProperties.Name="Password (visible)"/>
+                <Button x:Name="PeekButton" Style="{StaticResource PortalLink}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0" Padding="4" Click="Peek_Click" AutomationProperties.Name="Show password" ToolTip="Show password"><TextBlock x:Name="PeekIcon" Text="&#xE7B3;" Style="{StaticResource ButtonIcon}" FontSize="14"/></Button>
+              </Grid>
+              <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <CheckBox x:Name="RememberEmailCheck" Style="{StaticResource PortalCheck}" IsChecked="True" AutomationProperties.Name="Remember email"><TextBlock Text="Remember email" FontSize="12"/></CheckBox>
+                <CheckBox x:Name="RememberPasswordCheck" Grid.Column="1" Style="{StaticResource PortalCheck}" AutomationProperties.Name="Remember password" ToolTip="Stored for your Windows account only, protected by Windows."><TextBlock Text="Remember password on this PC" FontSize="12"/></CheckBox>
+              </Grid>
               <Button x:Name="ContinueButton" Style="{StaticResource PortalPrimary}" Content="Sign in    →" Margin="0,16,0,0" IsDefault="True" Click="Continue_Click"/>
               <Grid x:Name="LoginDivider" Margin="0,14"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition/></Grid.ColumnDefinitions><Rectangle Height="1" Fill="#2A3A49"/><TextBlock Grid.Column="1" Text="or" FontSize="12" Foreground="#96A6B4" Margin="14,0"/><Rectangle Grid.Column="2" Height="1" Fill="#2A3A49"/></Grid>
               <Button x:Name="OtherLoginButton" Style="{StaticResource PortalButton}" Content="Passkey, Microsoft or Google    ↗" Click="OtherLogin_Click"/>

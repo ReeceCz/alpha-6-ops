@@ -145,10 +145,17 @@ internal static class AccountFlowSmokeTest
             Check(passwordLogins == 1 && !window.ShowingWorkspaces && window.LoginStatus.Text.Contains("Wrong email or password") && window.PasswordInput.Password.Length == 0,
                 "A wrong password is explained and the field is cleared.");
             window.PasswordInput.Password = "correct-horse";
+            Click(window.PeekButton);
+            Check(window.PasswordRevealInput.IsVisible && window.PasswordRevealInput.Text == "correct-horse" && !window.PasswordInput.IsVisible, "Peek reveals the typed password in place.");
+            Click(window.PeekButton);
+            Check(window.PasswordInput.IsVisible && window.PasswordInput.Password == "correct-horse", "Hiding the password keeps what was typed.");
+            window.RememberPasswordCheck.IsChecked = true;
             Click(window.ContinueButton);
             await IdleAsync(window);
             Check(passwordLogins == 2 && loginCalls == 1 && window.ShowingWorkspaces && session.Bootstrap is not null && !window.Accepted,
                 "Password sign-in establishes the session in the app without opening the browser.");
+            Check(session.RememberedLogin is { Email: "pilot@example.invalid", Password: "correct-horse" } && !File.ReadAllText(Path.Combine(root, "Identity", "remembered.bin"), System.Text.Encoding.Latin1).Contains("correct-horse"),
+                "Remembered credentials are stored protected, not in plain text.");
             DashboardSmokeTest.Capture(window, Path.Combine(outputDirectory, "identity-signed-in-app.png"));
             mfaLogin = true;
             var mfaOutcome = await session.PasswordLoginAsync("pilot@example.invalid", "correct-horse", true, CancellationToken.None);
@@ -251,6 +258,17 @@ internal static class AccountFlowSmokeTest
             await IdleAsync(window);
             Check(!window.ShowingWorkspaces && session.Bootstrap is null && window.LoginStatus.Text.Contains("expired"),
                 "Revoked credentials must return the selector to sign-in.");
+            Check(window.EmailInput.Text == "pilot@example.invalid" && window.PasswordInput.Password == "correct-horse" && window.RememberPasswordCheck.IsChecked == true,
+                "The sign-in form is prefilled from the remembered login.");
+            window.RememberPasswordCheck.IsChecked = false; window.RememberEmailCheck.IsChecked = false;
+            revoked = false;
+            Click(window.ContinueButton);
+            await IdleAsync(window);
+            Check(window.ShowingWorkspaces && session.RememberedLogin == RememberedLogin.None, "Unticking both options forgets the stored login on the next sign-in.");
+            revoked = true;
+            Click(window.ReconnectButton);
+            await IdleAsync(window);
+            Check(!window.ShowingWorkspaces && window.PasswordInput.Password.Length == 0 && window.RememberPasswordCheck.IsChecked == false, "No password is prefilled once the login is forgotten.");
             revoked = false;
             Click(window.OtherLoginButton);
             await IdleAsync(window);

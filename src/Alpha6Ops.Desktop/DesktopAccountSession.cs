@@ -32,6 +32,10 @@ internal sealed record BrowserLoginResult(string AccessToken, string? RefreshTok
 internal sealed record PasswordLoginOutcome(bool Success, string? MfaToken, bool NeedsEnrollment);
 internal sealed record OtpEnrollment(string Secret, string BarcodeUri, string[] RecoveryCodes);
 internal enum StepUpChoice { Cancelled, Browser, Completed }
+internal sealed record RememberedLogin(string Email, string? Password)
+{
+    internal static RememberedLogin None { get; } = new("", null);
+}
 
 internal sealed class DesktopAccountSession
 {
@@ -566,6 +570,33 @@ internal sealed class DesktopAccountSession
     }
     private HttpClient Http() => new(handlerFactory?.Invoke() ?? new HttpClientHandler { AllowAutoRedirect = false })
         { Timeout = TimeSpan.FromSeconds(20) };
+    // "Remember me" for the in-app form. Protected with Windows DPAPI for the current Windows user, like the
+    // session file: convenient on a personal PC, not a defence against software already running as that user.
+    internal RememberedLogin RememberedLogin
+    {
+        get
+        {
+            try
+            {
+                var path = Path.Combine(rootDirectory, "Identity", "remembered.bin");
+                if (!File.Exists(path)) return RememberedLogin.None;
+                var bytes = ProtectedData.Unprotect(File.ReadAllBytes(path), null, DataProtectionScope.CurrentUser);
+                try { return JsonSerializer.Deserialize<RememberedLogin>(bytes) ?? RememberedLogin.None; }
+                finally { CryptographicOperations.ZeroMemory(bytes); }
+            }
+            catch (Exception error) when (error is CryptographicException or IOException or JsonException or UnauthorizedAccessException) { return RememberedLogin.None; }
+        }
+    }
+    internal void Remember(string email, string? password)
+    {
+        var path = Path.Combine(rootDirectory, "Identity", "remembered.bin");
+        if (email.Length == 0 && password is null) { try { File.Delete(path); } catch (IOException) { } return; }
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(new RememberedLogin(email, password));
+        try { File.WriteAllBytes(path, ProtectedData.Protect(bytes, null, DataProtectionScope.CurrentUser)); }
+        finally { CryptographicOperations.ZeroMemory(bytes); }
+    }
+
     private SavedAccountSession? Read()
     {
         try

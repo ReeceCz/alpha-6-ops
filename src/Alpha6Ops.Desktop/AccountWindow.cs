@@ -475,9 +475,18 @@ internal sealed partial class AccountWindow : Window
         catch (OperationCanceledException) { RecoverAfterError("Sign-in canceled. You can try again."); }
         catch (AccountSessionException error) { RecoverAfterError(error.Message); }
         catch (SocketException) { RecoverAfterError("The sign-in callback could not start. Close any other sign-in attempt and try again."); }
-        catch (HttpRequestException) { RecoverAfterError("The account service could not be reached. Check your connection and try again."); }
+        catch (HttpRequestException) { RecoverAfterError(ServiceUnreachable()); }
         catch (Exception) { RecoverAfterError("We couldn’t complete that request. Please try again."); }
         finally { busy = false; LoginPage.IsEnabled = WorkspacePage.IsEnabled = true; }
+    }
+
+    // Names the host so a local developer setup (server not started) is distinguishable from a network problem.
+    private string ServiceUnreachable()
+    {
+        var host = account is null ? "" : new Uri(account.Configuration.ApiBaseUrl).Authority;
+        return host.StartsWith("localhost", StringComparison.OrdinalIgnoreCase) || host.StartsWith("127.0.0.1", StringComparison.Ordinal)
+            ? $"Your sign-in worked, but the Alpha 6 account service at {host} is not running. Start the local server, then try again."
+            : $"Your sign-in worked, but the Alpha 6 account service ({host}) could not be reached. Check your connection and try again.";
     }
 
     private void RecoverAfterError(string message)

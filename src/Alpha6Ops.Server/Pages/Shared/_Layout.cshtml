@@ -8,18 +8,32 @@
 </head>
 <body class="@ViewData["BodyClass"]">
     <a class="skip-link" href="#main">Skip to content</a>
-    <header class="topbar">
-        <a class="wordmark" href="/" aria-label="Alpha 6 OPS home"><span class="mark">A6</span> ALPHA 6 <span class="muted">OPS</span></a>
-        <nav aria-label="Main navigation">
-            <a href="/Levels">Levels</a>
-            <a href="/Download">Download</a>
-            @if (User.Identity?.IsAuthenticated == true) {
-                <a href="/Account">My account</a>
-                <form method="post" asp-page="/Account/Index" asp-page-handler="Logout"><button class="text-button">Sign out</button></form>
-            } else { <a href="/auth/login">Sign in</a> }
-        </nav>
-    </header>
-    <main id="main">@RenderBody()</main>
-    <footer><span>ALPHA 6 OPS · Built for virtual aviation</span><a href="/Support">Help &amp; account security</a></footer>
+    <div class="shell">
+        <div class="sky" aria-hidden="true"></div>
+        <header class="topbar">
+            <div class="brand">
+                <a class="wordmark" href="/" aria-label="Alpha 6 OPS home"><span class="mark">A6</span><span class="wordmark-text">ALPHA 6 OPS</span></a>
+                <span class="brand-divider" aria-hidden="true"></span>
+                <nav aria-label="Main navigation">
+                    <a href="/Levels">Levels</a>
+                    <a href="/Download">Download</a>
+                    @if (User.Identity?.IsAuthenticated == true) {
+                        <a href="/Account">My account</a>
+                        <form method="post" asp-page="/Account/Index" asp-page-handler="Logout"><button class="text-button">Sign out</button></form>
+                    } else { <a href="/auth/login">Sign in</a> }
+                </nav>
+            </div>
+            <div class="ops-status" aria-hidden="true"><span class="dot"></span><span>GLOBAL FLIGHT OPERATIONS<br />CONNECTING VIRTUAL AVIATION</span></div>
+        </header>
+        <div class="readout" aria-hidden="true">
+            <p class="tagline">SAME SKY.<br />A BRIGHTER TOMORROW.</p>
+            <p class="telemetry">ALT&nbsp; 37,000 FT<br />SPD&nbsp; 492 KT<br />TRK&nbsp; 284°</p>
+        </div>
+        <main id="main">@RenderBody()</main>
+        <footer>
+            <span>ALPHA 6 OPS &nbsp;&nbsp; v@(typeof(Alpha6Ops.Server.ServerSettings).Assembly.GetName().Version?.ToString(3) ?? "0.0.0") &nbsp;–&nbsp; Built for virtual aviation</span>
+            <span class="footer-right"><a href="/Support">Help &amp; account security</a><span class="slashes">///</span><span>FLY FURTHER TOGETHER</span></span>
+        </footer>
+    </div>
 </body>
 </html>

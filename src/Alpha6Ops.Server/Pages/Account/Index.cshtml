@@ -1,44 +1,74 @@
 @page "/Account"
 @model Alpha6Ops.Server.Pages.Account.IndexModel
 @inject Microsoft.Extensions.Options.IOptions<ReleaseSettings> Release
-@{ ViewData["Title"] = "Your workspaces"; var release = Release.Value; }
+@{ ViewData["Title"] = "Your workspaces"; ViewData["BodyClass"] = "workspace-page"; var release = Release.Value; }
 <partial name="_AccountError" model="Model" />
 @if (Model.Account is { } account) {
+var personalSelected = account.LastWorkspace.AirlineId is null;
 <div class="page-heading">
-    <div class="eyebrow">02 / SELECT YOUR WORKSPACE</div>
+    <div class="eyebrow dash">02 / SELECT YOUR WORKSPACE</div>
     <h1>Where are you flying today?</h1>
     <p class="lead">Fly independently or connect with your crew. Choose the workspace for your next desktop sign-in.</p>
-    <div class="account-summary"><strong>@account.Account.DisplayName</strong><span>@account.Account.Email</span><a class="badge" asp-page="Plan">Personal @account.PersonalEntitlement.Plan</a>@if (!account.Account.EmailVerified) { <span class="badge warn">Email not verified</span> }</div>
+    <div class="account-summary"><strong>@account.Account.DisplayName</strong><span class="mono">@account.Account.Email.ToUpperInvariant()</span><a class="badge" asp-page="Plan">Personal @account.PersonalEntitlement.Plan</a>@if (!account.Account.EmailVerified) { <span class="badge warn">Email not verified</span> }</div>
 </div>
+
 <section class="grid two account-panels" aria-label="Account">
-    <article class="card"><div class="eyebrow">ACCOUNT</div><h2>@account.Account.DisplayName</h2>
-        <dl class="facts"><dt>Email</dt><dd>@account.Account.Email @(account.Account.EmailVerified ? "· verified" : "· not verified")</dd>
-        <dt>Status</dt><dd>@account.Account.Status</dd>
+    <article class="card panel">
+        <div class="panel-head"><span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></span><div class="eyebrow">ACCOUNT</div><span class="live">@(account.Account.Status == AccountStatus.Active ? "ACTIVE" : account.Account.Status.ToString().ToUpperInvariant())</span></div>
+        <h2>@account.Account.DisplayName</h2>
+        <dl class="facts"><dt>Email</dt><dd><span class="mono">@account.Account.Email.ToUpperInvariant()</span> · @(account.Account.EmailVerified ? "verified" : "not verified")</dd>
+        <dt>Status</dt><dd class="ok">@account.Account.Status</dd>
         <dt>Personal level</dt><dd>@account.PersonalEntitlement.Plan · @account.PersonalEntitlement.Status</dd>
-        @if (account.Profile is { } profile) { <dt>Home base</dt><dd>@(profile.HomeBaseIcao.Length > 0 ? profile.HomeBaseIcao : "—") @(profile.Callsign.Length > 0 ? $"· {profile.Callsign}" : "")</dd> }</dl>
+        @if (account.Profile is { } profile) { <dt>Home base</dt><dd>@(profile.HomeBaseIcao.Length > 0 ? profile.HomeBaseIcao : "—")@(profile.Callsign.Length > 0 ? $" · {profile.Callsign}" : "")</dd> }</dl>
         @if (!account.Account.EmailVerified) { <p>Verify your email from the message Alpha 6 sent you, then sign in again to join or create airlines.</p> }
-        <div class="actions"><a class="button secondary small" asp-page="Profile">Pilot profile</a><a class="button secondary small" asp-page="Plan">Account level</a><a href="/Support">Security &amp; sign-in</a></div></article>
-    <article class="card"><div class="eyebrow">DESKTOP APP / WINDOWS</div><h2>Alpha 6 OPS for the flight deck</h2>
+        <div class="actions"><a class="button secondary" asp-page="Profile">Pilot profile</a><a class="button secondary" asp-page="Plan">Account level</a><a class="button secondary" href="/Support">Security &amp; sign-in <span class="ext" aria-hidden="true">↗</span></a></div>
+    </article>
+    <article class="card panel photo runway">
+        <div class="panel-head"><span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 5.5 11 4.4v7.1H3zM12 4.2 21 3v8.5h-9zM3 12.5h8v7.1L3 18.5zM12 12.5h9V21l-9-1.2z"/></svg></span><div class="eyebrow">DESKTOP APP / WINDOWS</div><span class="corner">BUILT FOR<br />VIRTUAL AVIATION</span></div>
+        <h2>Alpha 6 OPS for the flight deck</h2>
         @if (account.Profile is { LastSeenAt: { } seen } desktop) { <p>Last signed in @seen.ToString("u")@(desktop.LastSeenVersion.Length > 0 ? $" from v{desktop.LastSeenVersion}" : "").</p> } else { <p>The desktop app has not signed in with this account yet.</p> }
-        @if (release.Available) { <p>Current release: v@(release.Version)@(account.Profile?.LastSeenVersion == release.Version ? " · you are up to date" : "").</p> } else { <p class="muted">A verified public release has not been published yet.</p> }
-        <div class="actions"><a class="button small" href="/Download">Download</a><span class="muted">Sign in with this account after installing.</span></div></article>
+        @if (release.Available) { <p>Current release: v@(release.Version)@(account.Profile?.LastSeenVersion == release.Version ? " · you are up to date" : "").</p> } else { <p>A verified public release has not been published yet.</p> }
+        <div class="actions"><a class="button" href="/Download"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3"/></svg>Download</a><span class="muted">Sign in with this account after installing.</span></div>
+    </article>
 </section>
-<section class="card personal-workspace @(account.LastWorkspace.AirlineId is null ? "selected" : "")" aria-label="Personal workspace">
-    <div class="workspace-icon" aria-hidden="true">✈</div>
-    <div class="workspace-copy"><div class="workspace-title"><h2>Flying as a Pilot</h2><span class="badge">@account.PersonalEntitlement.Plan</span></div><p>Your flights, your progress. All in your own space.</p><div class="eyebrow">LOGBOOK / DISPATCH / TRACKING / WEATHER</div></div>
-    <form method="post" asp-page-handler="Workspace"><button class="button secondary">@(account.LastWorkspace.AirlineId is null ? "Selected for next launch" : "Use pilot workspace")</button></form>
+
+<section class="card workspace pilot photo @(personalSelected ? "selected" : "")" aria-label="Personal workspace">
+    <span class="tile big" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.5 13.5 10 11l2-8 2 1-1 6.5 7.5 2.5v2L13 13.5l-.5 5 2 2v1l-3-1-3 1v-1l2-2-.5-5-7.5 1.5z"/></svg></span>
+    <div class="workspace-copy">
+        <div class="workspace-title"><h2>Flying as a Pilot</h2><span class="badge">@account.PersonalEntitlement.Plan</span></div>
+        <p>Your flights, your progress. All in your own space.</p>
+        <div class="eyebrow">LOGBOOK &nbsp;/&nbsp; DISPATCH &nbsp;/&nbsp; TRACKING &nbsp;/&nbsp; WEATHER</div>
+    </div>
+    <div class="workspace-side">
+        <span class="corner">MORE THAN<br />A SIMULATOR</span>
+        <form method="post" asp-page-handler="Workspace"><button class="button secondary">@(personalSelected ? "Selected for next launch" : "Use pilot workspace") @if (!personalSelected) { <span class="arrow" aria-hidden="true">→</span> }</button></form>
+    </div>
 </section>
-<div class="workspace-heading"><div class="eyebrow">YOUR VIRTUAL AIRLINES / @account.Airlines.Length.ToString("00")</div><a asp-page="Join">Join with an invitation ↗</a></div>
-<section class="grid two" aria-label="Virtual airline workspaces">
-    @foreach (var airline in account.Airlines) {
-        <article class="card airline-card @(account.LastWorkspace.AirlineId == airline.Id ? "selected" : "")">
-            <div class="airline-heading"><div class="workspace-icon airline" aria-hidden="true">@airline.Callsign</div><div class="eyebrow">@airline.Plan</div></div>
-            <h2>@airline.Name</h2><p>@string.Join(" · ", airline.Roles) @(airline.IsFounder ? "· Founder" : "")</p><p class="muted">Membership: @airline.MembershipStatus</p>
-            <div class="actions"><form method="post" asp-page-handler="Workspace"><input type="hidden" name="airlineId" value="@airline.Id" /><button class="button secondary">@(account.LastWorkspace.AirlineId == airline.Id ? "Selected for next launch" : "Use airline workspace")</button></form>
-            <a href="/Account/Airline/@airline.Id/Schedule">@(airline.Capabilities.Contains(Capabilities.OperationsManage) ? "Open console" : "Schedule & fleet")</a></div>
-        </article>
-    }
+
+<div class="workspace-heading"><div class="eyebrow">YOUR VIRTUAL AIRLINES &nbsp;/&nbsp; @account.Airlines.Length.ToString("00")</div><a asp-page="Join">Join with an invitation <span class="ext" aria-hidden="true">↗</span></a></div>
+@foreach (var airline in account.Airlines) {
+    var selected = account.LastWorkspace.AirlineId == airline.Id;
+    <article class="card workspace airline photo @(selected ? "selected" : "")" aria-label="@airline.Name">
+        <span class="tile big mono" aria-hidden="true">@(airline.Callsign.Length > 3 ? airline.Callsign[..3] : airline.Callsign)</span>
+        <div class="workspace-copy">
+            <div class="workspace-title"><h2>@airline.Name</h2><span class="badge outline">@airline.Plan</span></div>
+            <p>@string.Join(" · ", airline.Roles)@(airline.IsFounder ? " · Founder" : "")</p>
+            <p class="membership">Membership: <span class="ok">@airline.MembershipStatus</span></p>
+        </div>
+        <div class="workspace-side row">
+            <form method="post" asp-page-handler="Workspace"><input type="hidden" name="airlineId" value="@airline.Id" /><button class="button secondary" disabled="@(airline.MembershipStatus != MembershipStatus.Active)">@(selected ? "Selected for next launch" : "Use airline workspace")</button></form>
+            <a class="button secondary" href="/Account/Airline/@airline.Id/Schedule">@(airline.Capabilities.Contains(Capabilities.OperationsManage) ? "Open console" : "Schedule & fleet")</a>
+        </div>
+    </article>
+}
+
+<section class="card strip-cta" aria-label="Create or join an airline">
+    <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6M15 20c0-2.6 1.5-4.5 4-5"/></svg></span>
+    <div class="strip-copy"><h2>A new crew. A new destination.</h2><p>@(account.Airlines.Length == 0 ? "Your crew is out there. Create a virtual airline, or join with an invitation." : "Create a virtual airline, or join with an invitation.")</p></div>
+    <div class="actions">
+        <a class="button" asp-page="Create"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Create a virtual airline</a>
+        <a class="button secondary" asp-page="Join"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/></svg>Join with an invitation</a>
+        <a href="/Support">Account security</a>
+    </div>
 </section>
-@if (account.Airlines.Length == 0) { <section class="card"><h2>Your crew is out there.</h2><p>Join with an invitation or create a virtual airline of your own.</p></section> }
-<section class="security-strip"><h2>A new crew. A new destination.</h2><div class="actions"><a class="button" asp-page="Create">Create a virtual airline</a><a class="button secondary" asp-page="Join">Join with an invitation</a><a href="/Support">Account security</a></div></section>
 }

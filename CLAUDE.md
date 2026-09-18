@@ -61,7 +61,7 @@ path first.
 | `packaging` | Offline desktop packaging and installer source |
 | `samples` | SDK-free telemetry fixtures |
 | `datasets` | Aircraft catalog source data |
-| `docs` | Architecture, data model, roadmap, SimConnect boundary, validation, hosting (`docs/hosting.md`) |
+| `docs` | Architecture, data model, roadmap, SimConnect boundary, validation, hosting (`docs/hosting.md`), web/accounts roadmap (`docs/web-roadmap.md` — the pick-up point for the web end; `scripts/render-roadmap-pdf.py` renders it to PDF) |
 
 ## Not in source control
 

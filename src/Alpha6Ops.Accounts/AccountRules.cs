@@ -122,6 +122,32 @@ public static partial class AccountRules
         return new(registration, type, name, homeBase, status, Notes(request.Notes, Invalid));
     }
 
+    public static FlightLogRequest Flight(FlightLogRequest request)
+    {
+        static IdentityException Invalid(string message) => new("invalid_flight", message, 400);
+        var flight = (request.FlightNumber ?? "").Trim().ToUpperInvariant().Replace(" ", "").Replace("-", "");
+        if (flight.Length > 0 && !FlightNumberPattern().IsMatch(flight)) throw Invalid("Flight number must be 2 to 10 letters or digits, or blank.");
+        var origin = (request.Origin ?? "").Trim().ToUpperInvariant();
+        var destination = (request.Destination ?? "").Trim().ToUpperInvariant();
+        if (!AirportPattern().IsMatch(origin) || !AirportPattern().IsMatch(destination)) throw Invalid("Origin and destination must be 3 or 4 character airport codes.");
+        var type = (request.AircraftType ?? "").Trim().ToUpperInvariant();
+        if (!TypePattern().IsMatch(type)) type = type.Length > 4 ? "" : type;
+        if (!TypePattern().IsMatch(type)) throw Invalid("Aircraft type must be a 2 to 4 character ICAO designator, or blank.");
+        var registration = (request.Registration ?? "").Trim().ToUpperInvariant();
+        if (registration.Length > 10 || registration.Any(char.IsControl)) registration = "";
+        if (request.DepartureUtc < new DateTimeOffset(2000, 1, 1, 0, 0, 0, TimeSpan.Zero) || request.DepartureUtc > DateTimeOffset.UtcNow.AddDays(1))
+            throw Invalid("Departure must be between 2000 and today.");
+        if (request.ArrivalUtc is { } arrival && (arrival < request.DepartureUtc || arrival > request.DepartureUtc.AddDays(2)))
+            throw Invalid("Arrival must follow departure by less than two days.");
+        if (request.BlockMinutes is < 0 or > 2880) throw Invalid("Block time must be between 0 and 48 hours.");
+        static int? Bounded(int? value, int min, int max) => value is { } v && v >= min && v <= max ? v : null;
+        var network = (request.Network ?? "").Trim().ToUpperInvariant();
+        if (network.Length > 20) network = network[..20];
+        return new(flight, origin, destination, type, registration, request.DepartureUtc.ToUniversalTime(), request.ArrivalUtc?.ToUniversalTime(), request.BlockMinutes,
+            Bounded(request.FlightMinutes, 0, 2880), Bounded(request.DistanceNm, 0, 20000), Bounded(request.LandingRateFpm, -5000, 5000), Bounded(request.FuelUsedKg, 0, 400000),
+            network, Notes(request.Notes, Invalid));
+    }
+
     // Days in CSV are digits 1 (Monday) to 7 (Sunday), in any order, e.g. "12345" or "67".
     public static int Days(string value)
     {

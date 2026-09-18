@@ -78,6 +78,30 @@ Check(AccountRules.Aircraft(aircraftRequest) is { Registration: "N123A6", TypeIc
 Reject(() => AccountRules.Aircraft(aircraftRequest with { Registration = "-" }), "invalid_aircraft");
 Reject(() => AccountRules.Aircraft(aircraftRequest with { TypeIcao = "" }), "invalid_aircraft");
 Reject(() => AccountRules.Aircraft(aircraftRequest with { Status = "flying" }), "invalid_aircraft");
+// Images are recognised by content and bounded by pixels and bytes; nothing else is accepted.
+static byte[] Png(int w, int h) => [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, (byte)'I', (byte)'H', (byte)'D', (byte)'R',
+    (byte)(w >> 24), (byte)(w >> 16), (byte)(w >> 8), (byte)w, (byte)(h >> 24), (byte)(h >> 16), (byte)(h >> 8), (byte)h, 8, 6, 0, 0, 0];
+byte[] jpeg = [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x02, 0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x40, 0x00, 0x80, 0x01, 0x01, 0x11, 0x00, 0xFF, 0xD9];
+byte[] webp = [(byte)'R', (byte)'I', (byte)'F', (byte)'F', 0, 0, 0, 0, (byte)'W', (byte)'E', (byte)'B', (byte)'P', (byte)'V', (byte)'P', (byte)'8', (byte)'X', 10, 0, 0, 0, 0, 0, 0, 0, 0x3F, 0, 0, 0x3F, 0, 0, 0];
+Check(ImageRules.Validate(Png(256, 256)) is { ContentType: "image/png", Width: 256, Height: 256 }, "PNG header read");
+Check(ImageRules.Validate(jpeg) is { ContentType: "image/jpeg", Width: 128, Height: 64 }, "JPEG SOF header read");
+Check(ImageRules.Validate(webp) is { ContentType: "image/webp", Width: 64, Height: 64 }, "WebP VP8X header read");
+Reject(() => ImageRules.Validate(Png(16, 16)), "invalid_image");
+Reject(() => ImageRules.Validate(Png(4096, 100)), "invalid_image");
+Reject(() => ImageRules.Validate(System.Text.Encoding.UTF8.GetBytes("<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>")), "invalid_image");
+Reject(() => ImageRules.Validate(new byte[ImageRules.MaxBytes + 1]), "invalid_image");
+// Logbook CSV: synonyms, separators, time formats and durations from other platforms.
+var parsed = LogbookCsv.Parse("Date;Flight Number;From;To;Aircraft Type;Block Time;Landing Rate\n14/03/2026 18:20;CZK101;kmke;kord;A20N;0:55;-180\n2026-03-15T09:00:00;;KORD;KMKE;;1.5h;\nnot a date;X;KMKE;KMSP;;30;");
+Check(parsed.Columns.SequenceEqual(new[] { "aircraft", "block", "departure", "destination", "flight", "landing", "origin" }), "logbook columns mapped by synonym");
+Check(parsed.Rows[0].Flight is { FlightNumber: "CZK101", Origin: "kmke", BlockMinutes: 55, LandingRateFpm: -180 } firstRow && firstRow.DepartureUtc == new DateTimeOffset(2026, 3, 14, 18, 20, 0, TimeSpan.Zero), "dd/MM/yyyy row parsed as UTC");
+Check(parsed.Rows[1].Flight is { BlockMinutes: 90, FlightNumber: "" } && parsed.Rows[2].Error is not null, "decimal hours parsed and bad dates reported per line");
+Check(LogbookCsv.ParseMinutes("1h 35m") == 95 && LogbookCsv.ParseMinutes("01:35:20") == 95 && LogbookCsv.ParseMinutes("95") == 95 && LogbookCsv.ParseMinutes("1.58") == 95, "duration formats normalised");
+Check(LogbookCsv.ParseTime("1710440400") == DateTimeOffset.FromUnixTimeSeconds(1710440400) && LogbookCsv.ParseTime("") is null, "unix and blank times");
+Reject(() => LogbookCsv.Parse("a,b\n1,2"), "invalid_logbook");
+var flightRequest = new FlightLogRequest("czk 101", "kmke", "kord", "a20n", "n201cz", new DateTimeOffset(2026, 3, 14, 18, 20, 0, TimeSpan.Zero), null, 55, null, 200, -180, 900, "vatsim", " smooth ");
+Check(AccountRules.Flight(flightRequest) is { FlightNumber: "CZK101", Origin: "KMKE", AircraftType: "A20N", Registration: "N201CZ", Network: "VATSIM", Notes: "smooth" }, "flight normalization");
+Reject(() => AccountRules.Flight(flightRequest with { Origin = "K" }), "invalid_flight");
+Reject(() => AccountRules.Flight(flightRequest with { DepartureUtc = DateTimeOffset.UtcNow.AddDays(3) }), "invalid_flight");
 
 if (string.IsNullOrWhiteSpace(connection))
 {
@@ -115,7 +139,7 @@ await using (var db = Context())
     Check(!db.Database.HasPendingModelChanges(), "migration snapshot matches current model");
     await db.Database.MigrateAsync();
     await db.Database.MigrateAsync();
-    Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 4, "migrations are repeatable");
+    Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 5, "migrations are repeatable");
 }
 var prefix = Guid.NewGuid().ToString("N")[..10];
 actor = actor with { Subject = prefix + "-owner", Email = prefix + "-owner@example.com" };
@@ -271,6 +295,35 @@ Check((await Run(s => s.SaveAircraftAsync(actor, va.Id, tail.Id, aircraftRequest
 Check((await Run(s => s.ListFleetAsync(pilot, va.Id))).Single().Status == "maintenance", "pilot reads the fleet");
 await Mutation(s => s.DeleteAircraftAsync(actor, va.Id, tail.Id));
 Check((await Run(s => s.ListFleetAsync(actor, va.Id))).Length == 0, "aircraft removed");
+// Logbook: import with duplicates and bad rows, undo by batch, manual add, delete.
+var logbook = await Run(s => s.ImportLogbookAsync(pilot, new("date,flight,origin,destination,aircraft,block,landing_rate\n2026-03-14 18:20,CZK101,KMKE,KORD,A20N,0:55,-180\n2026-03-14 18:20,CZK101,KMKE,KORD,A20N,0:55,-180\n2026-03-15 09:00,CZK102,KORD,KMKE,A20N,50,-240\nbad,CZK103,KMKE,KMSP,,30,\n")));
+Check(logbook is { Created: 2, Duplicates: 1, Skipped: 1 } && logbook.Errors.Length == 1, "logbook import counts created, duplicate and skipped rows");
+var again = await Run(s => s.ImportLogbookAsync(pilot, new("date,flight,origin,destination\n2026-03-14 18:20,CZK101,KMKE,KORD\n")));
+Check(again is { Created: 0, Duplicates: 1 }, "re-importing the same flight is a duplicate, not a copy");
+var summary = await Run(s => s.LogbookSummaryAsync(pilot));
+Check(summary is { Flights: 2, BlockMinutes: 105, Airports: 2 } && summary.TopAircraft.SequenceEqual(new[] { "A20N" }), "logbook summary totals");
+Check((await Run(s => s.ListFlightsAsync(actor, 1, 50))).Total == 0, "logbooks are per pilot");
+var added = await Run(s => s.AddFlightAsync(pilot, flightRequest with { DepartureUtc = new DateTimeOffset(2026, 4, 1, 12, 0, 0, TimeSpan.Zero) }, "desktop"));
+Check(added.Source == "desktop" && (await Run(s => s.ListFlightsAsync(pilot, 1, 2))).Entries[0].Id == added.Id, "desktop flights are listed newest first");
+await RejectAsync(() => Run(s => s.AddFlightAsync(pilot, flightRequest with { DepartureUtc = new DateTimeOffset(2026, 4, 1, 12, 0, 0, TimeSpan.Zero) }, "desktop")), "flight_exists");
+Check(await Run(s => s.UndoImportAsync(pilot, logbook.BatchId)) == 2 && (await Run(s => s.LogbookSummaryAsync(pilot))).Flights == 1, "undoing an import removes only that batch");
+await Mutation(s => s.DeleteFlightAsync(pilot, added.Id));
+await RejectAsync(() => Mutation(s => s.DeleteFlightAsync(pilot, added.Id)), "flight_not_found");
+// Media: avatars and logos are validated, versioned in the profile and workspace, and readable anonymously by id.
+var withAvatar = await Run(s => s.SetAvatarAsync(pilot, Png(128, 128)));
+Check(withAvatar.AvatarUrl.StartsWith($"/media/avatar/{pilotId:N}?v="), "avatar url carries a version");
+Check((await Run(s => s.BootstrapAsync(pilot))).Profile!.AvatarUrl == withAvatar.AvatarUrl, "bootstrap reports the avatar");
+await RejectAsync(() => Run(s => s.SetAvatarAsync(pilot, System.Text.Encoding.UTF8.GetBytes("GIF89a"))), "invalid_image");
+var blob = await Run(s => s.GetMediaAsync("avatar", pilotId));
+Check(blob is { ContentType: "image/png", Width: 128 } && blob.Sha256.Length == 64, "media blob stored with hash");
+await Mutation(s => s.RemoveAvatarAsync(pilot));
+Check((await Run(s => s.GetProfileAsync(pilot))).AvatarUrl == "" && await Run(s => s.GetMediaAsync("avatar", pilotId)) is null, "avatar removed");
+await RejectAsync(() => Run(s => s.SetAirlineLogoAsync(pilot, va.Id, Png(200, 100))), "administrator_required");
+var branded = await Run(s => s.SetAirlineLogoAsync(actor with { HasMfa = false, AuthenticatedAt = null }, va.Id, Png(200, 100)));
+Check(branded.LogoUrl.StartsWith($"/media/airline-logo/{va.Id:N}?v="), "administrators set the logo without a fresh security check");
+Check((await Run(s => s.BootstrapAsync(pilot))).Airlines.Single(x => x.Id == va.Id).LogoUrl == branded.LogoUrl, "members see the airline logo");
+await Mutation(s => s.RemoveAirlineLogoAsync(actor, va.Id));
+Check((await Run(s => s.GetAirlineAsync(actor, va.Id))).LogoUrl == "", "logo removed");
 var revoked = await Run(s => s.InviteAsync(actor, va.Id, new(outsider.Email, [AirlineRole.Pilot])));
 await Mutation(s => s.RevokeInvitationAsync(actor, va.Id, revoked.Invitation.Id));
 await RejectAsync(() => Run(s => s.AcceptInvitationAsync(outsider, revoked.Token)), "invitation_invalid");

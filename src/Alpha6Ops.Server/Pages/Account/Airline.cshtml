@@ -16,6 +16,11 @@
     <label class="card plan-card @(airline.Plan == AirlinePlan.Pro ? "selected" : "")"><input type="radio" name="plan" value="Pro" checked="@(airline.Plan == AirlinePlan.Pro)" /><div class="eyebrow">AIRLINE</div><h2>Pro</h2><span class="badge">Complimentary · early access</span><ul><li>Everything in Community</li><li>Does not count toward the Community limit</li><li>Operations reporting (in development)</li><li>Priority support</li></ul></label>
 </div><div class="actions"><button class="button secondary">Apply level</button></div></form></section>
 }
+<section class="card logo-card"><div class="logo-row">
+    <div class="logo-preview">@if (airline.LogoUrl.Length > 0) { <img src="@airline.LogoUrl" alt="@airline.Name logo" width="96" height="96" /> } else { <span class="avatar-fallback mono" aria-hidden="true">@(airline.Callsign.Length > 3 ? airline.Callsign[..3] : airline.Callsign)</span> }</div>
+    <div class="logo-copy"><h2>Airline logo</h2><p>Shown on your airline's card, the console, and to your crew in the desktop app. PNG, JPEG or WebP, up to 1 MB. Square or wide logos both work; transparent PNG looks best on the dark theme.</p>
+    <form method="post" asp-page-handler="Logo" enctype="multipart/form-data" class="logo-form"><input id="logo" name="logo" type="file" accept="image/png,image/jpeg,image/webp" required aria-label="Choose a logo image" /><button class="button secondary small">Upload logo</button>@if (airline.LogoUrl.Length > 0) { <button class="text-button danger" formaction="/Account/Airline/@airline.Id?handler=RemoveLogo" formnovalidate>Remove logo</button> }</form></div>
+</div></section>
 <section class="card"><h2>Invite a crew member</h2><form method="post" asp-page-handler="Invite" class="stack">
     <label for="email">Email address</label><input id="email" name="email" type="email" maxlength="254" required />
     <fieldset><legend>Initial roles</legend>

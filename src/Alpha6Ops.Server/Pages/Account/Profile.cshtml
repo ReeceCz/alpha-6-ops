@@ -1,9 +1,11 @@
 @page "/Account/Profile"
 @model Alpha6Ops.Server.Pages.Account.ProfileModel
-@{ ViewData["Title"] = "Pilot profile"; }
+@{ ViewData["Title"] = "Pilot profile"; var p = Model.Profile; }
 <div class="page-heading"><a href="/Account">← Your workspaces</a><div class="eyebrow">PILOT PROFILE</div><h1>Your pilot profile.</h1><p class="lead">Kept with your account, so every installation of the desktop app picks up the same SimBrief details, units and preferences.</p></div>
-@if (Model.Saved) { <div class="notice" role="status"><p>Profile saved. The desktop app applies it the next time it refreshes your account.</p></div> }
-<section class="card narrow"><partial name="_AccountError" model="Model" />
+@if (Model.Saved is { } saved) { <div class="notice" role="status"><p>@saved</p></div> }
+<partial name="_AccountError" model="Model" />
+<div class="grid profile-grid">
+<section class="card narrow">
 <form method="post" class="stack">
     <label asp-for="SimBriefUsername">SimBrief username</label><input asp-for="SimBriefUsername" maxlength="80" autocomplete="off" /><small>Used to fetch your OFP in Dispatch. Leave blank if you don’t use SimBrief.</small>
     <div class="grid two">
@@ -19,8 +21,22 @@
         <div class="stack"><label asp-for="PreferredWorkspace">Open at sign-in</label><select asp-for="PreferredWorkspace"><option value="last_used">Last used workspace</option><option value="personal">Always my personal flight deck</option><option value="portal">Account portal — choose every time</option></select></div>
     </div>
     <label asp-for="TimeZone">Time zone</label><select asp-for="TimeZone">@foreach (var (id, name) in Alpha6Ops.Server.Pages.Account.ProfileModel.TimeZones) { <option value="@id" selected="@(id == Model.TimeZone)">@name</option> }</select>
-    <label asp-for="AvatarInitials">Avatar initials</label><input asp-for="AvatarInitials" maxlength="3" style="text-transform:uppercase" /><small>Up to 3 letters shown on your account badge. Blank uses your name.</small>
+    <label asp-for="AvatarInitials">Avatar initials</label><input asp-for="AvatarInitials" maxlength="3" style="text-transform:uppercase" /><small>Up to 3 letters shown on your account badge when you have no picture. Blank uses your name.</small>
     <button class="button">Save profile</button>
 </form>
-@if (Model.Profile is { } profile) { <p class="muted">@(profile.LastSeenAt is { } seen ? $"Last desktop sign-in {seen:u}" : "The desktop app has not signed in yet.")@(profile.LastSeenVersion.Length > 0 ? $" · Alpha 6 OPS v{profile.LastSeenVersion}" : "")</p> }
+@if (p is not null) { <p class="muted">@(p.LastSeenAt is { } seen ? $"Last desktop sign-in {seen:u}" : "The desktop app has not signed in yet.")@(p.LastSeenVersion.Length > 0 ? $" · Alpha 6 OPS v{p.LastSeenVersion}" : "")</p> }
 </section>
+<aside class="card avatar-card">
+    <h2>Profile picture</h2>
+    <div class="avatar-preview">
+        @if (p is { AvatarUrl.Length: > 0 }) { <img src="@p.AvatarUrl" alt="Your profile picture" width="128" height="128" /> }
+        else { <span class="avatar-fallback" aria-hidden="true">@(p?.AvatarInitials is { Length: > 0 } i ? i : "A6")</span> }
+    </div>
+    <p>Shown on your account, to your crew, and in the desktop app. PNG, JPEG or WebP, up to 1 MB and 2048×2048 pixels. Square images look best.</p>
+    <form method="post" asp-page-handler="Avatar" enctype="multipart/form-data" class="stack">
+        <label for="avatar">Choose an image</label><input id="avatar" name="avatar" type="file" accept="image/png,image/jpeg,image/webp" required />
+        <button class="button secondary">Upload picture</button>
+    </form>
+    @if (p is { AvatarUrl.Length: > 0 }) { <form method="post" asp-page-handler="RemoveAvatar"><button class="text-button danger">Remove picture</button></form> }
+</aside>
+</div>

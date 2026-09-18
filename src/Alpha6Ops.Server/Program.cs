@@ -177,6 +177,9 @@ app.Use(async (context, next) =>
         await Results.Problem(statusCode: 503, title: "Account services are not configured.", extensions: new Dictionary<string, object?> { ["code"] = "identity_unavailable" }).ExecuteAsync(context);
         return;
     }
+    // Logbook imports are the one JSON body allowed past the 32 KB default; uploads on Razor pages carry their own limits.
+    if (context.Request.Path.Equals("/api/v1/me/flights/import", StringComparison.OrdinalIgnoreCase) && context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } size)
+        size.MaxRequestBodySize = 3 * 1024 * 1024;
     try { await next(context); }
     catch (IdentityException ex)
     {
@@ -215,7 +218,24 @@ app.MapGet("/auth/step-up", () =>
     properties.Items["stepup"] = "true";
     return Results.Challenge(properties, ["Auth0"]);
 }).RequireAuthorization().RequireRateLimiting("requests");
-if (settings.IsConfigured) app.MapAccountApi();
+if (settings.IsConfigured)
+{
+    app.MapAccountApi();
+    // Avatars and airline logos. Public by unguessable id, cached by content hash; only validated PNG/JPEG/WebP is ever stored.
+    app.MapGet("/media/{kind}/{ownerId:guid}", async (string kind, Guid ownerId, HttpContext context, AccountsService accounts, CancellationToken ct) =>
+    {
+        if (kind is not (MediaKinds.Avatar or MediaKinds.AirlineLogo)) return Results.NotFound();
+        var blob = await accounts.GetMediaAsync(kind, ownerId, ct);
+        if (blob is null) return Results.NotFound();
+        var etag = "\"" + blob.Sha256 + "\"";
+        context.Response.Headers.CacheControl = "public, max-age=86400";
+        context.Response.Headers.ETag = etag;
+        context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+        context.Response.Headers.ContentDisposition = "inline";
+        if (context.Request.Headers.IfNoneMatch.ToString() == etag) return Results.StatusCode(304);
+        return Results.Bytes(blob.Bytes, blob.ContentType);
+    }).RequireRateLimiting("requests");
+}
 // Public release descriptor for the desktop updater; 404 until a signed installer is configured.
 app.MapGet("/api/v1/release", (IOptions<ReleaseSettings> release) => release.Value.Available
     ? Results.Ok(new ReleaseInfo(release.Value.Version, release.Value.DownloadUrl, release.Value.Sha256))

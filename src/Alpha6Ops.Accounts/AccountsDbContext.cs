@@ -13,6 +13,8 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
     public DbSet<UserProfileRecord> Profiles => Set<UserProfileRecord>();
     public DbSet<AirlineRoute> Routes => Set<AirlineRoute>();
     public DbSet<AirlineAircraft> Fleet => Set<AirlineAircraft>();
+    public DbSet<PilotFlight> Flights => Set<PilotFlight>();
+    public DbSet<MediaBlob> Media => Set<MediaBlob>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -75,6 +77,22 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
         aircraft.Property(x => x.Name).HasMaxLength(100); aircraft.Property(x => x.HomeBase).HasMaxLength(4);
         aircraft.Property(x => x.Status).HasMaxLength(20); aircraft.Property(x => x.Notes).HasMaxLength(500);
         aircraft.HasOne<VirtualAirline>().WithMany().HasForeignKey(x => x.AirlineId).OnDelete(DeleteBehavior.Restrict);
+
+        var flight = model.Entity<PilotFlight>();
+        flight.ToTable("pilot_flight"); flight.HasKey(x => x.Id);
+        flight.HasIndex(x => new { x.UserId, x.DepartureUtc, x.FlightNumber, x.Origin, x.Destination }).IsUnique();
+        flight.HasIndex(x => x.ImportBatchId);
+        flight.Property(x => x.Source).HasMaxLength(20); flight.Property(x => x.FlightNumber).HasMaxLength(10);
+        flight.Property(x => x.Origin).HasMaxLength(4); flight.Property(x => x.Destination).HasMaxLength(4);
+        flight.Property(x => x.AircraftType).HasMaxLength(4); flight.Property(x => x.Registration).HasMaxLength(10);
+        flight.Property(x => x.Network).HasMaxLength(20); flight.Property(x => x.Notes).HasMaxLength(500);
+        flight.HasOne<UserAccount>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+
+        var media = model.Entity<MediaBlob>();
+        media.ToTable("media_blob"); media.HasKey(x => x.Id);
+        media.HasIndex(x => new { x.Kind, x.OwnerId }).IsUnique();
+        media.Property(x => x.Kind).HasMaxLength(20); media.Property(x => x.ContentType).HasMaxLength(40);
+        media.Property(x => x.Sha256).HasMaxLength(64);
 
         var audit = model.Entity<AuditEvent>(); audit.ToTable("audit_event"); audit.HasKey(x => x.Id);
         audit.Property(x => x.Action).HasMaxLength(80); audit.Property(x => x.Details).HasMaxLength(2000);

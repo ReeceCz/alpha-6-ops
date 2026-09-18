@@ -21,6 +21,13 @@ public static class AccountApi
         api.MapGet("/virtual-airlines/{id:guid}/members", (HttpContext c, AccountsService s, Guid id, CancellationToken ct) => s.ListMembersAsync(Actor(c), id, ct));
         api.MapGet("/virtual-airlines/{id:guid}/invitations", (HttpContext c, AccountsService s, Guid id, CancellationToken ct) => s.ListInvitationsAsync(Actor(c), id, ct));
         api.MapGet("/virtual-airlines/{id:guid}/activity", (HttpContext c, AccountsService s, Guid id, CancellationToken ct) => s.ListActivityAsync(Actor(c), id, ct));
+        api.MapGet("/me/flights", (HttpContext c, AccountsService s, int page, int pageSize, CancellationToken ct) => s.ListFlightsAsync(Actor(c), page == 0 ? 1 : page, pageSize == 0 ? 50 : pageSize, ct));
+        api.MapGet("/me/flights/summary", (HttpContext c, AccountsService s, CancellationToken ct) => s.LogbookSummaryAsync(Actor(c), ct));
+        api.MapPost("/me/flights", (HttpContext c, AccountsService s, FlightLogRequest request, CancellationToken ct) => s.AddFlightAsync(Actor(c), request, "desktop", ct));
+        api.MapPost("/me/flights/import", (HttpContext c, AccountsService s, LogbookImportRequest request, CancellationToken ct) => s.ImportLogbookAsync(Actor(c), request, ct));
+        api.MapDelete("/me/flights/imports/{batchId:guid}", async (HttpContext c, AccountsService s, Guid batchId, CancellationToken ct) => Results.Ok(new { removed = await s.UndoImportAsync(Actor(c), batchId, ct) }));
+        api.MapDelete("/me/flights/{flightId:guid}", async (HttpContext c, AccountsService s, Guid flightId, CancellationToken ct) =>
+        { await s.DeleteFlightAsync(Actor(c), flightId, ct); return Results.NoContent(); });
         api.MapGet("/virtual-airlines/{id:guid}/routes", (HttpContext c, AccountsService s, Guid id, CancellationToken ct) => s.ListRoutesAsync(Actor(c), id, ct));
         api.MapPost("/virtual-airlines/{id:guid}/routes", (HttpContext c, AccountsService s, Guid id, RouteRequest request, CancellationToken ct) => s.SaveRouteAsync(Actor(c), id, null, request, ct));
         api.MapPut("/virtual-airlines/{id:guid}/routes/{routeId:guid}", (HttpContext c, AccountsService s, Guid id, Guid routeId, RouteRequest request, CancellationToken ct) => s.SaveRouteAsync(Actor(c), id, routeId, request, ct));

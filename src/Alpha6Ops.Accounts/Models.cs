@@ -114,6 +114,43 @@ public sealed class AirlineAircraft
     public DateTimeOffset UpdatedAt { get; set; }
 }
 
+public sealed class PilotFlight
+{
+    public Guid Id { get; set; }
+    public Guid UserId { get; set; }
+    public string Source { get; set; } = "import";
+    public Guid? ImportBatchId { get; set; }
+    public string FlightNumber { get; set; } = "";
+    public string Origin { get; set; } = "";
+    public string Destination { get; set; } = "";
+    public string AircraftType { get; set; } = "";
+    public string Registration { get; set; } = "";
+    public DateTimeOffset DepartureUtc { get; set; }
+    public DateTimeOffset? ArrivalUtc { get; set; }
+    public int BlockMinutes { get; set; }
+    public int? FlightMinutes { get; set; }
+    public int? DistanceNm { get; set; }
+    public int? LandingRateFpm { get; set; }
+    public int? FuelUsedKg { get; set; }
+    public string Network { get; set; } = "";
+    public string Notes { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+// One image per owner and kind (a pilot's avatar, an airline's logo). Validated before storage; served by hash.
+public sealed class MediaBlob
+{
+    public Guid Id { get; set; }
+    public string Kind { get; set; } = "";
+    public Guid OwnerId { get; set; }
+    public string ContentType { get; set; } = "";
+    public byte[] Bytes { get; set; } = [];
+    public string Sha256 { get; set; } = "";
+    public int Width { get; set; }
+    public int Height { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
 public sealed class AuditEvent
 {
     public Guid Id { get; set; }

@@ -14,14 +14,14 @@ var personalSelected = account.LastWorkspace.AirlineId is null;
 
 <section class="grid two account-panels" aria-label="Account">
     <article class="card panel">
-        <div class="panel-head"><span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></span><div class="eyebrow">ACCOUNT</div><span class="live">@(account.Account.Status == AccountStatus.Active ? "ACTIVE" : account.Account.Status.ToString().ToUpperInvariant())</span></div>
+        <div class="panel-head">@if (account.Profile is { AvatarUrl.Length: > 0 } av) { <span class="tile image" aria-hidden="true"><img src="@av.AvatarUrl" alt="" /></span> } else { <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></span> }<div class="eyebrow">ACCOUNT</div><span class="live">@(account.Account.Status == AccountStatus.Active ? "ACTIVE" : account.Account.Status.ToString().ToUpperInvariant())</span></div>
         <h2>@account.Account.DisplayName</h2>
         <dl class="facts"><dt>Email</dt><dd><span class="mono">@account.Account.Email.ToUpperInvariant()</span> · @(account.Account.EmailVerified ? "verified" : "not verified")</dd>
         <dt>Status</dt><dd class="ok">@account.Account.Status</dd>
         <dt>Personal level</dt><dd>@account.PersonalEntitlement.Plan · @account.PersonalEntitlement.Status</dd>
         @if (account.Profile is { } profile) { <dt>Home base</dt><dd>@(profile.HomeBaseIcao.Length > 0 ? profile.HomeBaseIcao : "—")@(profile.Callsign.Length > 0 ? $" · {profile.Callsign}" : "")</dd> }</dl>
         @if (!account.Account.EmailVerified) { <p>Verify your email from the message Alpha 6 sent you, then sign in again to join or create airlines.</p> }
-        <div class="actions"><a class="button secondary" asp-page="Profile">Pilot profile</a><a class="button secondary" asp-page="Plan">Account level</a><a class="button secondary" href="/Support">Security &amp; sign-in <span class="ext" aria-hidden="true">↗</span></a></div>
+        <div class="actions"><a class="button secondary" asp-page="Profile">Pilot profile</a><a class="button secondary" asp-page="Logbook">Logbook</a><a class="button secondary" asp-page="Plan">Account level</a><a class="button secondary" href="/Support">Security &amp; sign-in <span class="ext" aria-hidden="true">↗</span></a></div>
     </article>
     <article class="card panel photo runway">
         <div class="panel-head"><span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 5.5 11 4.4v7.1H3zM12 4.2 21 3v8.5h-9zM3 12.5h8v7.1L3 18.5zM12 12.5h9V21l-9-1.2z"/></svg></span><div class="eyebrow">DESKTOP APP / WINDOWS</div><span class="corner">BUILT FOR<br />VIRTUAL AVIATION</span></div>
@@ -49,7 +49,7 @@ var personalSelected = account.LastWorkspace.AirlineId is null;
 @foreach (var airline in account.Airlines) {
     var selected = account.LastWorkspace.AirlineId == airline.Id;
     <article class="card workspace airline photo @(selected ? "selected" : "")" aria-label="@airline.Name">
-        <span class="tile big mono" aria-hidden="true">@(airline.Callsign.Length > 3 ? airline.Callsign[..3] : airline.Callsign)</span>
+        @if (airline.LogoUrl.Length > 0) { <span class="tile big image" aria-hidden="true"><img src="@airline.LogoUrl" alt="" /></span> } else { <span class="tile big mono" aria-hidden="true">@(airline.Callsign.Length > 3 ? airline.Callsign[..3] : airline.Callsign)</span> }
         <div class="workspace-copy">
             <div class="workspace-title"><h2>@airline.Name</h2><span class="badge outline">@airline.Plan</span></div>
             <p>@string.Join(" · ", airline.Roles)@(airline.IsFounder ? " · Founder" : "")</p>

@@ -1,0 +1,58 @@
+@page "/Account/Logbook"
+@model Alpha6Ops.Server.Pages.Account.LogbookModel
+@{ ViewData["Title"] = "Logbook"; var s = Model.Summary; var book = Model.Flights; var pages = book is null ? 0 : (book.Total + book.PageSize - 1) / book.PageSize; }
+<div class="page-heading"><a href="/Account">← Your workspaces</a><div class="eyebrow">PILOT LOGBOOK</div><h1>Every flight, in one book.</h1><p class="lead">Flights the desktop app files land here automatically. Bring the rest with you: import the logbook you kept on another platform and it counts from day one.</p></div>
+@if (Model.Saved is { } saved) { <div class="notice" role="status"><p>@saved</p></div> }
+<partial name="_AccountError" model="Model" />
+@if (Model.Import is { } import) {
+    <div class="notice" role="status"><p><strong>Import finished:</strong> @import.Created flights added, @import.Duplicates already in your logbook, @import.Skipped skipped. Columns recognised: @string.Join(", ", import.Columns).</p>
+    @if (import.Errors.Length > 0) { <ul class="import-errors">@foreach (var error in import.Errors) { <li>@error</li> }</ul> }
+    @if (import.Created > 0) { <form method="post" asp-page-handler="Undo" class="inline-form"><input type="hidden" name="batchId" value="@import.BatchId" /><button class="text-button danger">Undo this import</button></form> }</div>
+}
+@if (s is not null && book is not null) {
+<section class="stat-row" aria-label="Logbook totals">
+    <div class="stat"><span class="stat-value">@s.Flights.ToString("n0")</span><span class="stat-label">Flights</span></div>
+    <div class="stat"><span class="stat-value">@(s.BlockMinutes / 60).ToString("n0")<small>h</small></span><span class="stat-label">Block time</span></div>
+    <div class="stat"><span class="stat-value">@s.Airports.ToString("n0")</span><span class="stat-label">Airports</span></div>
+    <div class="stat"><span class="stat-value small">@(s.TopAircraft.Length > 0 ? string.Join(" · ", s.TopAircraft.Take(3)) : "—")</span><span class="stat-label">Most flown</span></div>
+    <div class="stat"><span class="stat-value small">@(s.FirstFlight is { } first ? $"{first:yyyy-MM-dd} → {s.LastFlight:yyyy-MM-dd}" : "—")</span><span class="stat-label">Span</span></div>
+</section>
+<div class="console-grid">
+<section class="console-main">
+    <div class="console-bar"><h2>Flights <span class="count">@book.Total.ToString("n0")</span></h2>@if (book.Total > 0) { <a class="button secondary small" href="/Account/Logbook?handler=Export">Export CSV</a> }</div>
+    @if (book.Total == 0) {
+        <div class="empty"><h3>Nothing logged yet.</h3><p>Fly with the desktop app, or import your existing logbook on the right — most platforms can export a CSV.</p></div>
+    } else {
+    <div class="table-scroll"><table class="console-table logbook"><thead><tr><th scope="col">Date (UTC)</th><th scope="col">Flight</th><th scope="col">Route</th><th scope="col">Aircraft</th><th scope="col">Block</th><th scope="col">Landing</th><th scope="col">Source</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead><tbody>
+    @foreach (var f in book.Entries) {
+        <tr><td class="nowrap">@f.DepartureUtc.ToString("yyyy-MM-dd HH:mm")</td><td><strong>@(f.FlightNumber.Length > 0 ? f.FlightNumber : "—")</strong></td><td class="nowrap">@f.Origin <span class="muted">→</span> @f.Destination</td>
+            <td>@(f.AircraftType.Length > 0 ? f.AircraftType : "—")@(f.Registration.Length > 0 ? $" · {f.Registration}" : "")</td><td class="nowrap">@Alpha6Ops.Server.Pages.Account.LogbookModel.Hours(f.BlockMinutes)</td>
+            <td>@(f.LandingRateFpm is { } vs ? $"{vs} fpm" : "—")</td><td><span class="badge outline">@f.Source</span></td>
+            <td class="row-actions"><form method="post" asp-page-handler="Delete"><input type="hidden" name="flightId" value="@f.Id" /><input type="hidden" name="p" value="@book.Page" /><button class="text-button danger">Remove</button></form></td></tr>
+        @if (f.Notes.Length > 0) { <tr class="note-row"><td colspan="8"><span class="muted">@f.Notes</span></td></tr> }
+    }
+    </tbody></table></div>
+    @if (pages > 1) { <nav class="pager" aria-label="Pages">@if (book.Page > 1) { <a href="/Account/Logbook?p=@(book.Page - 1)">← Newer</a> }<span class="muted">Page @book.Page of @pages</span>@if (book.Page < pages) { <a href="/Account/Logbook?p=@(book.Page + 1)">Older →</a> }</nav> }
+    }
+</section>
+<aside class="console-side">
+    <div class="card"><h2>Import a logbook</h2>
+    <p>Upload the CSV your previous platform exported, or paste it. Columns are matched by name — <span class="mono">date, flight, origin, destination, aircraft, block</span> and friends — so vAMSYS, smartCARS/phpVMS, FsHub and spreadsheet exports all work. Flights already in your logbook are skipped, and any import can be undone.</p>
+    <form method="post" asp-page-handler="Import" enctype="multipart/form-data" class="stack">
+        <label for="file">CSV file</label><input id="file" name="file" type="file" accept=".csv,text/csv,text/plain" />
+        <label for="csv">…or paste rows</label><textarea id="csv" name="csv" rows="6" placeholder="date,flight,origin,destination,aircraft,block,landing_rate&#10;2026-03-14 18:20,CZK101,KMKE,KORD,A20N,0:55,-180"></textarea>
+        <button class="button">Import flights</button>
+    </form>
+    <details class="import-help"><summary>Which columns are recognised?</summary>
+        <dl class="help-list">
+            <dt>Departure (required)</dt><dd>date, departure, dep_time, timestamp, off_block — ISO or dd/MM/yyyy, unix seconds; treated as UTC</dd>
+            <dt>Airports (required)</dt><dd>origin / from / dep_icao and destination / to / arr_icao</dd>
+            <dt>Flight</dt><dd>flight, flight_number, callsign</dd>
+            <dt>Aircraft</dt><dd>aircraft, type, icao_type; registration, reg, tail</dd>
+            <dt>Time</dt><dd>block, duration, flight_time as minutes, 1:35, 1.6h or 1h 35m; air_time; arrival</dd>
+            <dt>Extras</dt><dd>distance, landing_rate / vs, fuel_used, network, notes / comments / route</dd>
+        </dl></details>
+    </div>
+</aside>
+</div>
+}

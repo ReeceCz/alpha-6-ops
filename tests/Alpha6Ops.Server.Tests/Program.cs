@@ -141,6 +141,45 @@ static async Task<HttpResponseMessage> SubmitAsync(HttpClient client, HttpRespon
 var profilePost = await SubmitAsync(browser, profilePage, profileHtml, "/Account/Profile", new() { ["SimBriefUsername"] = "", ["Callsign"] = "", ["HomeBaseIcao"] = "kmke", ["WeightUnit"] = "LBS", ["AltitudeUnit"] = "FT", ["LandingDistanceUnit"] = "FT", ["PreferredWorkspace"] = "portal", ["TimeZone"] = "", ["AvatarInitials"] = "rc" });
 var profileAfter = await pilot.GetFromJsonAsync<UserProfile>("/api/v1/me/profile");
 Check(profilePost.StatusCode == HttpStatusCode.Redirect && profileAfter is { SimBriefUsername: "", HomeBaseIcao: "KMKE", PreferredWorkspace: "portal", AvatarInitials: "RC" }, "Profile form accepts blank optional fields and saves the rest");
+// Logbook: API import for the desktop, page with the same form, export, undo.
+var logbookImport = await pilot.PostAsJsonAsync("/api/v1/me/flights/import", new LogbookImportRequest("Date;Flight;From;To;Aircraft;Block Time;Landing Rate\n14/03/2026 18:20;CZK101;KMKE;KORD;A20N;0:55;-180\n2026-03-15 09:00;CZK102;KORD;KMKE;A20N;50;-240\n"));
+var imported = await logbookImport.Content.ReadFromJsonAsync<LogbookImportResult>();
+Check(logbookImport.IsSuccessStatusCode && imported is { Created: 2, Duplicates: 0 }, "Logbook CSV imports over the API");
+Check((await pilot.GetFromJsonAsync<LogbookSummary>("/api/v1/me/flights/summary")) is { Flights: 2, BlockMinutes: 105 }, "Logbook summary over the API");
+var logbookPage = await browser.GetAsync("/Account/Logbook");
+var logbookHtml = await logbookPage.Content.ReadAsStringAsync();
+Check(logbookPage.IsSuccessStatusCode && logbookHtml.Contains("CZK101") && logbookHtml.Contains("-180 fpm") && logbookHtml.Contains("Import a logbook"), "Logbook page lists imported flights");
+Check((await browser.GetStringAsync("/Account/Logbook?handler=Export")).Contains("2026-03-14 18:20,,CZK101,KMKE,KORD,A20N,,55,"), "Logbook exports as CSV");
+var undo = await SubmitAsync(browser, logbookPage, logbookHtml, "/Account/Logbook?handler=Undo", new() { ["batchId"] = imported!.BatchId.ToString() });
+Check(undo.StatusCode == HttpStatusCode.Redirect && (await pilot.GetFromJsonAsync<LogbookSummary>("/api/v1/me/flights/summary"))?.Flights == 0, "Undo removes the imported batch from the page");
+var oversized = await browser.PostAsync("/Account/Logbook?handler=Import", new StringContent(new string('x', 4_000_000)));
+Check(oversized.StatusCode is HttpStatusCode.RequestEntityTooLarge or HttpStatusCode.BadRequest, "Oversized logbook uploads are refused");
+
+// Media: upload through the profile form, serve from /media with caching, reject non-images.
+static byte[] Png(int w, int h) => [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, (byte)'I', (byte)'H', (byte)'D', (byte)'R',
+    (byte)(w >> 24), (byte)(w >> 16), (byte)(w >> 8), (byte)w, (byte)(h >> 24), (byte)(h >> 16), (byte)(h >> 8), (byte)h, 8, 6, 0, 0, 0];
+static async Task<HttpResponseMessage> UploadAsync(HttpClient client, HttpResponseMessage page, string html, string path, string field, byte[] bytes, string fileName)
+{
+    var token = Regex.Match(html, "name=\"__RequestVerificationToken\" type=\"hidden\" value=\"([^\"]+)\"").Groups[1].Value;
+    var antiforgery = page.Headers.TryGetValues("Set-Cookie", out var cookies) ? cookies.Select(c => c.Split(';')[0]).FirstOrDefault(c => c.StartsWith(".AspNetCore.Antiforgery", StringComparison.Ordinal)) : null;
+    var content = new MultipartFormDataContent { { new StringContent(token), "__RequestVerificationToken" } };
+    var file = new ByteArrayContent(bytes); file.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+    content.Add(file, field, fileName);
+    using var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = content };
+    request.Headers.Add("Cookie", string.Join("; ", client.DefaultRequestHeaders.GetValues("Cookie").Append(antiforgery ?? "")));
+    return await client.SendAsync(request);
+}
+var profileForAvatar = await browser.GetAsync("/Account/Profile");
+var profileForAvatarHtml = await profileForAvatar.Content.ReadAsStringAsync();
+var avatarUpload = await UploadAsync(browser, profileForAvatar, profileForAvatarHtml, "/Account/Profile?handler=Avatar", "avatar", Png(160, 160), "me.png");
+var profileWithAvatar = await pilot.GetFromJsonAsync<UserProfile>("/api/v1/me/profile");
+Check(avatarUpload.StatusCode == HttpStatusCode.Redirect && profileWithAvatar?.AvatarUrl.StartsWith("/media/avatar/") == true, "Avatar upload through the profile form");
+var media = await anonymous.GetAsync(profileWithAvatar!.AvatarUrl);
+Check(media.IsSuccessStatusCode && media.Content.Headers.ContentType?.MediaType == "image/png" && media.Headers.ETag is not null && media.Headers.CacheControl?.Public == true, "Avatar is served with content type, ETag and caching");
+using (var conditional = new HttpRequestMessage(HttpMethod.Get, profileWithAvatar.AvatarUrl)) { conditional.Headers.IfNoneMatch.Add(media.Headers.ETag!); Check((await anonymous.SendAsync(conditional)).StatusCode == HttpStatusCode.NotModified, "Unchanged avatar answers 304"); }
+var badUpload = await UploadAsync(browser, profileForAvatar, profileForAvatarHtml, "/Account/Profile?handler=Avatar", "avatar", "<svg onload=alert(1)></svg>"u8.ToArray(), "evil.png");
+Check(badUpload.StatusCode == HttpStatusCode.BadRequest && (await badUpload.Content.ReadAsStringAsync()).Contains("PNG, JPEG or WebP"), "Non-image uploads are rejected by content, not file name");
+Check((await anonymous.GetAsync($"/media/avatar/{Guid.NewGuid():N}")).StatusCode == HttpStatusCode.NotFound && (await anonymous.GetAsync($"/media/other/{Guid.NewGuid():N}")).StatusCode == HttpStatusCode.NotFound, "Unknown media is 404");
 var planPost = await SubmitAsync(browser, planPage, planHtml, "/Account/Plan", new() { ["plan"] = "Free" });
 Check(planPost.StatusCode == HttpStatusCode.Redirect && (await pilot.GetFromJsonAsync<BootstrapResponse>("/api/v1/me/bootstrap"))?.PersonalEntitlement.Plan == PersonalPlan.Free, "Account level form applies the chosen level");
 Check((await SubmitAsync(browser, planPage, planHtml, "/Account/Plan", new() { ["plan"] = "Premium" })).StatusCode == HttpStatusCode.Redirect, "Account level can be restored from the web");
@@ -203,6 +242,10 @@ if (created.IsSuccessStatusCode)
             new() { ["aircraftId"] = tail!.Id.ToString(), ["registration"] = "N123A6", ["typeIcao"] = "B738", ["name"] = "Spirit of Milwaukee", ["homeBase"] = "KMKE", ["status"] = "maintenance", ["notes"] = "C check" });
         Check(fleetForm.StatusCode == HttpStatusCode.Redirect && (await pilot.GetFromJsonAsync<AircraftResponse[]>($"/api/v1/virtual-airlines/{airline.Id}/fleet"))!.Single().Status == "maintenance", "Fleet form updates an aircraft");
         Check((await browser.PostAsync($"/Account/Airline/{airline.Id}/Fleet?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string> { ["aircraftId"] = tail.Id.ToString() }))).StatusCode == HttpStatusCode.BadRequest, "Fleet removal without CSRF token is rejected");
+        var logoUpload = await UploadAsync(browser, airlinePage, airlineHtml, $"/Account/Airline/{airline.Id}?handler=Logo", "logo", Png(400, 200), "logo.png");
+        var branded = await pilot.GetFromJsonAsync<AirlineWorkspace>($"/api/v1/virtual-airlines/{airline.Id}");
+        Check(logoUpload.StatusCode == HttpStatusCode.Redirect && branded?.LogoUrl.StartsWith("/media/airline-logo/") == true && (await anonymous.GetAsync(branded.LogoUrl)).IsSuccessStatusCode, "Airline logo upload through the console and served publicly");
+        Check((await browser.GetStringAsync($"/Account/Airline/{airline.Id}/Schedule")).Contains(branded!.LogoUrl), "Console header shows the logo");
     }
 }
 using (var limited = host.Client("rate-" + run, "missing-claim"))

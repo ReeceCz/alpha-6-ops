@@ -17,7 +17,7 @@ public sealed record AccountProfile(Guid Id, string DisplayName, string Email, b
 public sealed record PersonalEntitlement(PersonalPlan Plan, string Status, DateTimeOffset? ExpiresAt);
 public sealed record AirlineWorkspace(Guid Id, string Slug, string Name, string Callsign,
     AirlinePlan Plan, string SubscriptionStatus, MembershipStatus MembershipStatus,
-    AirlineRole[] Roles, bool IsFounder, string[] Capabilities);
+    AirlineRole[] Roles, bool IsFounder, string[] Capabilities, string LogoUrl = "");
 public sealed record WorkspaceSelection(Guid? AirlineId)
 {
     public static WorkspaceSelection Personal => new((Guid?)null);
@@ -28,9 +28,25 @@ public sealed record BootstrapResponse(AccountProfile Account, PersonalEntitleme
 // Pilot preferences that follow the account between installations. Never security-relevant.
 public sealed record UserProfile(string SimBriefUsername, string Callsign, string HomeBaseIcao,
     string WeightUnit, string AltitudeUnit, string LandingDistanceUnit, string PreferredWorkspace, string TimeZone,
-    string AvatarInitials, DateTimeOffset? LastSeenAt, string LastSeenVersion, DateTimeOffset? UpdatedAt)
+    string AvatarInitials, DateTimeOffset? LastSeenAt, string LastSeenVersion, DateTimeOffset? UpdatedAt, string AvatarUrl = "")
 {
     public static UserProfile Default { get; } = new("", "", "", "LBS", "FT", "FT", "last_used", "", "", null, "", null);
+}
+// Pilot logbook kept with the account. Times are UTC; block and flight time are minutes.
+public sealed record FlightLogEntry(Guid Id, string Source, string FlightNumber, string Origin, string Destination, string AircraftType,
+    string Registration, DateTimeOffset DepartureUtc, DateTimeOffset? ArrivalUtc, int BlockMinutes, int? FlightMinutes, int? DistanceNm,
+    int? LandingRateFpm, int? FuelUsedKg, string Network, string Notes, Guid? ImportBatchId, DateTimeOffset CreatedAt);
+public sealed record FlightLogRequest(string FlightNumber, string Origin, string Destination, string AircraftType, string Registration,
+    DateTimeOffset DepartureUtc, DateTimeOffset? ArrivalUtc, int BlockMinutes, int? FlightMinutes, int? DistanceNm, int? LandingRateFpm,
+    int? FuelUsedKg, string? Network, string? Notes);
+public sealed record LogbookImportRequest(string Csv, string? FileName = null);
+public sealed record LogbookImportResult(Guid BatchId, int Created, int Duplicates, int Skipped, string[] Errors, string[] Columns);
+public sealed record LogbookSummary(int Flights, int BlockMinutes, int Airports, string[] TopAircraft, DateTimeOffset? FirstFlight, DateTimeOffset? LastFlight);
+public sealed record LogbookPage(FlightLogEntry[] Entries, int Total, int Page, int PageSize);
+public static class MediaKinds
+{
+    public const string Avatar = "avatar";
+    public const string AirlineLogo = "airline-logo";
 }
 public sealed record UpdateProfileRequest(string SimBriefUsername, string Callsign, string HomeBaseIcao,
     string WeightUnit, string AltitudeUnit, string LandingDistanceUnit, string PreferredWorkspace, string TimeZone, string AvatarInitials);

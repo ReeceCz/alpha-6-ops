@@ -59,16 +59,19 @@ public sealed class AccountsService(AccountsDbContext db, TimeProvider? timeProv
         var memberships = await db.Memberships.Include(x => x.Roles).Where(x => x.UserId == user.Id && x.Status == MembershipStatus.Active).ToArrayAsync(ct);
         var ids = memberships.Select(x => x.AirlineId).ToArray();
         var airlines = await db.Airlines.Where(x => ids.Contains(x.Id) && x.Status == "active").ToArrayAsync(ct);
-        var workspaces = airlines.OrderBy(x => x.Name).Select(x => Workspace(x, memberships.Single(m => m.AirlineId == x.Id), user, now)).ToArray();
+        var media = await db.Media.Where(x => (x.Kind == MediaKinds.Avatar && x.OwnerId == user.Id) || (x.Kind == MediaKinds.AirlineLogo && ids.Contains(x.OwnerId)))
+            .Select(x => new { x.Kind, x.OwnerId, x.UpdatedAt }).ToArrayAsync(ct);
+        DateTimeOffset? Version(string kind, Guid owner) => media.FirstOrDefault(x => x.Kind == kind && x.OwnerId == owner)?.UpdatedAt;
+        var workspaces = airlines.OrderBy(x => x.Name).Select(x => Workspace(x, memberships.Single(m => m.AirlineId == x.Id), user, now, Version(MediaKinds.AirlineLogo, x.Id))).ToArray();
         if (user.LastAirlineId is { } last && workspaces.All(x => x.Id != last)) user.LastAirlineId = null;
         var plan = IsCurrent(user.SubscriptionStatus, user.SubscriptionExpiresAt, now) && Enum.IsDefined(user.Plan) ? user.Plan : PersonalPlan.Free;
         return new BootstrapResponse(new(user.Id, user.DisplayName, user.Email, user.EmailVerified, user.Status),
             new(plan, user.SubscriptionStatus, user.SubscriptionExpiresAt), Capabilities.Personal, workspaces,
-            new(user.LastAirlineId), now, now.AddDays(30), ProfileView(profile));
+            new(user.LastAirlineId), now, now.AddDays(30), ProfileView(profile, Version(MediaKinds.Avatar, user.Id)));
     }, ct);
 
     public Task<UserProfile> GetProfileAsync(ActorIdentity actor, CancellationToken ct = default) => Execute(actor, async (user, now) =>
-        ProfileView(await EnsureProfile(user, ct)), ct);
+        ProfileView(await EnsureProfile(user, ct), await MediaVersion(MediaKinds.Avatar, user.Id, ct)), ct);
 
     public Task<UserProfile> UpdateProfileAsync(ActorIdentity actor, UpdateProfileRequest request, CancellationToken ct = default) => Execute(actor, async (user, now) =>
     {
@@ -91,7 +94,7 @@ public sealed class AccountsService(AccountsDbContext db, TimeProvider? timeProv
             // Field names only: profile values are personal data and never belong in the audit trail.
             Audit(user.Id, null, "profile.updated", user.Id, string.Join(",", changed), now);
         }
-        return ProfileView(profile);
+        return ProfileView(profile, await MediaVersion(MediaKinds.Avatar, user.Id, ct));
     }, ct);
 
     public Task<PersonalEntitlement> SetPersonalPlanAsync(ActorIdentity actor, SetPersonalPlanRequest request, CancellationToken ct = default) => Execute(actor, (user, now) =>
@@ -121,7 +124,7 @@ public sealed class AccountsService(AccountsDbContext db, TimeProvider? timeProv
             airline.Plan = request.Plan; airline.SubscriptionStatus = SubscriptionStatuses.Complimentary; airline.SubscriptionExpiresAt = null;
             Audit(user.Id, airlineId, "airline.plan_changed", airlineId, $"{before} -> {request.Plan} (complimentary)", now);
         }
-        return Workspace(airline, member, user, now);
+        return Workspace(airline, member, user, now, await MediaVersion(MediaKinds.AirlineLogo, airline.Id, ct));
     }, ct);
 
     public async Task SetWorkspaceAsync(ActorIdentity actor, WorkspaceSelection request, CancellationToken ct = default) =>
@@ -146,13 +149,13 @@ public sealed class AccountsService(AccountsDbContext db, TimeProvider? timeProv
             member.Roles.Add(new() { AirlineId = airline.Id, MembershipId = member.Id, Role = AirlineRole.Pilot });
             db.Airlines.Add(airline); db.Memberships.Add(member);
             Audit(user.Id, airline.Id, "airline.created", airline.Id, "Community; founder and owner assigned", now);
-            return Workspace(airline, member, user, now);
+            return Workspace(airline, member, user, now, await MediaVersion(MediaKinds.AirlineLogo, airline.Id, ct));
         }, ct);
 
     public Task<AirlineWorkspace> GetAirlineAsync(ActorIdentity actor, Guid airlineId, CancellationToken ct = default) => Execute(actor, async (user, now) =>
     {
         var (airline, member) = await MemberAccess(user, airlineId, false, actor, now, ct);
-        return Workspace(airline, member, user, now);
+        return Workspace(airline, member, user, now, await MediaVersion(MediaKinds.AirlineLogo, airline.Id, ct));
     }, ct);
 
     public Task<MemberResponse[]> ListMembersAsync(ActorIdentity actor, Guid airlineId, CancellationToken ct = default) => Execute(actor, async (user, now) =>
@@ -212,7 +215,7 @@ public sealed class AccountsService(AccountsDbContext db, TimeProvider? timeProv
         if (invitation.Status == "accepted")
         {
             if (invitation.AcceptedByUserId != user.Id || member is null) throw InvalidInvitation();
-            return Workspace(airline, member, user, now);
+            return Workspace(airline, member, user, now, await MediaVersion(MediaKinds.AirlineLogo, airline.Id, ct));
         }
         if (invitation.Status != "pending") throw InvalidInvitation();
         if (invitation.ExpiresAt <= now) throw new IdentityException("invitation_expired", "This invitation has expired.", 410);
@@ -228,7 +231,7 @@ public sealed class AccountsService(AccountsDbContext db, TimeProvider? timeProv
             member.Roles.Add(new() { AirlineId = airline.Id, MembershipId = member.Id, Role = role });
         invitation.Status = "accepted"; invitation.AcceptedByUserId = user.Id; invitation.AcceptedAt = now;
         Audit(user.Id, airline.Id, "invitation.accepted", invitation.Id, string.Join(',', roles), now);
-        return Workspace(airline, member, user, now);
+        return Workspace(airline, member, user, now, await MediaVersion(MediaKinds.AirlineLogo, airline.Id, ct));
     }, ct);
 
     public async Task RevokeInvitationAsync(ActorIdentity actor, Guid airlineId, Guid invitationId, CancellationToken ct = default) => await Execute(actor, async (user, now) =>
@@ -277,7 +280,7 @@ public sealed class AccountsService(AccountsDbContext db, TimeProvider? timeProv
 
     // Read: any active member. Operations: dispatchers and up, no security check (schedules, fleet).
     // Admin: administrators and owners with a recent MFA proof (people, invitations, ownership, level).
-    private enum Access { Read, Operations, Admin }
+    private enum Access { Read, Operations, Branding, Admin }
 
     private Task<(VirtualAirline Airline, Membership Member)> MemberAccess(UserAccount user, Guid airlineId, bool manage, ActorIdentity actor, DateTimeOffset now, CancellationToken ct)
         => MemberAccess(user, airlineId, manage ? Access.Admin : Access.Read, actor, now, ct);
@@ -292,6 +295,8 @@ public sealed class AccountsService(AccountsDbContext db, TimeProvider? timeProv
         {
             case Access.Operations when !roles.Contains(AirlineRole.Owner) && !roles.Contains(AirlineRole.Administrator) && !roles.Contains(AirlineRole.Dispatcher):
                 throw new IdentityException("dispatcher_required", "A dispatcher or administrator role is required.");
+            case Access.Branding when !roles.Contains(AirlineRole.Owner) && !roles.Contains(AirlineRole.Administrator):
+                throw new IdentityException("administrator_required", "An airline administrator is required.");
             case Access.Admin:
                 if (!roles.Contains(AirlineRole.Owner) && !roles.Contains(AirlineRole.Administrator))
                     throw new IdentityException("administrator_required", "An airline administrator is required.");
@@ -395,6 +400,140 @@ public sealed class AccountsService(AccountsDbContext db, TimeProvider? timeProv
         return true;
     }, ct);
 
+    // Logbook: the pilot's own flights. Imports are batched so a bad file can be undone in one step.
+    public Task<LogbookPage> ListFlightsAsync(ActorIdentity actor, int page, int pageSize, CancellationToken ct = default) => Execute(actor, async (user, now) =>
+    {
+        page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 200);
+        var query = db.Flights.Where(x => x.UserId == user.Id);
+        var total = await query.CountAsync(ct);
+        var entries = await query.OrderByDescending(x => x.DepartureUtc).Skip((page - 1) * pageSize).Take(pageSize).ToArrayAsync(ct);
+        return new LogbookPage(entries.Select(FlightView).ToArray(), total, page, pageSize);
+    }, ct);
+
+    public Task<LogbookSummary> LogbookSummaryAsync(ActorIdentity actor, CancellationToken ct = default) => Execute(actor, async (user, now) =>
+    {
+        var flights = db.Flights.Where(x => x.UserId == user.Id);
+        var count = await flights.CountAsync(ct);
+        if (count == 0) return new LogbookSummary(0, 0, 0, [], null, null);
+        var block = await flights.SumAsync(x => x.BlockMinutes, ct);
+        var airports = await flights.Select(x => x.Origin).Union(flights.Select(x => x.Destination)).CountAsync(ct);
+        var types = await flights.Where(x => x.AircraftType != "").GroupBy(x => x.AircraftType).OrderByDescending(g => g.Count()).Take(5).Select(g => g.Key).ToArrayAsync(ct);
+        return new LogbookSummary(count, block, airports, types, await flights.MinAsync(x => x.DepartureUtc, ct), await flights.MaxAsync(x => x.DepartureUtc, ct));
+    }, ct);
+
+    public Task<FlightLogEntry> AddFlightAsync(ActorIdentity actor, FlightLogRequest request, string source, CancellationToken ct = default) => Execute(actor, async (user, now) =>
+    {
+        if (source is not ("desktop" or "manual")) throw new IdentityException("invalid_flight", "Unknown flight source.", 400);
+        var clean = AccountRules.Flight(request);
+        if (await db.Flights.AnyAsync(x => x.UserId == user.Id && x.DepartureUtc == clean.DepartureUtc && x.FlightNumber == clean.FlightNumber && x.Origin == clean.Origin && x.Destination == clean.Destination, ct))
+            throw new IdentityException("flight_exists", "This flight is already in your logbook.", 409);
+        var flight = new PilotFlight { Id = Guid.NewGuid(), UserId = user.Id, Source = source, CreatedAt = now };
+        Apply(flight, clean);
+        db.Flights.Add(flight);
+        return FlightView(flight);
+    }, ct);
+
+    public Task<LogbookImportResult> ImportLogbookAsync(ActorIdentity actor, LogbookImportRequest request, CancellationToken ct = default) => Execute(actor, async (user, now) =>
+    {
+        var parsed = LogbookCsv.Parse(request.Csv);
+        var batch = Guid.NewGuid();
+        var existing = (await db.Flights.Where(x => x.UserId == user.Id).Select(x => new { x.DepartureUtc, x.FlightNumber, x.Origin, x.Destination }).ToArrayAsync(ct))
+            .Select(x => (x.DepartureUtc, x.FlightNumber, x.Origin, x.Destination)).ToHashSet();
+        int created = 0, duplicates = 0; var errors = new List<string>();
+        foreach (var row in parsed.Rows)
+        {
+            if (row.Flight is null) { if (errors.Count < 50) errors.Add($"Line {row.Line}: {row.Error}"); continue; }
+            try
+            {
+                var clean = AccountRules.Flight(row.Flight);
+                var key = (clean.DepartureUtc, clean.FlightNumber, clean.Origin, clean.Destination);
+                if (!existing.Add(key)) { duplicates++; continue; }
+                var flight = new PilotFlight { Id = Guid.NewGuid(), UserId = user.Id, Source = "import", ImportBatchId = batch, CreatedAt = now };
+                Apply(flight, clean);
+                db.Flights.Add(flight); created++;
+            }
+            catch (IdentityException ex) { if (errors.Count < 50) errors.Add($"Line {row.Line}: {ex.Message}"); }
+        }
+        var skipped = parsed.Rows.Length - created - duplicates;
+        var origin = string.IsNullOrWhiteSpace(request.FileName) ? "pasted CSV" : "a file";
+        if (created > 0) Audit(user.Id, null, "logbook.imported", batch, $"{created} created, {duplicates} duplicates, {skipped} skipped from {origin}", now);
+        return new LogbookImportResult(batch, created, duplicates, skipped, errors.ToArray(), parsed.Columns);
+    }, ct);
+
+    public async Task<int> UndoImportAsync(ActorIdentity actor, Guid batchId, CancellationToken ct = default) => await Execute(actor, async (user, now) =>
+    {
+        var flights = await db.Flights.Where(x => x.UserId == user.Id && x.ImportBatchId == batchId).ToArrayAsync(ct);
+        db.Flights.RemoveRange(flights);
+        if (flights.Length > 0) Audit(user.Id, null, "logbook.import_undone", batchId, $"{flights.Length} flights removed", now);
+        return flights.Length;
+    }, ct);
+
+    public async Task DeleteFlightAsync(ActorIdentity actor, Guid flightId, CancellationToken ct = default) => await Execute(actor, async (user, now) =>
+    {
+        var flight = await db.Flights.SingleOrDefaultAsync(x => x.Id == flightId && x.UserId == user.Id, ct) ?? throw new IdentityException("flight_not_found", "Flight not found.", 404);
+        db.Flights.Remove(flight);
+        return true;
+    }, ct);
+
+    // Media: one avatar per pilot, one logo per airline. Validated by content; served by the website from the blob.
+    public Task<UserProfile> SetAvatarAsync(ActorIdentity actor, byte[] bytes, CancellationToken ct = default) => Execute(actor, async (user, now) =>
+    {
+        await StoreMedia(MediaKinds.Avatar, user.Id, bytes, now, ct);
+        Audit(user.Id, null, "profile.avatar_changed", user.Id, "", now);
+        return ProfileView(await EnsureProfile(user, ct), now);
+    }, ct);
+
+    public async Task RemoveAvatarAsync(ActorIdentity actor, CancellationToken ct = default) => await Execute(actor, async (user, now) =>
+    {
+        if (await RemoveMedia(MediaKinds.Avatar, user.Id, ct)) Audit(user.Id, null, "profile.avatar_removed", user.Id, "", now);
+        return true;
+    }, ct);
+
+    public Task<AirlineWorkspace> SetAirlineLogoAsync(ActorIdentity actor, Guid airlineId, byte[] bytes, CancellationToken ct = default) => Execute(actor, async (user, now) =>
+    {
+        var (airline, member) = await MemberAccess(user, airlineId, Access.Branding, actor, now, ct);
+        await StoreMedia(MediaKinds.AirlineLogo, airlineId, bytes, now, ct);
+        Audit(user.Id, airlineId, "airline.logo_changed", airlineId, "", now);
+        return Workspace(airline, member, user, now, now);
+    }, ct);
+
+    public async Task RemoveAirlineLogoAsync(ActorIdentity actor, Guid airlineId, CancellationToken ct = default) => await Execute(actor, async (user, now) =>
+    {
+        await MemberAccess(user, airlineId, Access.Branding, actor, now, ct);
+        if (await RemoveMedia(MediaKinds.AirlineLogo, airlineId, ct)) Audit(user.Id, airlineId, "airline.logo_removed", airlineId, "", now);
+        return true;
+    }, ct);
+
+    // Anonymous read path for the website's /media routes: bytes, type and hash for caching. Null when absent.
+    public Task<MediaBlob?> GetMediaAsync(string kind, Guid ownerId, CancellationToken ct = default) =>
+        db.Media.AsNoTracking().SingleOrDefaultAsync(x => x.Kind == kind && x.OwnerId == ownerId, ct);
+
+    private async Task StoreMedia(string kind, Guid ownerId, byte[] bytes, DateTimeOffset now, CancellationToken ct)
+    {
+        var image = ImageRules.Validate(bytes);
+        var blob = await db.Media.SingleOrDefaultAsync(x => x.Kind == kind && x.OwnerId == ownerId, ct);
+        if (blob is null) { blob = new() { Id = Guid.NewGuid(), Kind = kind, OwnerId = ownerId }; db.Media.Add(blob); }
+        blob.ContentType = image.ContentType; blob.Bytes = bytes; blob.Sha256 = image.Sha256; blob.Width = image.Width; blob.Height = image.Height; blob.UpdatedAt = now;
+    }
+    private async Task<bool> RemoveMedia(string kind, Guid ownerId, CancellationToken ct)
+    {
+        var blob = await db.Media.SingleOrDefaultAsync(x => x.Kind == kind && x.OwnerId == ownerId, ct);
+        if (blob is null) return false;
+        db.Media.Remove(blob); return true;
+    }
+    private Task<bool> HasMedia(string kind, Guid ownerId, CancellationToken ct) => db.Media.AnyAsync(x => x.Kind == kind && x.OwnerId == ownerId, ct);
+    public static string MediaUrl(string kind, Guid ownerId, DateTimeOffset? version) => $"/media/{kind}/{ownerId:N}{(version is { } v ? "?v=" + v.ToUnixTimeSeconds() : "")}";
+
+    private static void Apply(PilotFlight flight, FlightLogRequest clean)
+    {
+        flight.FlightNumber = clean.FlightNumber; flight.Origin = clean.Origin; flight.Destination = clean.Destination; flight.AircraftType = clean.AircraftType;
+        flight.Registration = clean.Registration; flight.DepartureUtc = clean.DepartureUtc; flight.ArrivalUtc = clean.ArrivalUtc; flight.BlockMinutes = clean.BlockMinutes;
+        flight.FlightMinutes = clean.FlightMinutes; flight.DistanceNm = clean.DistanceNm; flight.LandingRateFpm = clean.LandingRateFpm; flight.FuelUsedKg = clean.FuelUsedKg;
+        flight.Network = clean.Network ?? ""; flight.Notes = clean.Notes ?? "";
+    }
+    private static FlightLogEntry FlightView(PilotFlight f) => new(f.Id, f.Source, f.FlightNumber, f.Origin, f.Destination, f.AircraftType, f.Registration, f.DepartureUtc, f.ArrivalUtc,
+        f.BlockMinutes, f.FlightMinutes, f.DistanceNm, f.LandingRateFpm, f.FuelUsedKg, f.Network, f.Notes, f.ImportBatchId, f.CreatedAt);
+
     private static void Apply(AirlineRoute route, RouteRequest clean, DateTimeOffset now)
     {
         route.FlightNumber = clean.FlightNumber; route.Origin = clean.Origin; route.Destination = clean.Destination;
@@ -425,16 +564,21 @@ public sealed class AccountsService(AccountsDbContext db, TimeProvider? timeProv
         if (profile is null) { profile = new() { UserId = user.Id }; db.Profiles.Add(profile); }
         return profile;
     }
-    private static UserProfile ProfileView(UserProfileRecord p) => new(p.SimBriefUsername, p.Callsign, p.HomeBaseIcao, p.WeightUnit, p.AltitudeUnit,
-        p.LandingDistanceUnit, p.PreferredWorkspace, p.TimeZone, p.AvatarInitials, p.LastSeenAt, p.LastSeenVersion, p.UpdatedAt);
+    private static UserProfile ProfileView(UserProfileRecord p, DateTimeOffset? avatar = null) => new(p.SimBriefUsername, p.Callsign, p.HomeBaseIcao, p.WeightUnit, p.AltitudeUnit,
+        p.LandingDistanceUnit, p.PreferredWorkspace, p.TimeZone, p.AvatarInitials, p.LastSeenAt, p.LastSeenVersion, p.UpdatedAt, avatar is null ? "" : MediaUrl(MediaKinds.Avatar, p.UserId, avatar));
+    private async Task<DateTimeOffset?> MediaVersion(string kind, Guid ownerId, CancellationToken ct)
+    {
+        var updated = await db.Media.Where(x => x.Kind == kind && x.OwnerId == ownerId).Select(x => (DateTimeOffset?)x.UpdatedAt).FirstOrDefaultAsync(ct);
+        return updated;
+    }
     private static AirlinePlan EffectivePlan(VirtualAirline airline, DateTimeOffset now) => airline.Plan == AirlinePlan.Pro &&
         IsCurrent(airline.SubscriptionStatus, airline.SubscriptionExpiresAt, now) ? AirlinePlan.Pro : AirlinePlan.Community;
-    private static AirlineWorkspace Workspace(VirtualAirline airline, Membership member, UserAccount user, DateTimeOffset now)
+    private static AirlineWorkspace Workspace(VirtualAirline airline, Membership member, UserAccount user, DateTimeOffset now, DateTimeOffset? logo = null)
     {
         var roles = Roles(airline, member);
         var plan = EffectivePlan(airline, now);
         return new(airline.Id, airline.Slug, airline.Name, airline.Callsign, plan, airline.SubscriptionStatus, member.Status,
-            roles, airline.FounderUserId == user.Id, Capabilities.ForMembership(member.Status, roles));
+            roles, airline.FounderUserId == user.Id, Capabilities.ForMembership(member.Status, roles), logo is null ? "" : MediaUrl(MediaKinds.AirlineLogo, airline.Id, logo));
     }
 
     private static InvitationResponse InvitationView(Invitation invitation, DateTimeOffset now) => new(invitation.Id, invitation.Email,

@@ -196,6 +196,38 @@ th { color: var(--muted); font-weight: 600; }
 .activity code { font-size: 12px; color: var(--accent); }
 .activity td, .activity th { padding: 12px; font-size: 13px; }
 
+/* Images in tiles, avatar and logo editors, logbook */
+.tile.image, .workspace-icon.image { overflow: hidden; padding: 0; background: #0f1922; }
+.tile.image img, .workspace-icon.image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.workspace.airline .tile.image img, .workspace-icon.image img { object-fit: contain; padding: 5px; box-sizing: border-box; }
+.profile-grid { grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }
+.profile-grid .card { margin: 0; }
+.avatar-card h2, .logo-copy h2 { font-size: 20px; }
+.avatar-preview { display: grid; place-items: center; width: 128px; height: 128px; border: 1px solid #3a4b5b; border-radius: 8px; background: #0f1922; overflow: hidden; margin: 6px 0 14px; }
+.avatar-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.avatar-fallback { font: 600 34px var(--mono); color: var(--yellow); letter-spacing: 1px; }
+.avatar-card input[type=file], .logo-form input[type=file] { padding: 10px; font-size: 13px; }
+.logo-row { display: flex; gap: 24px; align-items: flex-start; }
+.logo-preview { flex: none; display: grid; place-items: center; width: 96px; height: 96px; border: 1px solid #3a4b5b; border-radius: 8px; background: #0f1922; overflow: hidden; }
+.logo-preview img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.logo-preview .avatar-fallback { font-size: 22px; }
+.logo-form { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 8px; }
+.logo-form input[type=file] { width: auto; min-height: 40px; }
+.inline-form { display: inline; margin-left: 10px; }
+.stat-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin: 0 0 22px; }
+.stat { background: linear-gradient(180deg, #101a24, #0d161f); border: 1px solid var(--line); border-radius: 8px; padding: 14px 18px; display: flex; flex-direction: column; gap: 2px; }
+.stat-value { font-size: 26px; font-weight: 650; letter-spacing: -.6px; }
+.stat-value small { font-size: 14px; margin-left: 2px; color: var(--muted); }
+.stat-value.small { font-size: 15px; font-family: var(--mono); padding-top: 6px; letter-spacing: .3px; }
+.stat-label { font: 11px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+.pager { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 14px 0; font-size: 14px; }
+.import-help { margin-top: 14px; font-size: 13px; }
+.import-help summary { cursor: pointer; color: var(--muted); }
+.help-list { margin: 10px 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; color: var(--muted); }
+.help-list dt { color: var(--text); font-weight: 600; }
+.help-list dd { margin: 0; }
+@media (max-width: 900px) { .profile-grid { grid-template-columns: 1fr; } .stat-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
 /* Airline console */
 .console-heading { padding-bottom: 12px; }
 .console-title { display: flex; align-items: center; gap: 18px; }

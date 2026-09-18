@@ -27,6 +27,11 @@ internal sealed class AccountSessionException(string message, string code = "") 
 }
 internal sealed record ProblemBody(string? Title, string? Code);
 internal sealed record BrowserLoginResult(string AccessToken, string? RefreshToken, bool IsError = false);
+// Success means the session is established. Otherwise MfaToken carries the provider's challenge token; when
+// NeedsEnrollment is set the pilot has no authenticator yet and must add one before the code is accepted.
+internal sealed record PasswordLoginOutcome(bool Success, string? MfaToken, bool NeedsEnrollment);
+internal sealed record OtpEnrollment(string Secret, string BarcodeUri, string[] RecoveryCodes);
+internal enum StepUpChoice { Cancelled, Browser, Completed }
 
 internal sealed class DesktopAccountSession
 {
@@ -129,15 +134,163 @@ internal sealed class DesktopAccountSession
         finally { gate.Release(); }
     }
 
+    // In-app sign-in: Auth0's password-realm grant plus the MFA API, so email/password pilots never leave the
+    // window. Passkeys and Microsoft/Google still go through the browser. Passwords are used for the one
+    // request and never stored, logged or kept in the session file.
+    internal async Task<PasswordLoginOutcome> PasswordLoginAsync(string email, string password, bool stepUp, CancellationToken token)
+    {
+        await gate.WaitAsync(token);
+        try
+        {
+            if (stepUp && saved is null) throw new AccountSessionException("Sign in to continue.", "signed_out");
+            if (!stepUp) Clear();
+            var form = new System.Collections.Generic.Dictionary<string, string>
+            {
+                ["grant_type"] = "http://auth0.com/oauth/grant-type/password-realm", ["client_id"] = Configuration.ClientId,
+                ["username"] = email.Trim(), ["password"] = password, ["realm"] = Configuration.DatabaseConnection,
+                ["audience"] = Configuration.Audience, ["scope"] = "openid profile email offline_access"
+            };
+            if (stepUp) form["acr_values"] = MultiFactorPolicy;
+            var (status, json) = await PostFormAsync("/oauth/token", form, token);
+            if (status == HttpStatusCode.OK) { await EstablishTokensAsync(json, stepUp, token); return new(true, null, false); }
+            var error = json.TryGetProperty("error", out var e) ? e.GetString() ?? "" : "";
+            if (error == "mfa_required" && json.TryGetProperty("mfa_token", out var mfaToken) && mfaToken.GetString() is { Length: > 0 } mfa)
+                return new(false, mfa, !await HasOtpAuthenticatorAsync(mfa, token));
+            throw ProviderError(status, error, json);
+        }
+        finally { gate.Release(); }
+    }
+
+    internal async Task<OtpEnrollment> BeginOtpEnrollmentAsync(string mfaToken, CancellationToken token)
+    {
+        using var client = Http();
+        using var request = new HttpRequestMessage(HttpMethod.Post, Configuration.Authority.TrimEnd('/') + "/mfa/associate")
+        { Content = JsonContent.Create(new { authenticator_types = new[] { "otp" } }) };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", mfaToken);
+        using var response = await client.SendAsync(request, token);
+        var json = await ReadJsonAsync(response, token);
+        if (!response.IsSuccessStatusCode) throw ProviderError(response.StatusCode, json.TryGetProperty("error", out var e) ? e.GetString() ?? "" : "", json);
+        var codes = json.TryGetProperty("recovery_codes", out var rc) && rc.ValueKind == JsonValueKind.Array ? rc.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0).ToArray() : [];
+        return new(json.GetProperty("secret").GetString() ?? "", json.TryGetProperty("barcode_uri", out var uri) ? uri.GetString() ?? "" : "", codes);
+    }
+
+    // Completes an in-app MFA challenge or enrolment with an authenticator code, or a recovery code. When a
+    // recovery code is used, Auth0 issues a replacement that is returned once and must be shown to the pilot.
+    internal async Task<string?> CompleteMfaAsync(string mfaToken, string code, bool recoveryCode, bool stepUp, CancellationToken token)
+    {
+        await gate.WaitAsync(token);
+        try
+        {
+            var form = new System.Collections.Generic.Dictionary<string, string> { ["client_id"] = Configuration.ClientId, ["mfa_token"] = mfaToken };
+            var clean = new string(code.Where(char.IsLetterOrDigit).ToArray());
+            if (recoveryCode) { form["grant_type"] = "http://auth0.com/oauth/grant-type/mfa-recovery-code"; form["recovery_code"] = clean; }
+            else { form["grant_type"] = "http://auth0.com/oauth/grant-type/mfa-otp"; form["otp"] = clean; }
+            var (status, json) = await PostFormAsync("/oauth/token", form, token);
+            if (status != HttpStatusCode.OK) throw ProviderError(status, json.TryGetProperty("error", out var e) ? e.GetString() ?? "" : "", json);
+            await EstablishTokensAsync(json, stepUp, token);
+            return json.TryGetProperty("recovery_code", out var replacement) ? replacement.GetString() : null;
+        }
+        finally { gate.Release(); }
+    }
+
+    internal async Task SignUpAsync(string email, string password, CancellationToken token)
+    {
+        using var client = Http();
+        using var response = await client.PostAsJsonAsync(Configuration.Authority.TrimEnd('/') + "/dbconnections/signup",
+            new { client_id = Configuration.ClientId, email = email.Trim(), password, connection = Configuration.DatabaseConnection }, token);
+        if (response.IsSuccessStatusCode) return;
+        var json = await ReadJsonAsync(response, token);
+        var code = json.TryGetProperty("code", out var c) ? c.GetString() ?? "" : json.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+        var description = json.TryGetProperty("description", out var d) && d.ValueKind == JsonValueKind.String ? d.GetString() : json.TryGetProperty("message", out var m) ? m.GetString() : null;
+        throw code switch
+        {
+            "invalid_signup" or "user_exists" => new AccountSessionException("An account with this email already exists. Sign in instead, or reset your password.", "user_exists"),
+            "invalid_password" or "PasswordStrengthError" => new AccountSessionException("Choose a stronger password: at least 8 characters with letters, numbers and symbols.", "invalid_password"),
+            "password_dictionary_error" or "PasswordDictionaryError" => new AccountSessionException("That password is too common. Choose another.", "invalid_password"),
+            _ => new AccountSessionException(description is { Length: > 0 } && description.Length < 160 ? description : "The account could not be created. Try again or use your browser.", code)
+        };
+    }
+
+    internal async Task RequestPasswordResetAsync(string email, CancellationToken token)
+    {
+        using var client = Http();
+        using var response = await client.PostAsJsonAsync(Configuration.Authority.TrimEnd('/') + "/dbconnections/change_password",
+            new { client_id = Configuration.ClientId, email = email.Trim(), connection = Configuration.DatabaseConnection }, token);
+        if (!response.IsSuccessStatusCode) throw new AccountSessionException("The reset email could not be sent. Check the address and try again.", "reset_failed");
+    }
+
+    private async Task<bool> HasOtpAuthenticatorAsync(string mfaToken, CancellationToken token)
+    {
+        using var client = Http();
+        using var request = new HttpRequestMessage(HttpMethod.Get, Configuration.Authority.TrimEnd('/') + "/mfa/authenticators");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", mfaToken);
+        using var response = await client.SendAsync(request, token);
+        if (!response.IsSuccessStatusCode) return false;
+        var json = await ReadJsonAsync(response, token);
+        return json.ValueKind == JsonValueKind.Array && json.EnumerateArray().Any(a =>
+            a.TryGetProperty("authenticator_type", out var type) && type.GetString() == "otp" && (!a.TryGetProperty("active", out var active) || active.GetBoolean()));
+    }
+
+    private async Task EstablishTokensAsync(JsonElement json, bool stepUp, CancellationToken token)
+    {
+        var access = json.TryGetProperty("access_token", out var a) ? a.GetString() : null;
+        var refresh = json.TryGetProperty("refresh_token", out var r) ? r.GetString() : null;
+        if (string.IsNullOrWhiteSpace(access)) throw new AccountSessionException("Sign-in could not be verified. Try again.", "token_missing");
+        await EstablishAsync(access, refresh, token, preserveWorkspace: stepUp);
+    }
+
+    private async Task<(HttpStatusCode Status, JsonElement Body)> PostFormAsync(string path, System.Collections.Generic.Dictionary<string, string> form, CancellationToken token)
+    {
+        using var client = Http();
+        using var response = await client.PostAsync(Configuration.Authority.TrimEnd('/') + path, new FormUrlEncodedContent(form), token);
+        return (response.StatusCode, await ReadJsonAsync(response, token));
+    }
+
+    private static async Task<JsonElement> ReadJsonAsync(HttpResponseMessage response, CancellationToken token)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(token));
+            return document.RootElement.Clone();
+        }
+        catch (JsonException) { return default; }
+    }
+
+    private static AccountSessionException ProviderError(HttpStatusCode status, string error, JsonElement json)
+    {
+        var description = json.ValueKind == JsonValueKind.Object && json.TryGetProperty("error_description", out var d) ? d.GetString() ?? "" : "";
+        return error switch
+        {
+            "invalid_grant" when description.Contains("otp", StringComparison.OrdinalIgnoreCase) || description.Contains("code", StringComparison.OrdinalIgnoreCase)
+                => new("That code was not accepted. Check the time on your device and try the newest code.", "invalid_code"),
+            "invalid_grant" => new("Wrong email or password.", "invalid_credentials"),
+            "too_many_attempts" or "too_many_requests" => new("Too many attempts. Wait a few minutes, or reset your password.", "too_many_attempts"),
+            "unauthorized_client" or "unsupported_grant_type" or "access_denied" when description.Contains("Grant type", StringComparison.OrdinalIgnoreCase) || description.Contains("not allowed", StringComparison.OrdinalIgnoreCase)
+                => new("In-app sign-in is not enabled for this installation yet. Use browser sign-in.", "password_grant_disabled"),
+            "expired_token" or "invalid_token" => new("The sign-in attempt expired. Start again.", "mfa_expired"),
+            "unauthorized" when description.Contains("verify", StringComparison.OrdinalIgnoreCase)
+                => new("Verify your email from the message Alpha 6 sent you, then sign in again.", "email_unverified"),
+            _ when (int)status >= 500 || status == 0 => new("The sign-in service is unavailable. Try again shortly.", "provider_unavailable"),
+            _ => new(description is { Length: > 0 and < 160 } ? description : "Sign-in was declined. Try again or use your browser.", error)
+        };
+    }
+
     // Runs an account operation; when the service asks for a fresh multi-factor proof, confirms with the
     // caller, performs the step-up, and retries exactly once.
-    internal async Task<T> WithStepUpAsync<T>(Func<Task<T>> action, Func<Task<bool>> confirm, CancellationToken token)
+    internal Task<T> WithStepUpAsync<T>(Func<Task<T>> action, Func<Task<bool>> confirm, CancellationToken token) =>
+        WithStepUpAsync(action, async () => await confirm() ? StepUpChoice.Browser : StepUpChoice.Cancelled, token);
+
+    // The chooser may complete the step-up itself (in-app password + code), hand it to the browser, or cancel.
+    internal async Task<T> WithStepUpAsync<T>(Func<Task<T>> action, Func<Task<StepUpChoice>> choose, CancellationToken token)
     {
         try { return await action(); }
         catch (AccountSessionException error) when (error.Code == "mfa_required")
         {
-            if (!await confirm()) throw new OperationCanceledException();
-            await StepUpAsync(token);
+            switch (await choose())
+            {
+                case StepUpChoice.Cancelled: throw new OperationCanceledException();
+                case StepUpChoice.Browser: await StepUpAsync(token); break;
+            }
             return await action();
         }
     }
@@ -194,6 +347,66 @@ internal sealed class DesktopAccountSession
         await EstablishAsync(accessToken!, null, token);
         return true;
     }, token);
+
+    internal Task<UserProfile> SetAvatarAsync(byte[] image, string contentType, CancellationToken token) => Under(async () =>
+    {
+        var profile = await SendBytesAsync<UserProfile>(HttpMethod.Put, "api/v1/me/avatar", image, contentType, token)
+            ?? throw new InvalidDataException("The account service returned an empty profile.");
+        if (saved is not null) Save(saved with { Bootstrap = saved.Bootstrap with { Profile = profile } });
+        return profile;
+    }, token);
+    internal Task RemoveAvatarAsync(CancellationToken token) => Under(async () =>
+    {
+        await SendAsync<object>(HttpMethod.Delete, "api/v1/me/avatar", null, token);
+        await EstablishAsync(accessToken!, null, token);
+        return true;
+    }, token);
+    internal Task<AirlineWorkspace> SetAirlineLogoAsync(Guid airlineId, byte[] image, string contentType, CancellationToken token) => Under(async () =>
+    {
+        var airline = await SendBytesAsync<AirlineWorkspace>(HttpMethod.Put, $"api/v1/virtual-airlines/{airlineId}/logo", image, contentType, token)
+            ?? throw new InvalidDataException("The account service returned an empty airline.");
+        await EstablishAsync(accessToken!, null, token);
+        return airline;
+    }, token);
+    internal Task<LogbookSummary> LogbookSummaryAsync(CancellationToken token) => Under(async () =>
+        await SendAsync<LogbookSummary>(HttpMethod.Get, "api/v1/me/flights/summary", null, token) ?? new LogbookSummary(0, 0, 0, [], null, null), token);
+    internal Task<LogbookPage> ListFlightsAsync(int page, int pageSize, CancellationToken token) => Under(async () =>
+        await SendAsync<LogbookPage>(HttpMethod.Get, $"api/v1/me/flights?page={page}&pageSize={pageSize}", null, token) ?? new LogbookPage([], 0, page, pageSize), token);
+    internal Task<LogbookImportResult> ImportLogbookAsync(string csv, string? fileName, CancellationToken token) => Under(async () =>
+        await SendAsync<LogbookImportResult>(HttpMethod.Post, "api/v1/me/flights/import", new LogbookImportRequest(csv, fileName), token)
+            ?? throw new InvalidDataException("The account service returned an empty import result."), token);
+    internal Task UndoLogbookImportAsync(Guid batchId, CancellationToken token) => Under(async () =>
+        await SendAsync<object>(HttpMethod.Delete, $"api/v1/me/flights/imports/{batchId}", null, token), token);
+    // Media served by the website (avatars, logos) is public by id; fetch without credentials, null when absent.
+    internal async Task<byte[]?> FetchMediaAsync(string relativeUrl, CancellationToken token)
+    {
+        if (string.IsNullOrEmpty(relativeUrl)) return null;
+        try
+        {
+            using var client = Http();
+            using var response = await client.GetAsync(new Uri(new Uri(Configuration.ApiBaseUrl.TrimEnd('/') + "/"), relativeUrl.TrimStart('/')), token);
+            return response.IsSuccessStatusCode ? await response.Content.ReadAsByteArrayAsync(token) : null;
+        }
+        catch (Exception error) when (error is HttpRequestException or OperationCanceledException) { return null; }
+    }
+
+    private async Task<T?> SendBytesAsync<T>(HttpMethod method, string path, byte[] bytes, string contentType, CancellationToken token)
+    {
+        if (IsOffline || string.IsNullOrEmpty(accessToken)) throw new AccountSessionException("Connect to the internet to use account services.", "offline");
+        using var client = Api(accessToken);
+        using var request = new HttpRequestMessage(method, path) { Content = new ByteArrayContent(bytes) };
+        request.Content.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        using var response = await client.SendAsync(request, token);
+        if (response.StatusCode == HttpStatusCode.Unauthorized) { Clear(); throw new AccountSessionException("Your session has expired. Sign in again.", "session_expired"); }
+        if ((int)response.StatusCode >= 500) throw new HttpRequestException("The account service is unavailable.", null, response.StatusCode);
+        if (!response.IsSuccessStatusCode)
+        {
+            ProblemBody? problem = null;
+            try { problem = await response.Content.ReadFromJsonAsync<ProblemBody>(cancellationToken: token); } catch (Exception error) when (error is JsonException or IOException) { }
+            throw new AccountSessionException(problem?.Title is { Length: > 0 } title ? title : "The account service declined that image.", problem?.Code ?? "");
+        }
+        return await response.Content.ReadFromJsonAsync<T>(cancellationToken: token);
+    }
 
     private async Task<T> Under<T>(Func<Task<T>> action, CancellationToken token)
     {

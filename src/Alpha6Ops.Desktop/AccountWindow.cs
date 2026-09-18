@@ -78,12 +78,12 @@ internal sealed partial class AccountWindow : Window
         var compact = ActualHeight < 760;
         LoginFrame.Margin = compact ? new Thickness(40, 24, 40, 20) : new Thickness(56, 34, 56, 26);
         LoginBody.MinHeight = compact ? 0 : 540;
-        LoginForm.Margin = new Thickness(0, compact ? 12 : 28, 0, compact ? 12 : 28);
+        LoginForm.Margin = new Thickness(0, compact ? 8 : 16, 0, compact ? 8 : 16);
         LoginHeading.FontSize = compact ? 30 : 36;
         LoginHeading.LineHeight = compact ? 36 : 44;
-        LoginDescription.Margin = new Thickness(0, 0, 0, compact ? 18 : 30);
-        LoginDivider.Margin = new Thickness(0, compact ? 16 : 22, 0, compact ? 16 : 22);
-        LoginOptionsHint.Margin = new Thickness(0, compact ? 8 : 10, 0, compact ? 16 : 25);
+        LoginDescription.Margin = new Thickness(0, 0, 0, compact ? 12 : 18);
+        LoginDivider.Margin = new Thickness(0, compact ? 10 : 14, 0, compact ? 10 : 14);
+        LoginOptionsHint.Margin = new Thickness(0, compact ? 6 : 8, 0, compact ? 10 : 14);
     }
 
     private void ShowLogin()
@@ -92,17 +92,53 @@ internal sealed partial class AccountWindow : Window
         WorkspacePage.Visibility = Visibility.Collapsed;
         ContinueButton.IsDefault = true; OpenWorkspaceButton.IsDefault = false;
         SetStatus(account is null && !preview ? "This installation is in Local Preview. Account sign-in has not been connected yet." : "");
-        ContinueButton.IsEnabled = OtherLoginButton.IsEnabled = RegisterButton.IsEnabled = preview || account is not null;
-        ContinueButton.Content = preview ? "Preview your workspaces    →" : "Continue with email    →";
+        ContinueButton.IsEnabled = OtherLoginButton.IsEnabled = RegisterButton.IsEnabled = RegisterBrowserButton.IsEnabled = ForgotButton.IsEnabled = PasswordInput.IsEnabled = preview || account is not null;
+        ContinueButton.Content = preview ? "Preview your workspaces    →" : "Sign in    →";
     }
 
+    // In-app sign-in: email and password go to the provider's password grant; a second factor is handled in the
+    // MfaWindow. Passkeys and Microsoft/Google accounts use the browser path below.
     private async void Continue_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
     {
         if (preview) { ShowWorkspaces(); return; }
         var email = EmailInput.Text.Trim();
         if (!MailAddress.TryCreate(email, out var parsed) || parsed.Address != email)
         { SetStatus("Enter a valid email address to continue."); EmailInput.Focus(); return; }
-        await SignInAsync(email);
+        if (PasswordInput.Password.Length == 0) { SetStatus("Enter your password, or use passkey / Microsoft / Google sign-in below."); PasswordInput.Focus(); return; }
+        if (account is null) return;
+        SetStatus("Signing in…");
+        PasswordLoginOutcome outcome;
+        try { outcome = await account.PasswordLoginAsync(email, PasswordInput.Password, false, lifetime.Token); }
+        finally { PasswordInput.Clear(); }
+        await CompleteSignInAsync(outcome);
+    });
+
+    private async Task CompleteSignInAsync(PasswordLoginOutcome outcome)
+    {
+        if (!outcome.Success)
+        {
+            var mfa = new MfaWindow(this, account!, outcome.MfaToken!, outcome.NeedsEnrollment, false);
+            mfa.ShowDialog();
+            if (!mfa.Completed) { SetStatus("Sign-in was not completed."); return; }
+        }
+        if (lifetime.IsCancellationRequested) return;
+        await OpenPreferredAfterSignInAsync();
+    }
+
+    private async Task OpenPreferredAfterSignInAsync()
+    {
+        ShowWorkspaces();
+        if (account!.Profile.PreferredWorkspace == "personal" && account.Workspace.AirlineId is not null)
+            await account.SelectWorkspaceAsync(WorkspaceSelection.Personal, lifetime.Token);
+    }
+
+    private async void Forgot_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
+    {
+        if (preview || account is null) { SetStatus("In the connected app, this emails you a password reset link."); return; }
+        var email = EmailInput.Text.Trim();
+        if (!MailAddress.TryCreate(email, out var parsed) || parsed.Address != email) { SetStatus("Enter your email address first, then choose Forgot password."); EmailInput.Focus(); return; }
+        await account.RequestPasswordResetAsync(email, lifetime.Token);
+        SetStatus($"If an account exists for {email}, a reset link is on its way. Check your inbox, then sign in with the new password.");
     });
 
     private async void OtherLogin_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
@@ -112,6 +148,15 @@ internal sealed partial class AccountWindow : Window
     });
 
     private async void Register_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
+    {
+        if (preview) { ShowWorkspaces(); return; }
+        if (account is null) return;
+        var dialog = new SignUpWindow(this, account, EmailInput.Text.Trim()); dialog.ShowDialog();
+        if (dialog.SignedIn) { await OpenPreferredAfterSignInAsync(); SetStatus("Welcome aboard. Verify your email from the message we sent to unlock airline features."); }
+        else if (dialog.MfaToken is { } token) await CompleteSignInAsync(new(false, token, dialog.NeedsEnrollment));
+    });
+
+    private async void RegisterBrowser_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
     {
         if (preview) { ShowWorkspaces(); return; }
         var email = EmailInput.Text.Trim();
@@ -149,6 +194,8 @@ internal sealed partial class AccountWindow : Window
         AccountEmailText.Text = (preview ? "Design preview · sample memberships" : bootstrap!.Account.Email).ToUpperInvariant();
         AccountInitialsText.Text = account?.Profile.AvatarInitials is { Length: > 0 } initials ? initials
             : string.Concat(AccountNameText.Text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
+        AccountAvatarImage.Source = null; AccountAvatarImage.Visibility = Visibility.Collapsed;
+        if (account?.Profile.AvatarUrl is { Length: > 0 } avatarUrl) _ = ShowMediaAsync(avatarUrl, bytes => { if (Decode(bytes, 80) is { } image) { AccountAvatarImage.Source = image; AccountAvatarImage.Visibility = Visibility.Visible; } });
         ConnectionText.Text = preview ? "DESIGN PREVIEW" : offline ? "OFFLINE ACCESS" : "SIGNED IN";
         PresenceDot.Fill = OpsUi.Brush(preview ? "#8C9AA6" : offline ? "#D6A34A" : "#5FAE6E");
         PlanText.Text = preview ? "FREE" : bootstrap!.PersonalEntitlement.Plan.ToString().ToUpperInvariant();
@@ -158,7 +205,7 @@ internal sealed partial class AccountWindow : Window
         CrewHintText.Foreground = OpsUi.Brush(unverified ? "#E5C977" : "#9EAFBD");
         ReconnectButton.Visibility = preview ? Visibility.Collapsed : Visibility.Visible;
         ReconnectLabel.Text = offline ? "Reconnect" : "Refresh";
-        ManageButton.IsEnabled = ProfileButton.IsEnabled = PlanButton.IsEnabled = UpdatesButton.IsEnabled = !offline;
+        ManageButton.IsEnabled = ProfileButton.IsEnabled = LogbookButton.IsEnabled = PlanButton.IsEnabled = UpdatesButton.IsEnabled = !offline;
         JoinButton.IsEnabled = CreateButton.IsEnabled = !offline && !unverified;
         selection = account?.Workspace ?? WorkspaceSelection.Personal;
         var airlines = preview ? PreviewAirlines : bootstrap!.Airlines;
@@ -186,7 +233,9 @@ internal sealed partial class AccountWindow : Window
         var header = new Grid();
         var monogram = Copy(airline.Callsign.Length > 3 ? airline.Callsign[..3] : airline.Callsign, 12, "#D5E2ED", FontWeights.SemiBold);
         monogram.HorizontalAlignment = HorizontalAlignment.Center; monogram.VerticalAlignment = VerticalAlignment.Center;
-        header.Children.Add(new Border { Background = OpsUi.Brush("#0F1922"), BorderBrush = OpsUi.Brush("#3A4B5B"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), Width = 42, Height = 42, HorizontalAlignment = HorizontalAlignment.Left, Child = monogram });
+        var tile = new Border { Background = OpsUi.Brush("#0F1922"), BorderBrush = OpsUi.Brush("#3A4B5B"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), Width = 42, Height = 42, HorizontalAlignment = HorizontalAlignment.Left, Child = monogram };
+        header.Children.Add(tile);
+        if (!preview && airline.LogoUrl.Length > 0) _ = ShowMediaAsync(airline.LogoUrl, bytes => { if (ImageTile(bytes, 40) is { } logo) tile.Child = logo; });
         var tier = Copy(airline.Plan.ToString().ToUpperInvariant(), 10, "#A2B0BD"); tier.HorizontalAlignment = HorizontalAlignment.Right; tier.VerticalAlignment = VerticalAlignment.Center;
         header.Children.Add(tier); content.Children.Add(header);
         if (!preview && airline.Capabilities.Contains(Capabilities.MembersManage))
@@ -201,6 +250,34 @@ internal sealed partial class AccountWindow : Window
         card.Content = content;
         card.Click += (_, _) => { selection = workspace; selectedName = airline.Name; UpdateSelection(); };
         return card;
+    }
+
+    // Media is fetched without credentials and rendered only if it decodes as a bitmap; failures leave the fallback.
+    private async Task ShowMediaAsync(string url, Action<byte[]> apply)
+    {
+        try
+        {
+            var bytes = await account!.FetchMediaAsync(url, lifetime.Token);
+            if (bytes is not null && !lifetime.IsCancellationRequested) apply(bytes);
+        }
+        catch (Exception) { }
+    }
+    internal static System.Windows.Media.Imaging.BitmapImage? Decode(byte[] bytes, int pixels)
+    {
+        try
+        {
+            var image = new System.Windows.Media.Imaging.BitmapImage();
+            image.BeginInit(); image.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; image.DecodePixelWidth = pixels * 2;
+            image.StreamSource = new System.IO.MemoryStream(bytes); image.EndInit(); image.Freeze();
+            return image;
+        }
+        catch (Exception) { return null; }
+    }
+    internal static UIElement? ImageTile(byte[] bytes, double size)
+    {
+        if (Decode(bytes, (int)size) is not { } image) return null;
+        var picture = new Image { Source = image, Stretch = Stretch.Uniform, Margin = new Thickness(3) };
+        return new Border { Width = size, Height = size, CornerRadius = new CornerRadius(4), ClipToBounds = true, Child = picture };
     }
 
     private static TextBlock Copy(string text, double size, string color, FontWeight? weight = null) => new()
@@ -262,6 +339,14 @@ internal sealed partial class AccountWindow : Window
         if (!RequireAccount("In the connected app, this opens your pilot profile: SimBrief username, callsign, home base and units.")) return Task.CompletedTask;
         var dialog = new ProfileWindow(this, account!, account!.DataDirectory); dialog.ShowDialog();
         if (dialog.Saved is not null) { ShowWorkspaces(); SetStatus("Profile saved. Dispatch will use your SimBrief username automatically."); }
+        else if (dialog.PictureChanged) ShowWorkspaces();
+        return Task.CompletedTask;
+    });
+
+    private async void Logbook_Click(object sender, RoutedEventArgs e) => await RunAsync(() =>
+    {
+        if (!RequireAccount("In the connected app, this shows your account logbook and imports a CSV from another platform.")) return Task.CompletedTask;
+        new LogbookWindow(this, account!).ShowDialog();
         return Task.CompletedTask;
     });
 

@@ -2,7 +2,8 @@
 // Client requests can ask for a stronger check; they can never assert that one succeeded.
 exports.onExecutePostLogin = async (event, api) => {
   const policy = "http://schemas.openid.net/pape/policies/2007/06/multi-factor";
-  const requested = String(event.request?.query?.acr_values || "").split(" ").includes(policy);
+  // Browser logins carry acr_values in the query; the desktop's in-app (password-realm) step-up sends it in the body.
+  const requested = String(event.request?.query?.acr_values || event.request?.body?.acr_values || "").split(" ").includes(policy);
   if (!requested) return;
 
   const freshProof = (event.authentication?.methods || []).some(method =>

@@ -38,6 +38,9 @@ internal static class AccountFlowSmokeTest
         var stepUps = 0;
         var mfaPending = false;
         var creates = 0;
+        var passwordLogins = 0;
+        var mfaLogin = false;
+        var importedFlights = 0;
         static AirlineWorkspace Owned(string slug, string name, string callsign) => new(Guid.NewGuid(), slug, name, callsign, AirlinePlan.Community, "active", MembershipStatus.Active,
             [AirlineRole.Pilot, AirlineRole.Owner], true, Capabilities.ForMembership(MembershipStatus.Active, [AirlineRole.Pilot, AirlineRole.Owner]));
         var createdAirline = Owned("created-airline", "Created Airline", "CRT");
@@ -46,8 +49,32 @@ internal static class AccountFlowSmokeTest
         {
             var path = request.RequestUri!.AbsolutePath;
             if (path == "/oauth/token")
+            {
+                var form = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                if (form.Contains("password-realm"))
+                {
+                    passwordLogins++;
+                    if (!form.Contains("password=correct-horse")) return new(HttpStatusCode.Forbidden) { Content = JsonContent.Create(new { error = "invalid_grant", error_description = "Wrong email or password." }) };
+                    if (mfaLogin) return new(HttpStatusCode.Forbidden) { Content = JsonContent.Create(new { error = "mfa_required", mfa_token = "mfa-token-1" }) };
+                }
+                else if (form.Contains("mfa-otp") && !form.Contains("otp=123456"))
+                    return new(HttpStatusCode.Forbidden) { Content = JsonContent.Create(new { error = "invalid_grant", error_description = "Invalid otp_code." }) };
                 return revoked ? new(HttpStatusCode.BadRequest) { Content = JsonContent.Create(new { error = "invalid_grant" }) }
                     : new(HttpStatusCode.OK) { Content = JsonContent.Create(new { access_token = "test-access", refresh_token = "test-refresh", token_type = "Bearer", expires_in = 300 }) };
+            }
+            if (path == "/mfa/authenticators") return new(HttpStatusCode.OK) { Content = JsonContent.Create(Array.Empty<object>()) };
+            if (path == "/mfa/associate") return new(HttpStatusCode.OK) { Content = JsonContent.Create(new { authenticator_type = "otp", secret = "JBSWY3DPEHPK3PXP", barcode_uri = "otpauth://totp/x", recovery_codes = new[] { "RECOVER1234" } }) };
+            if (path == "/api/v1/me/flights/summary") return new(HttpStatusCode.OK) { Content = JsonContent.Create(new LogbookSummary(importedFlights, importedFlights * 55, 2, importedFlights > 0 ? new[] { "A20N" } : Array.Empty<string>(), now, now)) };
+            if (path == "/api/v1/me/flights" && request.Method == HttpMethod.Get) return new(HttpStatusCode.OK) { Content = JsonContent.Create(new LogbookPage(Enumerable.Range(0, importedFlights).Select(i => new FlightLogEntry(Guid.NewGuid(), "import", "CZK10" + i, "KMKE", "KORD", "A20N", "", now.AddDays(-i), null, 55, null, null, -180, null, "", "", null, now)).ToArray(), importedFlights, 1, 6)) };
+            if (path == "/api/v1/me/flights/import") { importedFlights = 2; return new(HttpStatusCode.OK) { Content = JsonContent.Create(new LogbookImportResult(Guid.NewGuid(), 2, 0, 1, new[] { "Line 4: bad date" }, new[] { "date", "flight", "origin", "destination" })) }; }
+            if (path.StartsWith("/api/v1/me/flights/imports/")) { importedFlights = 0; return new(HttpStatusCode.NoContent); }
+            if (path == "/api/v1/me/avatar" && request.Method == HttpMethod.Put)
+            {
+                var profile = (bootstrap.Profile ?? UserProfile.Default) with { AvatarUrl = "/media/avatar/" + bootstrap.Account.Id.ToString("N") + "?v=1" };
+                bootstrap = bootstrap with { Profile = profile };
+                return new(HttpStatusCode.OK) { Content = JsonContent.Create(profile) };
+            }
+            if (path.StartsWith("/media/")) return new(HttpStatusCode.OK) { Content = new ByteArrayContent(SmokePng) { Headers = { ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png") } } };
             if (path == "/api/v1/me/bootstrap") return new(HttpStatusCode.OK) { Content = JsonContent.Create(bootstrap) };
             if (path == "/api/v1/me/profile" && request.Method == HttpMethod.Put)
             {
@@ -97,22 +124,48 @@ internal static class AccountFlowSmokeTest
             Check(loginCalls == 0 && window.LoginStatus.Text.Contains("valid email"), "Invalid email must be rejected before browser launch.");
             window.EmailInput.Text = "pilot@example.invalid";
             Click(window.ContinueButton);
+            Check(loginCalls == 0 && passwordLogins == 0 && window.LoginStatus.Text.Contains("password"), "In-app sign-in asks for the password before contacting the provider.");
+            window.UpdateLayout();
+            DashboardSmokeTest.Capture(window, Path.Combine(outputDirectory, "identity-login.png"));
+            Click(window.OtherLoginButton);
             Check(!window.LoginPage.IsEnabled && window.CancelSignInButton.IsVisible && window.CancelSignInButton.IsEnabled,
-                "Sign-in must disable duplicate submissions while keeping Cancel usable.");
+                "Browser sign-in must disable duplicate submissions while keeping Cancel usable.");
             window.UpdateLayout();
             DashboardSmokeTest.Capture(window, Path.Combine(outputDirectory, "identity-login-pending.png"));
-            Click(window.ContinueButton);
+            Click(window.OtherLoginButton);
             Check(loginCalls == 1, "Repeated sign-in clicks must not start concurrent login flows.");
             Click(window.CancelSignInButton);
             await IdleAsync(window);
             Check(!window.ShowingWorkspaces && session.Bootstrap is null && window.LoginStatus.Text.Contains("canceled") && !window.CancelSignInButton.IsVisible,
                 "Canceled sign-in must restore a usable login screen without a session.");
             waitForCancel = false;
+            window.EmailInput.Text = "pilot@example.invalid"; window.PasswordInput.Password = "wrong";
+            Click(window.ContinueButton);
+            await IdleAsync(window);
+            Check(passwordLogins == 1 && !window.ShowingWorkspaces && window.LoginStatus.Text.Contains("Wrong email or password") && window.PasswordInput.Password.Length == 0,
+                "A wrong password is explained and the field is cleared.");
+            window.PasswordInput.Password = "correct-horse";
+            Click(window.ContinueButton);
+            await IdleAsync(window);
+            Check(passwordLogins == 2 && loginCalls == 1 && window.ShowingWorkspaces && session.Bootstrap is not null && !window.Accepted,
+                "Password sign-in establishes the session in the app without opening the browser.");
+            DashboardSmokeTest.Capture(window, Path.Combine(outputDirectory, "identity-signed-in-app.png"));
+            mfaLogin = true;
+            var mfaOutcome = await session.PasswordLoginAsync("pilot@example.invalid", "correct-horse", true, CancellationToken.None);
+            var mfaDialog = new MfaWindow(window, session, mfaOutcome.MfaToken!, mfaOutcome.NeedsEnrollment, true);
+            mfaDialog.Show(); await Task.Delay(50); mfaDialog.UpdateLayout();
+            Check(mfaDialog.Inputs<TextBox>().Any(t => t.Text.Replace(" ", "") == "JBSWY3DPEHPK3PXP"), "Enrolment shows the authenticator secret for manual entry.");
+            DashboardSmokeTest.Capture(mfaDialog, Path.Combine(outputDirectory, "identity-mfa-enrol.png"));
+            mfaDialog.Input<TextBox>("Code from your authenticator app").Text = "123456";
+            await mfaDialog.SubmitAsync(); mfaDialog.UpdateLayout();
+            Check(mfaDialog.Completed && mfaDialog.RecoveryCodesShown.SequenceEqual(new[] { "RECOVER1234" }) && mfaDialog.IsVisible, "A verified code completes MFA and shows the recovery code once.");
+            DashboardSmokeTest.Capture(mfaDialog, Path.Combine(outputDirectory, "identity-mfa-recovery.png"));
+            mfaDialog.Close(); mfaLogin = false;
             window.EmailInput.Text = "";
-            Click(window.RegisterButton);
+            Click(window.RegisterBrowserButton);
             await IdleAsync(window);
             Check(signup && window.ShowingWorkspaces && session.Bootstrap is not null && !window.Accepted,
-                "Registration must establish a desktop session and wait for explicit workspace selection.");
+                "Browser registration must establish a desktop session and wait for explicit workspace selection.");
             DashboardSmokeTest.Capture(window, Path.Combine(outputDirectory, "identity-new-account.png"));
             Check(window.EmptyAirlines.IsVisible && window.ReconnectButton.IsVisible && window.ReconnectLabel.Text == "Refresh",
                 $"New accounts must show personal workspace and membership refresh (empty: {window.EmptyAirlines.IsVisible}, refresh: {window.ReconnectButton.IsVisible}, label: {window.ReconnectLabel.Text}).");
@@ -187,6 +240,12 @@ internal static class AccountFlowSmokeTest
                 $"The roster lists members and pending invitations ({membersDialog.StatusText}).");
             DashboardSmokeTest.Capture(membersDialog, Path.Combine(outputDirectory, "identity-members.png"));
             membersDialog.Close();
+            var logbook = new LogbookWindow(window, session) { PickFileOverride = () => "date,flight,origin,destination\n2026-03-14 18:20,CZK101,KMKE,KORD\n" };
+            logbook.Show(); await Task.Delay(50);
+            await logbook.SubmitAsync(); logbook.UpdateLayout();
+            Check(logbook.Imported is { Created: 2 } && logbook.StatusText.Contains("2 added") && logbook.Inputs<TextBlock>().Any(t => t.Text.Contains("2 flights")), $"The logbook dialog imports a CSV and refreshes totals ({logbook.StatusText}).");
+            DashboardSmokeTest.Capture(logbook, Path.Combine(outputDirectory, "identity-logbook.png"));
+            logbook.Close();
             revoked = true;
             Click(window.ReconnectButton);
             await IdleAsync(window);
@@ -238,6 +297,8 @@ internal static class AccountFlowSmokeTest
         Check(!closing.Accepted && !closing.IsVisible, "Closing pending sign-in must cancel it without opening a workspace.");
         return checks;
     }
+
+    private static readonly byte[] SmokePng = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
 
     private sealed class Handler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
     {

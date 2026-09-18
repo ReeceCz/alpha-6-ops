@@ -178,8 +178,11 @@ app.Use(async (context, next) =>
         return;
     }
     // Logbook imports are the one JSON body allowed past the 32 KB default; uploads on Razor pages carry their own limits.
-    if (context.Request.Path.Equals("/api/v1/me/flights/import", StringComparison.OrdinalIgnoreCase) && context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } size)
-        size.MaxRequestBodySize = 3 * 1024 * 1024;
+    var path = context.Request.Path.Value ?? "";
+    var bodyLimit = path.Equals("/api/v1/me/flights/import", StringComparison.OrdinalIgnoreCase) ? 3 * 1024 * 1024
+        : path.StartsWith("/api/v1/", StringComparison.OrdinalIgnoreCase) && (path.EndsWith("/avatar", StringComparison.OrdinalIgnoreCase) || path.EndsWith("/logo", StringComparison.OrdinalIgnoreCase)) ? ImageRules.MaxBytes + 4096 : 0;
+    if (bodyLimit > 0 && context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } size)
+        size.MaxRequestBodySize = bodyLimit;
     try { await next(context); }
     catch (IdentityException ex)
     {

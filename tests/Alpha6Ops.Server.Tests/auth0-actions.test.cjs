@@ -30,6 +30,11 @@ const mock = () => {
   await security.onExecutePostLogin(stepup, enrollment.api);
   assert.equal(enrollment.calls[0][0], 'enroll', 'Requested step-up enrolls an unenrolled account');
 
+  const bodyStepup = event(); bodyStepup.request.body = { acr_values: policy };
+  const bodyEnrollment = mock();
+  await security.onExecutePostLogin(bodyStepup, bodyEnrollment.api);
+  assert.equal(bodyEnrollment.calls[0][0], 'enroll', 'In-app (password grant) step-up is honoured from the request body');
+
   stepup.user.enrolledFactors = [{ type: 'otp' }];
   const challenge = mock();
   await security.onExecutePostLogin(stepup, challenge.api);

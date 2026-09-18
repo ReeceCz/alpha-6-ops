@@ -4,7 +4,8 @@ using System.Text.Json;
 
 namespace Alpha6Ops.Desktop;
 
-internal sealed record IdentityConfiguration(string Authority, string ClientId, string Audience, string ApiBaseUrl, string PortalUrl, int CallbackPort = 42879)
+// DatabaseConnection names the Auth0 database connection used for in-app (password) sign-in and sign-up.
+internal sealed record IdentityConfiguration(string Authority, string ClientId, string Audience, string ApiBaseUrl, string PortalUrl, int CallbackPort = 42879, string DatabaseConnection = "Username-Password-Authentication")
 {
     internal static IdentityConfiguration? Load()
     {

@@ -46,6 +46,7 @@ var workspaceWrites = 0;
 var airlineCreates = 0;
 var unauthorizedServed = false;
 var lastUserAgent = "";
+var passwordLogins = 0; var associations = 0; var resets = 0; var otpEnrolled = false; var signups = new List<string>();
 HttpResponseMessage Problem(HttpStatusCode code, string problemCode, string title) => Json(new { type = "about:blank", title, status = (int)code, code = problemCode }, code);
 async Task<HttpResponseMessage> Handle(HttpRequestMessage request)
 {
@@ -72,10 +73,52 @@ async Task<HttpResponseMessage> Handle(HttpRequestMessage request)
     if (request.RequestUri.AbsolutePath.EndsWith("/members")) return Json(new[] { new MemberResponse(Guid.NewGuid(), bootstrap.Account.Id, "Test Pilot", "pilot@example.invalid", MembershipStatus.Active, [AirlineRole.Pilot, AirlineRole.Owner]) });
     if (request.RequestUri!.AbsolutePath == "/oauth/token")
     {
-        tokensSeen.Add(await request.Content!.ReadAsStringAsync());
+        var form = await request.Content!.ReadAsStringAsync();
+        tokensSeen.Add(form);
+        if (form.Contains("grant-type%2Fpassword-realm") || form.Contains("grant-type/password-realm"))
+        {
+            // Fake provider: one known account; MFA is demanded when the pilot has an authenticator or asks for step-up.
+            passwordLogins++;
+            if (!form.Contains("password=correct-horse")) return Json(new { error = "invalid_grant", error_description = "Wrong email or password." }, HttpStatusCode.Forbidden);
+            if (mode == "password-grant-disabled") return Json(new { error = "unauthorized_client", error_description = "Grant type 'http://auth0.com/oauth/grant-type/password-realm' not allowed for the client." }, HttpStatusCode.Forbidden);
+            if (otpEnrolled || form.Contains("acr_values=")) return Json(new { error = "mfa_required", error_description = "Multifactor authentication required", mfa_token = "mfa-token-1" }, HttpStatusCode.Forbidden);
+            return Json(new { access_token = "test-access", refresh_token = "new-refresh", token_type = "Bearer", expires_in = 300 });
+        }
+        if (form.Contains("mfa-otp"))
+        {
+            if (!form.Contains("mfa_token=mfa-token-1")) return Json(new { error = "expired_token", error_description = "mfa_token is expired" }, HttpStatusCode.Unauthorized);
+            if (!form.Contains("otp=123456")) return Json(new { error = "invalid_grant", error_description = "Invalid otp_code." }, HttpStatusCode.Forbidden);
+            otpEnrolled = true;
+            return Json(new { access_token = "test-access", refresh_token = "new-refresh", token_type = "Bearer", expires_in = 300 });
+        }
+        if (form.Contains("mfa-recovery-code"))
+        {
+            if (!form.Contains("recovery_code=RECOVER1234")) return Json(new { error = "invalid_grant", error_description = "Invalid recovery code" }, HttpStatusCode.Forbidden);
+            return Json(new { access_token = "test-access", refresh_token = "new-refresh", token_type = "Bearer", expires_in = 300, recovery_code = "REPLACEMENT99" });
+        }
         if (mode == "revoked") return Json(new { error = "invalid_grant" }, HttpStatusCode.BadRequest);
         return Json(new { access_token = "test-access", refresh_token = "new-refresh", token_type = "Bearer", expires_in = 300 });
     }
+    if (request.RequestUri.AbsolutePath == "/mfa/authenticators")
+    {
+        if (request.Headers.Authorization?.Parameter != "mfa-token-1") return new(HttpStatusCode.Unauthorized);
+        return Json(otpEnrolled ? new object[] { new { id = "totp|dev_1", authenticator_type = "otp", active = true } } : Array.Empty<object>());
+    }
+    if (request.RequestUri.AbsolutePath == "/mfa/associate")
+    {
+        if (request.Headers.Authorization?.Parameter != "mfa-token-1") return new(HttpStatusCode.Unauthorized);
+        associations++;
+        return Json(new { authenticator_type = "otp", secret = "JBSWY3DPEHPK3PXP", barcode_uri = "otpauth://totp/Alpha6:pilot?secret=JBSWY3DPEHPK3PXP", recovery_codes = new[] { "RECOVER1234" } });
+    }
+    if (request.RequestUri.AbsolutePath == "/dbconnections/signup")
+    {
+        var body = await request.Content!.ReadAsStringAsync();
+        signups.Add(body);
+        if (body.Contains("taken@example.invalid")) return Json(new { code = "invalid_signup", description = "Invalid sign up" }, HttpStatusCode.BadRequest);
+        if (body.Contains("\"password\":\"weak\"")) return Json(new { name = "PasswordStrengthError", message = "Password is too weak" }, HttpStatusCode.BadRequest);
+        return Json(new { _id = "new", email = "new@example.invalid", email_verified = false });
+    }
+    if (request.RequestUri.AbsolutePath == "/dbconnections/change_password") { resets++; return new(HttpStatusCode.OK) { Content = new StringContent("We've just sent you an email to reset your password.") }; }
     if (request.RequestUri.AbsolutePath == "/api/v1/me/bootstrap")
     {
         Check(request.Headers.Authorization?.Parameter == "test-access", "bootstrap sends bearer credential only to configured API");
@@ -240,6 +283,50 @@ catch (AccountSessionException)
 var expired = Seed() with { RefreshToken = null, ReceivedAt = now.AddDays(-31), LastSeenAt = now.AddDays(-31) };
 File.WriteAllBytes(sessionPath, ProtectedData.Protect(JsonSerializer.SerializeToUtf8Bytes(expired), null, DataProtectionScope.CurrentUser));
 Check(!await Session().RestoreAsync(default), "expired offline session requires sign-in");
+// In-app sign-in: password grant, MFA enrolment and challenge, recovery codes, step-up, sign-up and reset.
+if (File.Exists(sessionPath)) File.Delete(sessionPath);
+mode = "online"; session = Session();
+try { await session.PasswordLoginAsync("pilot@example.invalid", "wrong", false, default); throw new Exception("Expected rejection"); }
+catch (AccountSessionException error) { Check(error.Code == "invalid_credentials" && session.Bootstrap is null, "wrong password is reported without a session"); }
+var plain = await session.PasswordLoginAsync("pilot@example.invalid", "correct-horse", false, default);
+Check(plain.Success && session.Bootstrap is not null && !session.IsOffline && Read().RefreshToken == "new-refresh", "password sign-in establishes and protects the session");
+Check(!tokensSeen.Last().Contains("acr_values") && tokensSeen.Last().Contains("realm=Username-Password-Authentication") && tokensSeen.Last().Contains("audience="), "password grant targets the database realm and the API audience without forcing MFA");
+Check(!File.ReadAllText(sessionPath, Encoding.Latin1).Contains("correct-horse"), "the password is never written to disk");
+var workspaceBeforeStepUp = session.Workspace;
+var stepUp = await session.PasswordLoginAsync("pilot@example.invalid", "correct-horse", true, default);
+Check(!stepUp.Success && stepUp.MfaToken == "mfa-token-1" && stepUp.NeedsEnrollment && session.Bootstrap is not null, "in-app step-up asks for a second factor and offers enrolment when none exists");
+Check(tokensSeen.Last().Contains("acr_values="), "step-up sends the multi-factor policy in the token request body");
+var enrolment = await session.BeginOtpEnrollmentAsync(stepUp.MfaToken!, default);
+Check(enrolment.Secret == "JBSWY3DPEHPK3PXP" && enrolment.RecoveryCodes.SequenceEqual(new[] { "RECOVER1234" }) && associations == 1, "enrolment returns the secret and recovery codes once");
+try { await session.CompleteMfaAsync(stepUp.MfaToken!, "000000", false, true, default); throw new Exception("Expected bad code"); }
+catch (AccountSessionException error) { Check(error.Code == "invalid_code" && session.Bootstrap is not null, "a wrong code is reported and the session survives"); }
+Check(await session.CompleteMfaAsync(stepUp.MfaToken!, "123 456", false, true, default) is null && session.Workspace == workspaceBeforeStepUp, "a good code completes step-up in the app and preserves the workspace");
+var challenged = await session.PasswordLoginAsync("pilot@example.invalid", "correct-horse", false, default);
+Check(!challenged.Success && !challenged.NeedsEnrollment, "an enrolled account is challenged, not re-enrolled, at the next sign-in");
+Check(await session.CompleteMfaAsync(challenged.MfaToken!, "RECOVER-1234", true, false, default) == "REPLACEMENT99", "a recovery code signs in and yields its replacement");
+try { await session.CompleteMfaAsync("stale", "123456", false, false, default); throw new Exception("Expected expiry"); }
+catch (AccountSessionException error) { Check(error.Code == "mfa_expired", "an expired challenge asks the pilot to start again"); }
+mode = "password-grant-disabled";
+try { await session.PasswordLoginAsync("pilot@example.invalid", "correct-horse", false, default); throw new Exception("Expected disabled grant"); }
+catch (AccountSessionException error) { Check(error.Code == "password_grant_disabled", "a tenant without the password grant points pilots to the browser"); }
+mode = "online";
+await session.SignUpAsync("new@example.invalid", "correct-horse", default);
+Check(signups.Count == 1 && signups[0].Contains("Username-Password-Authentication") && !signups[0].Contains("access_token"), "sign-up posts to the database connection");
+try { await session.SignUpAsync("taken@example.invalid", "correct-horse", default); throw new Exception("Expected duplicate"); }
+catch (AccountSessionException error) { Check(error.Code == "user_exists", "an existing address is explained"); }
+try { await session.SignUpAsync("new2@example.invalid", "weak", default); throw new Exception("Expected weak password"); }
+catch (AccountSessionException error) { Check(error.Code == "invalid_password", "a weak password is explained"); }
+await session.RequestPasswordResetAsync("pilot@example.invalid", default);
+Check(resets == 1, "password reset request reaches the provider");
+var again = await session.PasswordLoginAsync("pilot@example.invalid", "correct-horse", false, default);
+await session.CompleteMfaAsync(again.MfaToken!, "123456", false, false, default);
+Check(session.Bootstrap is not null && !session.IsOffline, "signing back in after a cleared attempt restores the session");
+var choices = 0;
+mode = "mfa-required"; airlineCreates = 0;
+var viaApp = await session.WithStepUpAsync(() => session.CreateAirlineAsync(new("App Airline", "app-airline", "APP"), default),
+    () => { choices++; mode = "online"; return Task.FromResult(StepUpChoice.Completed); }, default);
+Check(viaApp.Name == "Created Airline" && airlineCreates == 2 && choices == 1, "an in-app security check retries without opening the browser");
+Check(SystemLoginBrowser.CallbackPage(false).Contains("You’re signed in") && SystemLoginBrowser.CallbackPage(true).Contains("didn’t complete") && !SystemLoginBrowser.CallbackPage(false).Contains("<script"), "the browser callback page is branded and script-free");
 await BrowserChecks.RunAsync(Check);
 Console.WriteLine($"{count} desktop identity checks passed. Artifacts: {directory}");
 

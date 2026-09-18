@@ -5,6 +5,7 @@ namespace Alpha6Ops.Server;
 
 public static class AccountApi
 {
+    private static Task<byte[]> ReadImage(HttpContext c, CancellationToken ct) => AccountApiSupport.ReadImage(c, ct);
     public static void MapAccountApi(this WebApplication app)
     {
         var api = app.MapGroup("/api/v1").RequireAuthorization("desktop").RequireRateLimiting("requests");
@@ -21,6 +22,11 @@ public static class AccountApi
         api.MapGet("/virtual-airlines/{id:guid}/members", (HttpContext c, AccountsService s, Guid id, CancellationToken ct) => s.ListMembersAsync(Actor(c), id, ct));
         api.MapGet("/virtual-airlines/{id:guid}/invitations", (HttpContext c, AccountsService s, Guid id, CancellationToken ct) => s.ListInvitationsAsync(Actor(c), id, ct));
         api.MapGet("/virtual-airlines/{id:guid}/activity", (HttpContext c, AccountsService s, Guid id, CancellationToken ct) => s.ListActivityAsync(Actor(c), id, ct));
+        // Images arrive as the raw request body (image/png, image/jpeg or image/webp); validation is by content.
+        api.MapPut("/me/avatar", async (HttpContext c, AccountsService s, CancellationToken ct) => s.SetAvatarAsync(Actor(c), await ReadImage(c, ct), ct));
+        api.MapDelete("/me/avatar", async (HttpContext c, AccountsService s, CancellationToken ct) => { await s.RemoveAvatarAsync(Actor(c), ct); return Results.NoContent(); });
+        api.MapPut("/virtual-airlines/{id:guid}/logo", async (HttpContext c, AccountsService s, Guid id, CancellationToken ct) => s.SetAirlineLogoAsync(Actor(c), id, await ReadImage(c, ct), ct));
+        api.MapDelete("/virtual-airlines/{id:guid}/logo", async (HttpContext c, AccountsService s, Guid id, CancellationToken ct) => { await s.RemoveAirlineLogoAsync(Actor(c), id, ct); return Results.NoContent(); });
         api.MapGet("/me/flights", (HttpContext c, AccountsService s, int page, int pageSize, CancellationToken ct) => s.ListFlightsAsync(Actor(c), page == 0 ? 1 : page, pageSize == 0 ? 50 : pageSize, ct));
         api.MapGet("/me/flights/summary", (HttpContext c, AccountsService s, CancellationToken ct) => s.LogbookSummaryAsync(Actor(c), ct));
         api.MapPost("/me/flights", (HttpContext c, AccountsService s, FlightLogRequest request, CancellationToken ct) => s.AddFlightAsync(Actor(c), request, "desktop", ct));
@@ -51,3 +57,19 @@ public static class AccountApi
 }
 
 public sealed record AcceptInvitationBody(string Token);
+
+public static partial class AccountApiSupport
+{
+    public static async Task<byte[]> ReadImage(HttpContext context, CancellationToken ct)
+    {
+        if (context.Request.ContentLength is > ImageRules.MaxBytes) throw new IdentityException("invalid_image", "Images must be 1 MB or smaller.", 413);
+        using var buffer = new MemoryStream();
+        var chunk = new byte[16384]; int read;
+        while ((read = await context.Request.Body.ReadAsync(chunk, ct)) > 0)
+        {
+            if (buffer.Length + read > ImageRules.MaxBytes) throw new IdentityException("invalid_image", "Images must be 1 MB or smaller.", 413);
+            buffer.Write(chunk, 0, read);
+        }
+        return buffer.ToArray();
+    }
+}

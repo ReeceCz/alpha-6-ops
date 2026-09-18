@@ -120,10 +120,14 @@ internal abstract class PortalDialog : Window
         status.Text = message; status.Visibility = string.IsNullOrEmpty(message) ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    // Identity confirmation opens the browser; the pilot decides before anything leaves the app.
-    protected Task<bool> ConfirmStepUpAsync() => ConfirmOverride?.Invoke() ?? Task.FromResult(OpsConfirmWindow.Ask(this, "Confirm your identity",
-        "This action needs a fresh security check. Your browser will open so you can confirm with your authenticator or passkey, then the request continues here.",
-        "Not now", "Continue in browser"));
+    // Identity confirmation happens in the app (password + authenticator code) unless the pilot chooses the browser.
+    protected async Task<StepUpChoice> ConfirmStepUpAsync()
+    {
+        if (ConfirmOverride is not null) return await ConfirmOverride() ? StepUpChoice.Browser : StepUpChoice.Cancelled;
+        var dialog = new StepUpWindow(this, Account);
+        dialog.ShowDialog();
+        return dialog.Result;
+    }
 
     // Diagnostic hooks: the smoke fixtures drive dialogs without modal loops or confirmation windows.
     internal Func<Task<bool>>? ConfirmOverride { get; set; }
@@ -171,12 +175,36 @@ internal sealed class ProfileWindow : PortalDialog
     private readonly ComboBox weight, altitude, landing, workspace, timeZone;
     private readonly string? settingsDirectory;
     internal UserProfile? Saved { get; private set; }
+    internal bool PictureChanged { get; private set; }
 
     internal ProfileWindow(Window owner, DesktopAccountSession account, string? settingsDirectory)
         : base(owner, account, "PILOT PROFILE", "Your pilot profile", "Kept with your account, so every installation picks up the same SimBrief details, units and preferences.", "Save profile", 640, 720)
     {
         this.settingsDirectory = settingsDirectory;
         var profile = account.Profile;
+        var pictureRow = new Grid(); pictureRow.ColumnDefinitions.Add(new() { Width = GridLength.Auto }); pictureRow.ColumnDefinitions.Add(new());
+        var preview = new Border { Width = 64, Height = 64, Background = OpsUi.Brush("#0F1922"), BorderBrush = OpsUi.Brush("#3A4B5B"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Margin = new Thickness(0, 0, 16, 0) };
+        var previewText = new TextBlock { Text = profile.AvatarInitials.Length > 0 ? profile.AvatarInitials : "A6", FontFamily = new FontFamily("Consolas"), FontSize = 18, FontWeight = FontWeights.SemiBold, Foreground = OpsUi.Brush("#E5C44A"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        preview.Child = previewText;
+        var pictureButtons = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        pictureButtons.Children.Add(Caption("Profile picture"));
+        var pictureActions = new StackPanel { Orientation = Orientation.Horizontal };
+        var choose = new Button { Content = "Choose picture…", Style = (Style)FindResource("PortalButton"), Padding = new Thickness(14, 8, 14, 8), Margin = new Thickness(0, 0, 10, 0) };
+        choose.Click += async (_, _) => await RunAsync(async () =>
+        {
+            var picked = ImagePicker.Pick(this, "Choose a profile picture");
+            if (picked is null) return;
+            await Account.SetAvatarAsync(picked.Value.Bytes, picked.Value.ContentType, Lifetime.Token);
+            PictureChanged = true; preview.Child = AccountWindow.ImageTile(picked.Value.Bytes, 64) ?? previewText; SetStatus("Picture updated.");
+        });
+        var remove = new Button { Content = "Remove", Style = (Style)FindResource("PortalLink"), Visibility = profile.AvatarUrl.Length > 0 ? Visibility.Visible : Visibility.Collapsed };
+        remove.Click += async (_, _) => await RunAsync(async () => { await Account.RemoveAvatarAsync(Lifetime.Token); PictureChanged = true; preview.Child = previewText; remove.Visibility = Visibility.Collapsed; SetStatus("Picture removed."); });
+        pictureActions.Children.Add(choose); pictureActions.Children.Add(remove);
+        pictureButtons.Children.Add(pictureActions);
+        pictureButtons.Children.Add(new TextBlock { Text = "PNG, JPEG or WebP up to 1 MB. Shown on your account, to your crew and on the website.", FontSize = 11, Foreground = OpsUi.Brush("#8FA3B1"), Margin = new Thickness(0, 6, 0, 0) });
+        Grid.SetColumn(pictureButtons, 1); pictureRow.Children.Add(preview); pictureRow.Children.Add(pictureButtons);
+        Body.Children.Add(pictureRow); Body.Children.Add(new Border { Height = 18 });
+        if (profile.AvatarUrl.Length > 0) Loaded += async (_, _) => { var bytes = await account.FetchMediaAsync(profile.AvatarUrl, Lifetime.Token); if (bytes is not null && AccountWindow.ImageTile(bytes, 64) is { } tile) preview.Child = tile; };
         simBrief = Field("SimBrief username", profile.SimBriefUsername, 80, "Used to fetch your OFP in Dispatch. Leave blank if you don’t use SimBrief.");
         var row = new Grid(); row.ColumnDefinitions.Add(new()); row.ColumnDefinitions.Add(new() { Width = new GridLength(16) }); row.ColumnDefinitions.Add(new());
         callsign = new TextBox { Style = (Style)FindResource("PortalInput"), Text = profile.Callsign, MaxLength = 20, CharacterCasing = CharacterCasing.Upper };
@@ -429,6 +457,13 @@ internal sealed class AirlineMembersWindow : PortalDialog
         toolbar.Children.Add(Tool("Invite member", async () => { var dialog = new InviteMemberWindow(this, Account, airline); dialog.ShowDialog(); if (dialog.Issued is not null) await LoadAsync(); }, primary: true));
         if (airline.Roles.Contains(AirlineRole.Owner))
             toolbar.Children.Add(Tool("Airline level", () => { var dialog = new PlanSelectionWindow(this, Account, airline); dialog.ShowDialog(); if (dialog.Changed) { Changed = true; } return Task.CompletedTask; }));
+        toolbar.Children.Add(Tool("Airline logo", async () =>
+        {
+            var picked = ImagePicker.Pick(this, "Choose a logo for " + airline.Name);
+            if (picked is null) return;
+            await Account.SetAirlineLogoAsync(airline.Id, picked.Value.Bytes, picked.Value.ContentType, Lifetime.Token);
+            Changed = true; SetStatus("Logo updated. It appears on the airline card and the website.");
+        }));
         toolbar.Children.Add(Tool("Refresh", LoadAsync));
         Body.Children.Add(toolbar);
         Body.Children.Add(Eyebrow("MEMBERS", "#C9D4DC")); Body.Children.Add(new Border { Height = 8 });

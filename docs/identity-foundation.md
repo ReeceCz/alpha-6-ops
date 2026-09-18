@@ -141,6 +141,23 @@ this plan.
 `personal` always opens the pilot workspace, and `portal` stops on the workspace picker every time the
 desktop restores a saved session.
 
+### In-app sign-in (18 September)
+
+The desktop signs pilots in without leaving the window: email and password go to Auth0's `password-realm`
+grant (`DesktopAccountSession.PasswordLoginAsync`); an `mfa_required` answer opens `MfaWindow`, which
+verifies an authenticator code, enrols one when the account has none (`/mfa/associate`, secret shown for
+manual entry, recovery codes shown once) or accepts a recovery code (the replacement is shown once).
+Administrative step-up runs the same way through `StepUpWindow` — password plus code — with
+`acr_values` in the token body so the `01 Security Challenge` action demands the factor; the browser
+remains one click away for passkeys and Microsoft/Google. Sign-up (`/dbconnections/signup`) and password
+reset (`/dbconnections/change_password`) are in-app too. Passwords are used for the one request and never
+stored, logged or cached. The browser callback page (`SystemLoginBrowser.CallbackPage`) is a branded,
+script-free HTML page for pilots who do use the browser path.
+
+Also in the app: profile pictures (Profile → Choose picture…), airline logos (Manage → Airline logo), logo
+and avatar rendering on the workspace selector, and the account logbook (Logbook → Import a CSV file…,
+undo the last import, open the full logbook on the web).
+
 ### Web portal (17 September)
 
 The website mirrors the desktop for account administration: `/Account` (status, personal level,

@@ -1,0 +1,21 @@
+# Keep the build context to sources: no local runtimes, outputs, secrets or node trees.
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+work/
+outputs/
+apps/
+datasets/
+samples/
+docs/
+packaging/
+tests/
+.git/
+.github/
+*.user
+*.log
+*.dmp
+.env
+simconnect-sdk-path.txt
+src/Alpha6Ops.Desktop/alpha6-identity.json

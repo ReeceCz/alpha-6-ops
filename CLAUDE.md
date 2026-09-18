@@ -61,7 +61,7 @@ path first.
 | `packaging` | Offline desktop packaging and installer source |
 | `samples` | SDK-free telemetry fixtures |
 | `datasets` | Aircraft catalog source data |
-| `docs` | Architecture, data model, roadmap, SimConnect boundary, validation |
+| `docs` | Architecture, data model, roadmap, SimConnect boundary, validation, hosting (`docs/hosting.md`) |
 
 ## Not in source control
 

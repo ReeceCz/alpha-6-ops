@@ -20,9 +20,10 @@ Set configuration through environment variables, a deployment secret store, or .
 | `Auth0__ClientSecret` | Regular Web Application client secret; server only |
 | `ConnectionStrings__Accounts` | PostgreSQL connection string; production uses certificate-verified TLS (`SSL Mode=VerifyFull`) |
 | `AllowedHosts` | Exact portal host names separated by semicolons |
-| `DataProtection__KeyDirectory` | Persistent writable key-ring directory, shared by replicas |
-| `DataProtection__CertificatePath` | Readable mounted PFX with its private key |
+| `DataProtection__KeyDirectory` | Persistent writable key-ring directory, shared by replicas; leave unset to keep the key ring in the account database (`data_protection_key`) |
+| `DataProtection__CertificatePath` | Readable mounted PFX with its private key — or `DataProtection__CertificateBase64` with the PFX as base64 (`scripts/new-keyring-certificate.ps1`) |
 | `DataProtection__CertificatePassword` | PFX password supplied as a secret |
+| `Hosting__BehindProxy` | `true` behind a hosting proxy (Render): honours `X-Forwarded-Proto`/`For` |
 | `Release__DownloadUrl` | HTTPS URL of the actual signed installer |
 | `Release__Version` | Matching release version |
 | `Release__Sha256` | Matching 64-character SHA-256 checksum |

@@ -71,6 +71,29 @@ foreach (var productionConnection in new string?[] { null, connection })
 using var host = new ServerFactory(connection);
 using var anonymous = host.CreateClient(new() { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
 using (var scope = host.Services.CreateScope()) await scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Database.MigrateAsync();
+// Hosted (disk-less) production: certificate from configuration, key ring in the account database, shared by replicas.
+string hostedPfx;
+using (var rsa = RSA.Create(2048))
+{
+    var request = new System.Security.Cryptography.X509Certificates.CertificateRequest("CN=Alpha6Ops test keyring", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+    using var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(1));
+    hostedPfx = Convert.ToBase64String(certificate.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Pfx, "test-pfx"));
+}
+string protectedValue;
+using (var hosted = new ServerFactory(connection, "Production", hostedPfx))
+{
+    using var hostedClient = hosted.CreateClient(new() { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
+    Check((await hostedClient.GetStringAsync("/healthz")) == "ok", "Hosted production starts with a base64 certificate and database key ring");
+    protectedValue = hosted.Services.GetRequiredService<IDataProtectionProvider>().CreateProtector("hosting-check").Protect("same sky");
+    using var scope = hosted.Services.CreateScope();
+    Check(await scope.ServiceProvider.GetRequiredService<AccountsDbContext>().DataProtectionKeys.AnyAsync(), "Data-protection keys are persisted in the database");
+    using var proxied = new HttpRequestMessage(HttpMethod.Get, "http://localhost/healthz");
+    proxied.Headers.Add("X-Forwarded-Proto", "https");
+    Check((await hostedClient.SendAsync(proxied)).StatusCode == HttpStatusCode.OK, "Requests arriving through the hosting proxy are treated as HTTPS");
+}
+using (var replica = new ServerFactory(connection, "Production", hostedPfx))
+    Check(replica.Services.GetRequiredService<IDataProtectionProvider>().CreateProtector("hosting-check").Unprotect(protectedValue) == "same sky", "A second instance reads the same key ring, so cookies survive deploys");
+Check((await anonymous.GetStringAsync("/healthz")) == "ok", "Health endpoint answers without authentication");
 Check((await anonymous.GetAsync("/api/v1/me/bootstrap")).StatusCode == HttpStatusCode.Unauthorized, "Anonymous API is 401, never a browser redirect");
 Check((await anonymous.GetStringAsync("/Levels")).Contains("href=\"/auth/signup\""), "Configured levels page sends new visitors to sign-up");
 var run = Guid.NewGuid().ToString("N");
@@ -266,7 +289,7 @@ Check(anonymousLimited, "Anonymous authentication traffic is rate limited before
 Console.WriteLine($"Server integration tests complete: {failures} failures.");
 return failures == 0 ? 0 : 1;
 
-sealed class ServerFactory(string? connection, string environment = "Development") : WebApplicationFactory<ServerSettings>
+sealed class ServerFactory(string? connection, string environment = "Development", string? certificateBase64 = null) : WebApplicationFactory<ServerSettings>
 {
     private readonly RSA key = RSA.Create(2048);
     internal const string Issuer = "https://identity.example.test/";
@@ -282,9 +305,12 @@ sealed class ServerFactory(string? connection, string environment = "Development
         builder.UseSetting("ConnectionStrings:Accounts", connection ?? "");
         builder.UseSetting("DataProtection:KeyDirectory", "");
         builder.UseSetting("DataProtection:CertificatePath", "");
+        builder.UseSetting("DataProtection:CertificateBase64", certificateBase64 ?? "");
+        builder.UseSetting("DataProtection:CertificatePassword", certificateBase64 is null ? "" : "test-pfx");
+        builder.UseSetting("Hosting:BehindProxy", certificateBase64 is null ? "" : "true");
         builder.ConfigureServices(services =>
         {
-            services.AddDataProtection().UseEphemeralDataProtectionProvider();
+            if (certificateBase64 is null) services.AddDataProtection().UseEphemeralDataProtectionProvider();
             services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
             {
             var config = new OpenIdConnectConfiguration { Issuer = Issuer };

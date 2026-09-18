@@ -1,0 +1,38 @@
+# Render blueprint for the Alpha 6 OPS account server (free tier, testing phase).
+# Database: a Neon PostgreSQL project; paste its pooled connection string into ConnectionStrings__Accounts.
+# Secrets marked sync: false are entered in the Render dashboard, never committed.
+services:
+  - type: web
+    name: alpha6ops
+    runtime: docker
+    plan: free
+    region: ohio
+    dockerfilePath: ./src/Alpha6Ops.Server/Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: Hosting__BehindProxy
+        value: "true"
+      - key: Auth0__Authority
+        value: https://dev-2m805d64kx5233sh.us.auth0.com/
+      - key: Auth0__Audience
+        value: https://api.alpha6ops.dev
+      - key: Auth0__ClientId
+        sync: false
+      - key: Auth0__ClientSecret
+        sync: false
+      - key: ConnectionStrings__Accounts
+        sync: false
+      - key: DataProtection__CertificateBase64
+        sync: false
+      - key: DataProtection__CertificatePassword
+        sync: false
+      - key: Release__DownloadUrl
+        sync: false
+      - key: Release__Version
+        sync: false
+      - key: Release__Sha256
+        sync: false

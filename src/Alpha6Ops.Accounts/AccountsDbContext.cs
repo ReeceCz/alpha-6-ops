@@ -15,6 +15,7 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
     public DbSet<AirlineAircraft> Fleet => Set<AirlineAircraft>();
     public DbSet<PilotFlight> Flights => Set<PilotFlight>();
     public DbSet<MediaBlob> Media => Set<MediaBlob>();
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -93,6 +94,9 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
         media.HasIndex(x => new { x.Kind, x.OwnerId }).IsUnique();
         media.Property(x => x.Kind).HasMaxLength(20); media.Property(x => x.ContentType).HasMaxLength(40);
         media.Property(x => x.Sha256).HasMaxLength(64);
+
+        var keys = model.Entity<DataProtectionKey>();
+        keys.ToTable("data_protection_key"); keys.HasKey(x => x.Id); keys.Property(x => x.FriendlyName).HasMaxLength(120);
 
         var audit = model.Entity<AuditEvent>(); audit.ToTable("audit_event"); audit.HasKey(x => x.Id);
         audit.Property(x => x.Action).HasMaxLength(80); audit.Property(x => x.Details).HasMaxLength(2000);

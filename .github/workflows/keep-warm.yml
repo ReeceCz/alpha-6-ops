@@ -1,0 +1,18 @@
+# Keeps the free Render instance from sleeping during the testing phase. Set the repository variable
+# ALPHA6_HEALTH_URL (Settings → Secrets and variables → Actions → Variables) to https://<service>.onrender.com/healthz.
+# Without the variable the job exits immediately, so the workflow is harmless on other forks.
+name: keep-warm
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        env:
+          URL: ${{ vars.ALPHA6_HEALTH_URL }}
+        run: |
+          if [ -z "$URL" ]; then echo "ALPHA6_HEALTH_URL not set; nothing to do"; exit 0; fi
+          curl --silent --show-error --max-time 60 --retry 2 "$URL" && echo

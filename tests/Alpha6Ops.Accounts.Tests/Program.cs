@@ -139,7 +139,7 @@ await using (var db = Context())
     Check(!db.Database.HasPendingModelChanges(), "migration snapshot matches current model");
     await db.Database.MigrateAsync();
     await db.Database.MigrateAsync();
-    Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 5, "migrations are repeatable");
+    Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 6, "migrations are repeatable");
 }
 var prefix = Guid.NewGuid().ToString("N")[..10];
 actor = actor with { Subject = prefix + "-owner", Email = prefix + "-owner@example.com" };

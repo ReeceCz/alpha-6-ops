@@ -151,6 +151,14 @@ public sealed class MediaBlob
     public DateTimeOffset UpdatedAt { get; set; }
 }
 
+// ASP.NET Core data-protection key ring, so hosts without a persistent disk keep cookies valid across deploys.
+public sealed class DataProtectionKey
+{
+    public int Id { get; set; }
+    public string FriendlyName { get; set; } = "";
+    public string Xml { get; set; } = "";
+}
+
 public sealed class AuditEvent
 {
     public Guid Id { get; set; }

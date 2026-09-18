@@ -33,18 +33,39 @@ if (!settings.IsConfigured && !builder.Environment.IsDevelopment())
 // Console output is portable on Windows and Azure and does not require Event Log privileges.
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
+// Key ring: a writable directory when one exists (self-hosting), otherwise the account database (Render,
+// containers). Keys are always encrypted with a certificate supplied as a file or as base64 PFX in configuration.
 var protection = builder.Services.AddDataProtection().SetApplicationName("Alpha6Ops.Server");
 var keyDirectory = builder.Configuration["DataProtection:KeyDirectory"];
 var certificatePath = builder.Configuration["DataProtection:CertificatePath"];
-if (!builder.Environment.IsDevelopment() && (string.IsNullOrWhiteSpace(keyDirectory) || string.IsNullOrWhiteSpace(certificatePath)))
-    throw new InvalidOperationException("Production requires DataProtection KeyDirectory and CertificatePath for a persistent encrypted cookie key ring.");
-if (!string.IsNullOrWhiteSpace(keyDirectory) && !string.IsNullOrWhiteSpace(certificatePath))
+var certificateBase64 = builder.Configuration["DataProtection:CertificateBase64"];
+var certificatePassword = builder.Configuration["DataProtection:CertificatePassword"];
+var hasCertificate = !string.IsNullOrWhiteSpace(certificatePath) || !string.IsNullOrWhiteSpace(certificateBase64);
+var keysInDatabase = string.IsNullOrWhiteSpace(keyDirectory) && settings.IsConfigured;
+if (!builder.Environment.IsDevelopment() && (!hasCertificate || (string.IsNullOrWhiteSpace(keyDirectory) && !keysInDatabase)))
+    throw new InvalidOperationException("Production requires a DataProtection certificate (CertificatePath or CertificateBase64) and a key store (KeyDirectory, or the Accounts database).");
+if (hasCertificate)
 {
-    var certificate = X509CertificateLoader.LoadPkcs12FromFile(certificatePath, builder.Configuration["DataProtection:CertificatePassword"], X509KeyStorageFlags.EphemeralKeySet);
+    var certificate = !string.IsNullOrWhiteSpace(certificatePath)
+        ? X509CertificateLoader.LoadPkcs12FromFile(certificatePath, certificatePassword, X509KeyStorageFlags.EphemeralKeySet)
+        : X509CertificateLoader.LoadPkcs12(Convert.FromBase64String(certificateBase64!.Trim()), certificatePassword, X509KeyStorageFlags.EphemeralKeySet);
     if (!certificate.HasPrivateKey || certificate.NotAfter.ToUniversalTime() <= DateTime.UtcNow)
         throw new InvalidOperationException("The data-protection certificate must include a private key and be unexpired.");
-    protection.PersistKeysToFileSystem(new DirectoryInfo(keyDirectory)).ProtectKeysWithCertificate(certificate);
+    protection.ProtectKeysWithCertificate(certificate);
+    if (!string.IsNullOrWhiteSpace(keyDirectory)) protection.PersistKeysToFileSystem(new DirectoryInfo(keyDirectory));
+    else if (keysInDatabase)
+        builder.Services.AddSingleton<IConfigureOptions<Microsoft.AspNetCore.DataProtection.KeyManagement.KeyManagementOptions>>(sp =>
+            new ConfigureOptions<Microsoft.AspNetCore.DataProtection.KeyManagement.KeyManagementOptions>(o => o.XmlRepository = new DatabaseXmlRepository(sp.GetRequiredService<IServiceScopeFactory>())));
 }
+// Behind a hosting proxy (Render) the app sees plain HTTP; the forwarded scheme keeps OIDC redirect URIs and
+// cookies https. Opt-in only: trusting these headers from arbitrary clients would let them spoof their address.
+var behindProxy = string.Equals(builder.Configuration["Hosting:BehindProxy"], "true", StringComparison.OrdinalIgnoreCase);
+if (behindProxy)
+    builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(o =>
+    {
+        o.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
+        o.KnownIPNetworks.Clear(); o.KnownProxies.Clear();
+    });
 builder.Services.AddSingleton(settings);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.Configure<ReleaseSettings>(builder.Configuration.GetSection("Release"));
@@ -159,6 +180,7 @@ if (settings.IsConfigured)
 builder.Services.AddAuthorization(o => o.AddPolicy("desktop", policy =>
     policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme).RequireAuthenticatedUser()));
 var app = builder.Build();
+if (behindProxy) app.UseForwardedHeaders();
 app.UseExceptionHandler("/Error");
 if (!app.Environment.IsDevelopment()) app.UseHsts();
 app.Use(async (context, next) =>
@@ -171,6 +193,12 @@ app.Use(async (context, next) =>
     context.Response.Headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
     if (context.Request.Path.StartsWithSegments("/Account") || context.Request.Path.StartsWithSegments("/api") || context.Request.Path.StartsWithSegments("/auth"))
         context.Response.Headers.CacheControl = "no-store";
+    if (context.Request.Path.Equals("/healthz", StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.Headers.CacheControl = "no-store";
+        await context.Response.WriteAsync(settings.IsConfigured ? "ok" : "unconfigured");
+        return;
+    }
     if (!settings.IsConfigured && (context.Request.Path.StartsWithSegments("/auth") || context.Request.Path.StartsWithSegments("/Account")
         || (context.Request.Path.StartsWithSegments("/api") && !context.Request.Path.StartsWithSegments("/api/v1/release"))))
     {

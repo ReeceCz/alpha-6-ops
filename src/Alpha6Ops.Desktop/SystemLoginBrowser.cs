@@ -17,10 +17,12 @@ internal sealed class SystemLoginBrowser : IBrowser, IDisposable
     private readonly Action<string> openBrowser;
     private readonly TimeSpan loginTimeout;
     private readonly TimeSpan requestTimeLimit;
+    private readonly string? portalUrl;
     internal string RedirectUri { get; }
     internal BrowserResultType? LastResultType { get; private set; }
-    internal SystemLoginBrowser(int port, Action<string>? browserLauncher = null, TimeSpan? timeout = null, TimeSpan? requestTimeout = null)
+    internal SystemLoginBrowser(int port, Action<string>? browserLauncher = null, TimeSpan? timeout = null, TimeSpan? requestTimeout = null, string? portalUrl = null)
     {
+        this.portalUrl = portalUrl;
         openBrowser = browserLauncher ?? (url => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }));
         loginTimeout = timeout ?? TimeSpan.FromMinutes(3);
         requestTimeLimit = requestTimeout ?? TimeSpan.FromSeconds(3);
@@ -64,7 +66,7 @@ internal sealed class SystemLoginBrowser : IBrowser, IDisposable
                         continue;
                     }
                     var failed = line[1].Contains("error=", StringComparison.Ordinal);
-                    var body = Encoding.UTF8.GetBytes(CallbackPage(failed));
+                    var body = Encoding.UTF8.GetBytes(CallbackPage(failed, portalUrl));
                     var reply = $"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {body.Length}\r\nCache-Control: no-store\r\nReferrer-Policy: no-referrer\r\nContent-Security-Policy: default-src 'none'; style-src 'unsafe-inline'\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n";
                     await stream.WriteAsync(Encoding.ASCII.GetBytes(reply), timeout.Token);
                     await stream.WriteAsync(body, timeout.Token);
@@ -87,8 +89,14 @@ internal sealed class SystemLoginBrowser : IBrowser, IDisposable
 
     // The page the browser lands on after the provider redirects back. Self-contained: no scripts, no
     // external requests, nothing that could carry the authorization code anywhere else.
-    internal static string CallbackPage(bool failed)
+    internal static string CallbackPage(bool failed, string? portalUrl = null)
     {
+        // Operators often want the web console open alongside the app: schedules, fleet, crew and invitations
+        // live there. The browser already holds the provider session, so the portal signs in without a prompt.
+        var portal = portalUrl is { Length: > 0 } && Uri.TryCreate(portalUrl, UriKind.Absolute, out var uri) && uri.Scheme == "https"
+            ? System.Net.WebUtility.HtmlEncode(uri.GetLeftPart(UriPartial.Authority) + "/Account") : null;
+        var actions = failed || portal is null ? ""
+            : "<div class=\"actions\"><a class=\"button\" href=\"" + portal + "\">Open the web console</a><span class=\"hint\">Schedules, fleet, crew and invitations — for airline administrators and dispatchers. Keep it open next to the app.</span></div>";
         // The app still exchanges the code and loads the account after this page appears, so the copy promises
         // only what has happened: the browser part is done.
         var title = failed ? "Sign-in didn’t complete" : "Almost there";
@@ -102,8 +110,9 @@ internal sealed class SystemLoginBrowser : IBrowser, IDisposable
             + ".brand span{font-size:18px;font-weight:600;letter-spacing:.5px}.status{display:flex;align-items:center;gap:10px;font:11px Consolas,monospace;letter-spacing:1.2px;color:#9eafbd;margin-bottom:14px}"
             + ".dot{width:8px;height:8px;border-radius:50%;background:#5fae6e;box-shadow:0 0 8px #5fae6e99}.dot.warn{background:#e5c44a;box-shadow:0 0 8px #e5c44a99}"
             + "h1{font-size:30px;letter-spacing:-1px;margin:0 0 10px}p{color:#9eafbd;line-height:1.6;margin:0 0 22px}.line{width:26px;height:2px;background:#e5c44a;margin:0 0 18px}"
+            + ".actions{display:flex;flex-wrap:wrap;align-items:center;gap:16px;margin:0 0 24px}.button{display:inline-block;padding:11px 20px;border-radius:6px;background:#e5c44a;color:#101923;font-weight:600;text-decoration:none;font-size:14px}.button:hover{background:#efd879}.hint{flex:1;min-width:200px;font-size:12px;color:#9eafbd;line-height:1.5}"
             + "footer{font:10px Consolas,monospace;letter-spacing:1px;color:#6e828f;text-transform:uppercase}</style></head><body><div class=\"card\">"
             + "<div class=\"brand\"><div class=\"mark\">A6</div><span>ALPHA 6 OPS</span></div><div class=\"status\">" + mark + "</div><div class=\"line\"></div>"
-            + "<h1>" + title + "</h1><p>" + lead + "</p><footer>Same sky. A brighter tomorrow.</footer></div></body></html>";
+            + "<h1>" + title + "</h1><p>" + lead + "</p>" + actions + "<footer>Same sky. A brighter tomorrow.</footer></div></body></html>";
     }
 }

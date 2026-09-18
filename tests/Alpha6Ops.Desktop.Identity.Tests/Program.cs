@@ -327,6 +327,9 @@ var viaApp = await session.WithStepUpAsync(() => session.CreateAirlineAsync(new(
     () => { choices++; mode = "online"; return Task.FromResult(StepUpChoice.Completed); }, default);
 Check(viaApp.Name == "Created Airline" && airlineCreates == 2 && choices == 1, "an in-app security check retries without opening the browser");
 Check(SystemLoginBrowser.CallbackPage(false).Contains("Almost there") && SystemLoginBrowser.CallbackPage(true).Contains("didn’t complete") && !SystemLoginBrowser.CallbackPage(false).Contains("<script"), "the browser callback page is branded and script-free");
+Check(SystemLoginBrowser.CallbackPage(false, "https://portal.example.invalid/").Contains("href=\"https://portal.example.invalid/Account\"") && !SystemLoginBrowser.CallbackPage(true, "https://portal.example.invalid/").Contains("web console")
+    && !SystemLoginBrowser.CallbackPage(false, "javascript:alert(1)").Contains("href="), "the callback page offers the web console only for a successful sign-in and only for an HTTPS portal");
+File.WriteAllText(Path.Combine(directory, "callback-preview.html"), SystemLoginBrowser.CallbackPage(false, "https://localhost:7246/"));
 await BrowserChecks.RunAsync(Check);
 Console.WriteLine($"{count} desktop identity checks passed. Artifacts: {directory}");
 

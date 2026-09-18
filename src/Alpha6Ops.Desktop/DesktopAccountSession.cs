@@ -82,7 +82,7 @@ internal sealed class DesktopAccountSession
 
     private async Task<BrowserLoginResult> LoginInBrowserAsync(LoginRequest request, CancellationToken token)
     {
-        using var browser = new SystemLoginBrowser(Configuration.CallbackPort);
+        using var browser = new SystemLoginBrowser(Configuration.CallbackPort, portalUrl: Configuration.PortalUrl);
         var result = await Client(browser).LoginAsync(request, token);
         token.ThrowIfCancellationRequested();
         if (browser.LastResultType == Duende.IdentityModel.OidcClient.Browser.BrowserResultType.Timeout)

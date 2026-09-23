@@ -305,6 +305,32 @@ if (created.IsSuccessStatusCode)
         var branded = await pilot.GetFromJsonAsync<AirlineWorkspace>($"/api/v1/virtual-airlines/{airline.Id}");
         Check(logoUpload.StatusCode == HttpStatusCode.Redirect && branded?.LogoUrl.StartsWith("/media/airline-logo/") == true && (await anonymous.GetAsync(branded.LogoUrl)).IsSuccessStatusCode, "Airline logo upload through the console and served publicly");
         Check((await browser.GetStringAsync($"/Account/Airline/{airline.Id}/Schedule")).Contains(branded!.LogoUrl), "Console header shows the logo");
+        // Design review aid: with S4OPS_PORTAL_SNAPSHOT_DIR set, save every rendered page (and the media it shows) so the
+        // portal can be screenshotted signed in without a real identity provider. Not a check.
+        if (Environment.GetEnvironmentVariable("S4OPS_PORTAL_SNAPSHOT_DIR") is { Length: > 0 } snapshotDir)
+        {
+            await pilot.PostAsJsonAsync("/api/v1/me/flights/import", new LogbookImportRequest("Date;Flight;From;To;Aircraft;Block Time;Landing Rate\n2026-09-20 18:20;S4601;KMKE;KORD;A20N;0:55;-180\n2026-09-21 20:30;S4602;KORD;KDEN;B738;2:35;-240\n"));
+            Directory.CreateDirectory(snapshotDir);
+            var snapshots = new Dictionary<string, (HttpClient Client, string Path)>
+            {
+                ["index"] = (anonymous, "/"), ["levels"] = (anonymous, "/Levels"), ["download"] = (anonymous, "/Download"),
+                ["support"] = (anonymous, "/Support"), ["signed-out"] = (anonymous, "/SignedOut"), ["auth-error"] = (anonymous, "/AuthError"),
+                ["account"] = (browser, "/Account"), ["profile"] = (browser, "/Account/Profile"), ["plan"] = (browser, "/Account/Plan"),
+                ["logbook"] = (browser, "/Account/Logbook"), ["create"] = (browser, "/Account/Create"), ["join"] = (browser, "/Account/Join"),
+                ["airline"] = (browser, $"/Account/Airline/{airline.Id}"), ["schedule"] = (browser, $"/Account/Airline/{airline.Id}/Schedule"),
+                ["fleet"] = (browser, $"/Account/Airline/{airline.Id}/Fleet")
+            };
+            foreach (var (name, target) in snapshots)
+                await File.WriteAllTextAsync(Path.Combine(snapshotDir, name + ".html"), await target.Client.GetStringAsync(target.Path));
+            foreach (var mediaUrl in new[] { profileWithAvatar!.AvatarUrl, branded.LogoUrl })
+            {
+                var mediaPath = mediaUrl.Split('?')[0];
+                var file = Path.Combine(snapshotDir, mediaPath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+                Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+                await File.WriteAllBytesAsync(file, await anonymous.GetByteArrayAsync(mediaUrl));
+            }
+            Console.WriteLine("Portal snapshot written to " + snapshotDir);
+        }
     }
 }
 using (var limited = host.Client("rate-" + run, "missing-claim"))

@@ -32,7 +32,8 @@ Without the DB env vars, the accounts suite skips its integration part (53 pure 
 | 2026-09-22 | Hosted identifiers (cookies, data-protection app name, Auth0 audience/claims) change **at the Cloudflare cutover**, not during the code rename | Proposed |
 | 2026-09-22 | Stay on free tiers: Cloudflare edge + static landing, Render Free app, Neon Free, Auth0 Free | Reece |
 | 2026-09-22 | Archive `apps/ops-web` (don't delete); sample flight numbers → `S4xxx` | Reece |
-| 2026-09-22 | Desktop data root **moved** (not copied) to `%LOCALAPPDATA%\Sierra4\S4OPS` on first launch, falling back to the old root on failure | Proposed |
+| 2026-09-22 | No users besides Reece: the desktop data migration and installer legacy-upgrade path are dropped, and names are renamed outright | Reece |
+| 2026-09-22 | `app.s4ops.com` proxied by Cloudflare to Render Free; rate limits key on `CF-Connecting-IP` from Cloudflare ranges only (`Hosting__TrustCloudflare`) | Built (commit on `chore/s4-rebrand`) |
 
 ## Answers received 2026-09-22 (Reece)
 
@@ -101,5 +102,7 @@ Without the DB env vars, the accounts suite skips its integration part (53 pure 
 
 ## Next steps
 
-- [ ] Free hybrid: Reece/Dan add DNS records (steps in the checkpoint message); code: add hosts to `Hosting__PublicHosts`, Auth0 URLs.
-- [ ] Phase 2: cut `chore/s4-rebrand` from `accounts`; do step 1 (compat layer, test-first), 2a (rename script), 5a, 6–8 now; steps 2–4 after Dan pushes.
+- [x] Code for `app.s4ops.com` behind Cloudflare (server suite 99/99).
+- [ ] Deploy `chore/s4-rebrand` (or merge to `accounts`) to Render, then follow `docs/hosting.md` "Custom domain through Cloudflare".
+- [ ] Phase 3: design directions for the S4 OPS brand (in progress).
+- [ ] Phase 2: cut `chore/s4-rebrand` from `accounts`; do 2a (rename script), 5a, 6–8 now; steps 2–4 after Dan pushes.

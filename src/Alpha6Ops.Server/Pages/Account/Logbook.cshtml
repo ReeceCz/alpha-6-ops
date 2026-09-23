@@ -1,7 +1,7 @@
 @page "/Account/Logbook"
 @model Alpha6Ops.Server.Pages.Account.LogbookModel
 @{ ViewData["Title"] = "Logbook"; var s = Model.Summary; var book = Model.Flights; var pages = book is null ? 0 : (book.Total + book.PageSize - 1) / book.PageSize; }
-<div class="page-heading"><a href="/Account">← Your workspaces</a><div class="eyebrow">PILOT LOGBOOK</div><h1>Every flight, in one book.</h1><p class="lead">Flights the desktop app files land here automatically. Bring the rest with you: import the logbook you kept on another platform and it counts from day one.</p></div>
+<div class="page-heading"><a href="/Account">← Your workspaces</a><div class="eyebrow">Pilot logbook</div><h1>Every flight, in one book.</h1><p class="lead">Flights the desktop app files land here automatically. Bring the rest with you: import the logbook you kept on another platform and it counts from day one.</p></div>
 @if (Model.Saved is { } saved) { <div class="notice" role="status"><p>@saved</p></div> }
 <partial name="_AccountError" model="Model" />
 @if (Model.Import is { } import) {

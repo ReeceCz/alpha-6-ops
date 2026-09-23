@@ -1,7 +1,7 @@
 @page "/Account/Profile"
 @model Alpha6Ops.Server.Pages.Account.ProfileModel
 @{ ViewData["Title"] = "Pilot profile"; var p = Model.Profile; }
-<div class="page-heading"><a href="/Account">← Your workspaces</a><div class="eyebrow">PILOT PROFILE</div><h1>Your pilot profile.</h1><p class="lead">Kept with your account, so every installation of the desktop app picks up the same SimBrief details, units and preferences.</p></div>
+<div class="page-heading"><a href="/Account">← Your workspaces</a><div class="eyebrow">Pilot profile</div><h1>Your pilot profile.</h1><p class="lead">Kept with your account, so every installation of the desktop app picks up the same SimBrief details, units and preferences.</p></div>
 @if (Model.Saved is { } saved) { <div class="notice" role="status"><p>@saved</p></div> }
 <partial name="_AccountError" model="Model" />
 <div class="grid profile-grid">
@@ -24,13 +24,13 @@
     <label asp-for="AvatarInitials">Avatar initials</label><input asp-for="AvatarInitials" maxlength="3" style="text-transform:uppercase" /><small>Up to 3 letters shown on your account badge when you have no picture. Blank uses your name.</small>
     <button class="button">Save profile</button>
 </form>
-@if (p is not null) { <p class="muted">@(p.LastSeenAt is { } seen ? $"Last desktop sign-in {seen:u}" : "The desktop app has not signed in yet.")@(p.LastSeenVersion.Length > 0 ? $" · Alpha 6 OPS v{p.LastSeenVersion}" : "")</p> }
+@if (p is not null) { <p class="muted">@(p.LastSeenAt is { } seen ? $"Last desktop sign-in {seen:u}" : "The desktop app has not signed in yet.")@(p.LastSeenVersion.Length > 0 ? $" · S4 OPS v{p.LastSeenVersion}" : "")</p> }
 </section>
 <aside class="card avatar-card">
     <h2>Profile picture</h2>
     <div class="avatar-preview">
         @if (p is { AvatarUrl.Length: > 0 }) { <img src="@p.AvatarUrl" alt="Your profile picture" width="128" height="128" /> }
-        else { <span class="avatar-fallback" aria-hidden="true">@(p?.AvatarInitials is { Length: > 0 } i ? i : "A6")</span> }
+        else { <span class="avatar-fallback" aria-hidden="true">@(p?.AvatarInitials is { Length: > 0 } i ? i : "S4")</span> }
     </div>
     <p>Shown on your account, to your crew, and in the desktop app. PNG, JPEG or WebP, up to 1 MB and 2048×2048 pixels. Square images look best.</p>
     <form method="post" asp-page-handler="Avatar" enctype="multipart/form-data" class="stack">

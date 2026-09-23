@@ -32,6 +32,7 @@ Without the DB env vars, the accounts suite skips its integration part (53 pure 
 | 2026-09-22 | Hosted identifiers (cookies, data-protection app name, Auth0 audience/claims) change **at the Cloudflare cutover**, not during the code rename | Proposed |
 | 2026-09-22 | Stay on free tiers: Cloudflare edge + static landing, Render Free app, Neon Free, Auth0 Free | Reece |
 | 2026-09-22 | Archive `apps/ops-web` (don't delete); sample flight numbers → `S4xxx` | Reece |
+| 2026-09-22 | Design direction C "Glass cockpit": B612, cockpit display colours, night default + day theme | Reece |
 | 2026-09-22 | No users besides Reece: the desktop data migration and installer legacy-upgrade path are dropped, and names are renamed outright | Reece |
 | 2026-09-22 | `app.s4ops.com` proxied by Cloudflare to Render Free; rate limits key on `CF-Connecting-IP` from Cloudflare ranges only (`Hosting__TrustCloudflare`) | Built (commit on `chore/s4-rebrand`) |
 
@@ -104,7 +105,11 @@ Without the DB env vars, the accounts suite skips its integration part (53 pure 
 
 - [x] Code for `app.s4ops.com` behind Cloudflare (server suite 99/99).
 - [ ] Deploy `chore/s4-rebrand` (or merge to `accounts`) to Render, then follow `docs/hosting.md` "Custom domain through Cloudflare".
-- [ ] Phase 3: **waiting on Reece's pick** of three directions (canvas: https://claude.ai/artifact/Lc9NbwDTvtofwxAdMhUrMH, private to Reece):
-      A Taxiway (airport signage, black/yellow, Overpass), B Strip board (ATC flight strips, Barlow), C Glass cockpit
-      (B612, cockpit alert colours). Whichever wins, fonts get self-hosted in `wwwroot` (all OFL), because CSP is `style-src 'self'`.
+- [x] Phase 3 direction: **C Glass cockpit** (Reece, 2026-09-22). Canvas: https://claude.ai/artifact/Lc9NbwDTvtofwxAdMhUrMH
+- [x] Portal design system + restyle of all 15 pages (commit 7f8b159). Verified with Playwright at 1440/390 px in both
+      themes (screenshots in `work/ui-check/`, snapshot via `S4OPS_PORTAL_SNAPSHOT_DIR`). All suites green: 85/102/160/99.
+- [ ] Phase 3 remaining: logo + favicon (no S4 mark exists yet, and `/favicon.ico` 404s); the static landing page for
+      `s4ops.com` on Workers static assets (reuse `Index.cshtml` output + `site.css`); carry the tokens into the WPF
+      resource dictionaries; delete the now-unused photos in `wwwroot/images/*.jpg|png` (kept for now).
+- [ ] Push `chore/s4-rebrand` (Reece's go-ahead needed) so Render deploys the new look + Cloudflare fix.
 - [ ] Phase 2: cut `chore/s4-rebrand` from `accounts`; do 2a (rename script), 5a, 6–8 now; steps 2–4 after Dan pushes.

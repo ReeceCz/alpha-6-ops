@@ -1,0 +1,52 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet build:*)",
+      "Bash(dotnet run --project tests/*)",
+      "Bash(dotnet --version)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git grep:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git branch)",
+      "Bash(git branch --list:*)",
+      "Bash(git remote -v)",
+      "Bash(npx wrangler dev:*)",
+      "Bash(npx wrangler types:*)",
+      "Bash(npx wrangler whoami)",
+      "PowerShell(dotnet build *)",
+      "PowerShell(dotnet run --project tests/*)",
+      "PowerShell(git status *)",
+      "PowerShell(git diff *)",
+      "PowerShell(git log *)"
+    ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(git merge:*)",
+      "Bash(git rebase:*)",
+      "Bash(git reset:*)",
+      "Bash(git mv:*)",
+      "Bash(rm:*)",
+      "Bash(npx wrangler deploy:*)",
+      "Bash(npx wrangler secret:*)",
+      "Bash(npx wrangler d1:*)",
+      "Bash(npx wrangler r2:*)",
+      "Bash(wrangler:*)",
+      "PowerShell(git push *)",
+      "PowerShell(Remove-Item *)",
+      "mcp__plugin_render_render__trigger_deploy",
+      "mcp__plugin_render_render__update_environment_variables",
+      "mcp__Neon__run_sql",
+      "mcp__Neon__run_sql_transaction"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./.dev.vars)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.pfx)"
+    ]
+  }
+}

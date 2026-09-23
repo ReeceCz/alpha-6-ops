@@ -187,8 +187,18 @@ if (settings.IsConfigured)
 }
 builder.Services.AddAuthorization(o => o.AddPolicy("desktop", policy =>
     policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme).RequireAuthenticatedUser()));
+// With Cloudflare in front of the hosting proxy, the forwarded peer is a Cloudflare edge shared by many visitors;
+// rate limits must key on the visitor Cloudflare reports instead. Opt-in, and only honoured from Cloudflare ranges.
+var trustCloudflare = behindProxy && string.Equals(builder.Configuration["Hosting:TrustCloudflare"], "true", StringComparison.OrdinalIgnoreCase);
 var app = builder.Build();
 if (behindProxy) app.UseForwardedHeaders();
+if (trustCloudflare)
+    app.Use((context, next) =>
+    {
+        if (CloudflareNetworks.Visitor(context.Connection.RemoteIpAddress, context.Request.Headers["CF-Connecting-IP"]) is { } visitor)
+            context.Connection.RemoteIpAddress = visitor;
+        return next(context);
+    });
 app.UseExceptionHandler("/Error");
 if (!app.Environment.IsDevelopment()) app.UseHsts();
 app.Use(async (context, next) =>

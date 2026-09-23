@@ -97,7 +97,36 @@ using (var hosted = new ServerFactory(connection, "Production", hostedPfx))
     using var strangerHost = new HttpRequestMessage(HttpMethod.Get, "http://localhost/healthz");
     strangerHost.Headers.Host = "evil.example.test";
     Check((await hostedClient.SendAsync(strangerHost)).StatusCode == HttpStatusCode.BadRequest, "Host filtering still rejects unlisted host names");
+    // Cloudflare in front of Render: Render appends the connecting peer (a Cloudflare edge) to X-Forwarded-For, and
+    // Cloudflare names the visitor in CF-Connecting-IP. The visitor counts only when the peer really is Cloudflare.
+    // Each case exhausts one bucket, then sends a single request as a different visitor: it must be refused only when
+    // that request is (correctly) attributed to the exhausted bucket.
+    async Task<HttpStatusCode> ViaAsync(string peer, string visitor)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "https://localhost/api/v1/me/bootstrap");
+        request.Headers.Add("X-Forwarded-For", peer);
+        request.Headers.Add("X-Forwarded-Proto", "https");
+        request.Headers.Add("CF-Connecting-IP", visitor);
+        return (await hostedClient.SendAsync(request)).StatusCode;
+    }
+    async Task<bool> ExhaustAsync(string peer, Func<int, string> visitor)
+    {
+        for (var i = 0; i <= 300; i++)
+            if (await ViaAsync(peer, visitor(i)) == HttpStatusCode.TooManyRequests) return true;
+        return false;
+    }
+    Check(await ExhaustAsync("173.245.48.10", _ => "203.0.113.7") && await ViaAsync("173.245.48.10", "203.0.113.7") == HttpStatusCode.TooManyRequests,
+        "One visitor behind Cloudflare is rate limited by their own address");
+    Check(await ViaAsync("173.245.48.10", "203.0.113.8") != HttpStatusCode.TooManyRequests,
+        "Another visitor through the same Cloudflare edge keeps a separate bucket");
+    Check(await ExhaustAsync("198.51.100.9", i => "192.0.2." + (i % 250 + 1)) && await ViaAsync("198.51.100.9", "192.0.2.251") == HttpStatusCode.TooManyRequests,
+        "A forged CF-Connecting-IP from outside Cloudflare cannot escape the per-address limit");
+    Check(await ExhaustAsync("2400:cb00::1", _ => "garbage") && await ViaAsync("2400:cb00::1", "not-an-address") == HttpStatusCode.TooManyRequests,
+        "An unparseable CF-Connecting-IP falls back to the Cloudflare peer address");
 }
+Check(CloudflareNetworks.Contains(IPAddress.Parse("104.16.1.1")) && CloudflareNetworks.Contains(IPAddress.Parse("2606:4700::6810:1"))
+    && CloudflareNetworks.Contains(IPAddress.Parse("::ffff:173.245.48.1")) && !CloudflareNetworks.Contains(IPAddress.Parse("203.0.113.7"))
+    && !CloudflareNetworks.Contains(IPAddress.Parse("10.0.0.1")), "Cloudflare edge ranges match published IPv4, IPv6 and mapped addresses only");
 using (var replica = new ServerFactory(connection, "Production", hostedPfx))
     Check(replica.Services.GetRequiredService<IDataProtectionProvider>().CreateProtector("hosting-check").Unprotect(protectedValue) == "same sky", "A second instance reads the same key ring, so cookies survive deploys");
 Check((await anonymous.GetStringAsync("/healthz")) == "ok", "Health endpoint answers without authentication");
@@ -316,6 +345,7 @@ sealed class ServerFactory(string? connection, string environment = "Development
         builder.UseSetting("DataProtection:CertificatePassword", certificateBase64 is null ? "" : "test-pfx");
         builder.UseSetting("Hosting:BehindProxy", certificateBase64 is null ? "" : "true");
         if (certificateBase64 is not null) builder.UseSetting("Hosting:PublicHosts", "alpha6ops.example.test");
+        builder.UseSetting("Hosting:TrustCloudflare", certificateBase64 is null ? "" : "true");
         builder.ConfigureServices(services =>
         {
             if (certificateBase64 is null) services.AddDataProtection().UseEphemeralDataProtectionProvider();

@@ -2,6 +2,11 @@
 
 Status as of 18 September 2026. Owner: Reece (web, accounts, hosting). Dan owns the desktop flight side.
 
+> **22 September 2026:** the product is being renamed **S4 OPS** (Sierra 4, `s4ops.com`), and production
+> hosting moves from Render + Neon free tiers to Cloudflare. The rename and hosting plans, and the live progress
+> log, are in `docs/s4-migration/` (`PROGRESS.md` first). This roadmap still describes the Alpha 6 era
+> until those phases land.
+
 This document is the pick-up point for the web end of Alpha 6 OPS. It records where the work stands, what
 "finished" looks like, and every phase between the two, in enough detail that a session can start from any
 heading without re-deriving context. Update it at the end of each working session; it lives at

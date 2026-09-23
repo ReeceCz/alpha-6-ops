@@ -104,5 +104,7 @@ Without the DB env vars, the accounts suite skips its integration part (53 pure 
 
 - [x] Code for `app.s4ops.com` behind Cloudflare (server suite 99/99).
 - [ ] Deploy `chore/s4-rebrand` (or merge to `accounts`) to Render, then follow `docs/hosting.md` "Custom domain through Cloudflare".
-- [ ] Phase 3: design directions for the S4 OPS brand (in progress).
+- [ ] Phase 3: **waiting on Reece's pick** of three directions (canvas: https://claude.ai/artifact/Lc9NbwDTvtofwxAdMhUrMH, private to Reece):
+      A Taxiway (airport signage, black/yellow, Overpass), B Strip board (ATC flight strips, Barlow), C Glass cockpit
+      (B612, cockpit alert colours). Whichever wins, fonts get self-hosted in `wwwroot` (all OFL), because CSP is `style-src 'self'`.
 - [ ] Phase 2: cut `chore/s4-rebrand` from `accounts`; do 2a (rename script), 5a, 6–8 now; steps 2–4 after Dan pushes.

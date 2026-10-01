@@ -1,13 +1,12 @@
 @page "/Account/Airline/{id:guid}/Fleet"
 @model Alpha6Ops.Server.Pages.Account.FleetModel
-@{ ViewData["Title"] = (Model.Airline?.Name ?? "Airline") + " fleet"; var e = Model.Editing; }
+@{ ViewData["Title"] = (Model.Airline?.Name ?? "Airline") + " fleet"; var e = Model.Editing; Layout = "_ConsoleLayout"; ViewData["ConsoleAirline"] = Model.Airline; ViewData["ConsoleActive"] = "fleet"; }
 <partial name="_AccountError" model="Model" />
 @if (Model.Airline is { } airline) {
-<partial name="_AirlineNav" model='(airline, "fleet")' />
 @if (Model.Saved is { } saved) { <div class="notice" role="status"><p>@saved</p></div> }
 <div class="console-grid">
 <section class="console-main">
-    <div class="console-bar"><h2>Fleet <span class="count">@Model.Fleet.Length</span></h2>
+    <div class="console-bar"><h2>Aircraft <span class="count">@Model.Fleet.Length</span></h2>
         <span class="muted">@Model.Fleet.Count(a => a.Status == AircraftStatuses.Active) active · @Model.Fleet.Count(a => a.Status == AircraftStatuses.Maintenance) in maintenance · @Model.Fleet.Select(a => a.TypeIcao).Distinct().Count() types</span></div>
     @if (Model.Fleet.Length == 0) {
         <div class="empty"><h3>No aircraft yet.</h3><p>Add each aircraft by registration. Rotations and the OCC board are built on real tails, not just types.</p></div>

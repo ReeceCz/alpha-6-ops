@@ -1,9 +1,8 @@
 @page "/Account/Airline/{id:guid}/Schedule"
 @model Alpha6Ops.Server.Pages.Account.ScheduleModel
-@{ ViewData["Title"] = (Model.Airline?.Name ?? "Airline") + " schedule"; var e = Model.Editing; }
+@{ ViewData["Title"] = (Model.Airline?.Name ?? "Airline") + " schedule"; var e = Model.Editing; Layout = "_ConsoleLayout"; ViewData["ConsoleAirline"] = Model.Airline; ViewData["ConsoleActive"] = "schedule"; }
 <partial name="_AccountError" model="Model" />
 @if (Model.Airline is { } airline) {
-<partial name="_AirlineNav" model='(airline, "schedule")' />
 @if (Model.Saved is { } saved) { <div class="notice" role="status"><p>@saved</p></div> }
 @if (Model.Import is { } import) {
     <div class="notice" role="status"><p>Import finished: @import.Created created, @import.Updated updated, @import.Skipped skipped.</p>

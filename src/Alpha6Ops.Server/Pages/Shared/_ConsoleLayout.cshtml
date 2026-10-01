@@ -1,0 +1,50 @@
+@* Airline console: a sidebar with the airline's identity and sections beside the page. A page opts in with
+   Layout = "_ConsoleLayout" and sets ViewData["ConsoleAirline"] (null when the airline could not be loaded, in
+   which case the page renders on its own) and ViewData["ConsoleActive"]. *@
+@{
+    Layout = "_Layout";
+    ViewData["BodyClass"] = "console-page";
+    var a = ViewData["ConsoleAirline"] as AirlineWorkspace;
+    var active = ViewData["ConsoleActive"] as string ?? "";
+}
+@if (a is null) {
+    @RenderBody()
+} else {
+    var ops = a.Capabilities.Contains(Capabilities.OperationsManage);
+    var admin = a.Capabilities.Contains(Capabilities.MembersManage);
+    var sections = new List<(string Key, string Href, string Label, string Icon)>
+    {
+        ("schedule", $"/Account/Airline/{a.Id}/Schedule", "Schedule", "M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"),
+        ("fleet", $"/Account/Airline/{a.Id}/Fleet", "Fleet", "M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"),
+    };
+    if (admin) { sections.Add(("crew", $"/Account/Airline/{a.Id}", "Crew & settings", "M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6m13 9v-1a4 4 0 0 0-3-3.9M16 4.1a3 3 0 0 1 0 5.8")); }
+    <div class="console-shell">
+        <aside class="console-sidebar" aria-label="Airline console">
+            <a class="console-back" href="/Account">← Your workspaces</a>
+            <div class="console-airline">
+                @if (a.LogoUrl.Length > 0) { <span class="workspace-icon image" aria-hidden="true"><img src="@a.LogoUrl" alt="" /></span> }
+                else { <span class="workspace-icon airline" aria-hidden="true">@(a.Callsign.Length > 3 ? a.Callsign[..3] : a.Callsign)</span> }
+                <div><p class="console-airline-name">@a.Name</p><p class="muted">@a.Callsign · @a.Plan</p></div>
+            </div>
+            <nav>
+                <ul>
+                @foreach (var s in sections) {
+                    <li><a href="@s.Href" aria-current="@(s.Key == active ? "page" : null)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="@s.Icon" /></svg>@s.Label</a></li>
+                }
+                </ul>
+            </nav>
+            <dl class="console-facts">
+                <div><dt>Slug</dt><dd><code>@a.Slug</code></dd></div>
+                <div><dt>Your roles</dt><dd>@string.Join(", ", a.Roles)</dd></div>
+            </dl>
+            @if (!ops) { <p class="muted console-note">Dispatchers and administrators can edit the schedule and fleet.</p> }
+        </aside>
+        <div class="console-content">
+            <div class="page-heading console-heading">
+                <p class="eyebrow">@a.Name</p>
+                <h1>@(sections.FirstOrDefault(s => s.Key == active).Label ?? "Airline console")</h1>
+            </div>
+            @RenderBody()
+        </div>
+    </div>
+}

@@ -35,6 +35,9 @@ Without the DB env vars, the accounts suite skips its integration part (53 pure 
 | 2026-09-22 | Design direction C "Glass cockpit": B612, cockpit display colours, night default + day theme | Reece |
 | 2026-09-22 | No users besides Reece: the desktop data migration and installer legacy-upgrade path are dropped, and names are renamed outright | Reece |
 | 2026-09-22 | `app.s4ops.com` proxied by Cloudflare to Render Free; rate limits key on `CF-Connecting-IP` from Cloudflare ranges only (`Hosting__TrustCloudflare`) | Built (commit on `chore/s4-rebrand`) |
+| 2026-10-01 | Logo = Dan's taxiway-sign concepts: yellow `S4` tile (his Option 6) for favicon/app icon, Option 3 lockup "SIERRA 4 / Airline Operations Platform \| Powered by RYNEL" for the header | Reece + Dan |
+| 2026-10-01 | **RYNEL** is Dan's engine brand and appears on the product ("Powered by RYNEL"). Name not yet checked for conflicts | Reece |
+| 2026-10-01 | Merge Dan's dashboard look into the glass cockpit: yellow brand/navigation accent and a wide display face (Michroma) for headings and logo; keep cockpit structure and unambiguous status colours (yellow must not mean both "brand" and "caution") | Reece |
 
 ## Answers received 2026-09-22 (Reece)
 
@@ -108,7 +111,11 @@ Without the DB env vars, the accounts suite skips its integration part (53 pure 
 - [x] Phase 3 direction: **C Glass cockpit** (Reece, 2026-09-22). Canvas: https://claude.ai/artifact/Lc9NbwDTvtofwxAdMhUrMH
 - [x] Portal design system + restyle of all 15 pages (commit 7f8b159). Verified with Playwright at 1440/390 px in both
       themes (screenshots in `work/ui-check/`, snapshot via `S4OPS_PORTAL_SNAPSHOT_DIR`). All suites green: 85/102/160/99.
-- [ ] Phase 3 remaining: logo + favicon (no S4 mark exists yet, and `/favicon.ico` 404s); the static landing page for
+- [x] Logo + favicons (commit 159230c): `tools/brand/build_logo.py` regenerates every asset from vendored OFL fonts.
+      Broken snapshot images were a test-fixture fault, fixed in 09d057d (production uploads were fine).
+- [ ] Phase 3 remaining: apply the merged direction (yellow brand accent, Michroma headings) to site.css; replace the
+      desktop `alpha6-mark.png` / `alpha6.ico` from `s4-tile-512.png`; long account IDs/emails overflow cards at 390 px;
+      the static landing page for
       `s4ops.com` on Workers static assets (reuse `Index.cshtml` output + `site.css`); carry the tokens into the WPF
       resource dictionaries; delete the now-unused photos in `wwwroot/images/*.jpg|png` (kept for now).
 - [ ] Push `chore/s4-rebrand` (Reece's go-ahead needed) so Render deploys the new look + Cloudflare fix.

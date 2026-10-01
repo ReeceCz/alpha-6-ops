@@ -113,9 +113,17 @@ Without the DB env vars, the accounts suite skips its integration part (53 pure 
       themes (screenshots in `work/ui-check/`, snapshot via `S4OPS_PORTAL_SNAPSHOT_DIR`). All suites green: 85/102/160/99.
 - [x] Logo + favicons (commit 159230c): `tools/brand/build_logo.py` regenerates every asset from vendored OFL fonts.
       Broken snapshot images were a test-fixture fault, fixed in 09d057d (production uploads were fine).
-- [ ] Phase 3 remaining: apply the merged direction (yellow brand accent, Michroma headings) to site.css; replace the
-      desktop `alpha6-mark.png` / `alpha6.ico` from `s4-tile-512.png`; long account IDs/emails overflow cards at 390 px;
-      the static landing page for
+- [x] Merged look (728590e): Michroma headings, brand yellow for navigation and markers only, cyan actions,
+      night caution moved to orange-amber. Airline console uses a sidebar (`_ConsoleLayout`).
+- [x] Landing (a9842b0): night-airfield hero and an OOOI (OUT/OFF/ON/IN) timeline; copy no longer claims cruise
+      or approach detection.
+- [x] Trust basics (6e7eb91), roadmap Phase D: /Privacy, /Terms, data export ZIP, self-service deletion with a
+      14-day grace period and hourly purge. **Before launch:** fill `[CONTACT EMAIL]` and `[STATE]` in
+      `src/Alpha6Ops.Server/Legal.cs`; create the Auth0 M2M app (delete:users) per docs/hosting.md, or remove
+      sign-ins by hand. Suites: 85 / 102 / 180 / 110.
+- [ ] Known small issues: emails are stored and shown upper-case (`AccountRules.Email` normalises); inline
+      `style=` attributes on the profile form are blocked by the CSP; long IDs/emails overflow cards at 390 px.
+- [ ] Phase 3 remaining: replace the desktop `alpha6-mark.png` / `alpha6.ico` from `s4-tile-512.png`; the static landing page for
       `s4ops.com` on Workers static assets (reuse `Index.cshtml` output + `site.css`); carry the tokens into the WPF
       resource dictionaries; delete the now-unused photos in `wwwroot/images/*.jpg|png` (kept for now).
 - [ ] Push `chore/s4-rebrand` (Reece's go-ahead needed) so Render deploys the new look + Cloudflare fix.

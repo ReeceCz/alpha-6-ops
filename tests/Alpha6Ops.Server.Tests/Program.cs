@@ -42,7 +42,10 @@ using (var client = setup.CreateClient(new() { BaseAddress = new("https://localh
     Check(release.StatusCode == HttpStatusCode.NotFound && (await release.Content.ReadAsStringAsync()).Contains("release_unavailable"), "Release descriptor answers 404 without a published installer, even unconfigured");
     Check(landing.Headers.Contains("Content-Security-Policy"), "Security headers present");
     var landingHtml = await landing.Content.ReadAsStringAsync();
-    Check(landingHtml.Contains("How to start") && landingHtml.Contains("/Levels") && !landingHtml.Contains("/auth/signup"), "Landing explains the product and never offers sign-up while unconfigured");
+    Check(landingHtml.Contains("How it works") && landingHtml.Contains("Every phase recorded automatically") && landingHtml.Contains("/Levels") && !landingHtml.Contains("/auth/signup"),
+        "Landing explains the product and never offers sign-up while unconfigured");
+    Check(!landingHtml.Contains("<script") && !Regex.IsMatch(landingHtml, @"\sstyle=""") && landingHtml.Contains("Demonstration data"),
+        "Landing is script-free, has no inline styles the CSP would block, and labels its sample board as a demonstration");
     var pricing = await client.GetAsync("/Levels");
     var pricingHtml = await pricing.Content.ReadAsStringAsync();
     Check(pricing.IsSuccessStatusCode && new[] { "Flying as a Pilot", "Premium pilot", "Community airline", "Pro airline", "Link", "Pricing announced" }.All(pricingHtml.Contains) && !pricingHtml.Contains("$") && !pricingHtml.Contains("<script"),

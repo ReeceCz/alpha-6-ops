@@ -1,0 +1,59 @@
+@using Alpha6Ops.Server.Pages.Home
+@{ var plane = HeroScene.Aircraft; var from = HeroScene.Origin; var to = HeroScene.Destination; }
+<section class="h-hero night" aria-labelledby="hero-title">
+    @* Decorative: everything it shows is also stated in text (the copy and the flight readout below). *@
+    <div class="h-scene" aria-hidden="true">
+        <svg viewBox="0 0 1600 900" preserveAspectRatio="xMaxYMax slice" focusable="false">
+            <defs>
+                <linearGradient id="h-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#04070b" /><stop offset="1" stop-color="#132131" /></linearGradient>
+                <radialGradient id="h-haze" cx="0.62" cy="1" r="0.5"><stop offset="0" stop-color="#ffc20e" stop-opacity="0.16" /><stop offset="0.5" stop-color="#3a5f86" stop-opacity="0.08" /><stop offset="1" stop-color="#04070b" stop-opacity="0" /></radialGradient>
+                <linearGradient id="h-runway" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#11161c" /><stop offset="1" stop-color="#0b0e12" /></linearGradient>
+            </defs>
+            <rect class="s-sky" width="1600" height="@HeroScene.Horizon" fill="url(#h-sky)" />
+            <rect width="1600" height="@HeroScene.Horizon" fill="url(#h-haze)" />
+            <g class="s-route">
+                <path class="route-track" d="@HeroScene.Route" />
+                <path class="route-flown" d="@HeroScene.Route" pathLength="100" />
+                <path class="route-fix" d="M@(from.X) @(from.Y) m0 -7 l7 7 -7 7 -7 -7z" /><path class="route-fix" d="M@(to.X) @(to.Y) m0 -7 l7 7 -7 7 -7 -7z" />
+                <text class="route-label" x="@from.X" y="@from.Y" dx="0" dy="32" text-anchor="middle">KMKE</text>
+                <text class="route-label" x="@to.X" y="@to.Y" dx="0" dy="32" text-anchor="middle">KORD</text>
+                <g transform="translate(@plane.X @plane.Y) rotate(@plane.Angle)"><circle class="ac-pulse" r="14" /><path class="ac" d="M0 -11 L8 8 L0 4 L-8 8 Z" /></g>
+            </g>
+            <path class="s-terminal" d="M760 560 v-18 h120 v-10 h150 v10 h90 v-6 h110 v24 z M1210 560 v-12 h100 v12 z" />
+            @foreach (var l in HeroScene.TerminalLights) { <circle class="s-window" cx="@l.X" cy="@l.Y" r="@l.R" /> }
+            <path class="s-tower" d="M1392 560 v-118 h-6 l-8 -20 h44 l-8 20 h-6 v118 z" />
+            <rect class="s-tower-cab" x="1378" y="404" width="44" height="14" />
+            <circle class="s-obstruction" cx="1400" cy="396" r="3" /><circle class="s-obstruction late" cx="762" cy="540" r="2.4" /><circle class="s-obstruction" cx="1306" cy="546" r="2.4" />
+            <rect class="s-ground" y="@HeroScene.Horizon" width="1600" height="340" />
+            <path class="s-runway" d="@HeroScene.Runway" fill="url(#h-runway)" />
+            <path class="s-paint" d="@HeroScene.CentreLine" /><path class="s-paint" d="@HeroScene.Threshold" />
+            <text class="s-designator" x="1075" y="836" text-anchor="middle" transform="matrix(1 0 0 0.42 0 485)">19R</text>
+            @foreach (var l in HeroScene.RunwayEdgeLights) { <circle class="s-edge" cx="@l.X" cy="@l.Y" r="@l.R" /> }
+            <path class="s-taxiway" d="@HeroScene.Taxiway" />
+            <path class="s-taxi-line" d="@HeroScene.TaxiCentre" />
+            @foreach (var l in HeroScene.TaxiEdgeLights) { <circle class="s-taxi-edge" cx="@l.X" cy="@l.Y" r="@l.R" /> }
+            <g class="s-greens">@foreach (var l in HeroScene.TaxiCentreLights) { <circle cx="@l.X" cy="@l.Y" r="@l.R" /> }</g>
+            <g class="s-sign" transform="translate(1352 632) scale(0.62)">
+                <rect class="post" x="16" y="58" width="5" height="40" /><rect class="post" x="135" y="58" width="5" height="40" />
+                <rect class="frame" width="156" height="60" rx="3" /><rect class="loc" x="3" y="3" width="56" height="54" rx="2" />
+                <rect class="loc-border" x="7" y="7" width="48" height="46" /><text class="loc-text" x="31" y="40" text-anchor="middle">S4</text>
+                <text class="dir-text" x="98" y="41" text-anchor="middle">OPS</text><path class="dir-arrow" d="M128 18 h14 v14 M140 20 l-17 17" />
+            </g>
+        </svg>
+    </div>
+    <div class="wrap h-hero-grid">
+        <div class="h-hero-copy">
+            <p class="eyebrow">Airline operations for Microsoft Flight Simulator 2024</p>
+            <h1 id="hero-title" class="display"><span>You fly the airplane.</span> <span>We'll run the airline.</span></h1>
+            <p class="h-lead">S4 OPS is a Windows desktop app that reads the aircraft state from the simulator, times every flight from off block to block in, and keeps your logbook and your virtual airline in one account.</p>
+            <partial name="~/Pages/Home/_Actions.cshtml" />
+        </div>
+        <dl class="h-readout" aria-label="Sample flight in progress">
+            <div class="h-readout-head"><dt class="visually-hidden">Flight</dt><dd><span class="mono">S4601</span> <span class="tag-sample">Sample</span></dd></div>
+            <div><dt>Route</dt><dd class="mono">KMKE → KORD</dd></div>
+            <div><dt>Phase</dt><dd class="h-phase">Airborne</dd></div>
+            <div><dt>OUT</dt><dd class="mono">1802Z</dd></div>
+            <div><dt>OFF</dt><dd class="mono">1814Z</dd></div>
+        </dl>
+    </div>
+</section>

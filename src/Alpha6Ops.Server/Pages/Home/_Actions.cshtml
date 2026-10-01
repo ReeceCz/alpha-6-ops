@@ -1,0 +1,11 @@
+@* Primary and secondary calls to action, by sign-in state. Never offers sign-up while account services are unconfigured. *@
+@inject ServerSettings Settings
+@if (User.Identity?.IsAuthenticated == true) {
+    <div class="h-actions"><a class="button" href="/Account">Go to your workspaces</a><a class="button secondary" href="/Download">Download for Windows</a></div>
+} else if (Settings.IsConfigured) {
+    <div class="h-actions"><a class="button" href="/auth/signup">Create a free account</a><a class="button secondary" href="/Download">Download for Windows</a></div>
+    <p class="h-note">Already have an account? <a href="/auth/login">Sign in</a>. Email and password, a passkey, or your Microsoft or Google account.</p>
+} else {
+    <p class="notice" role="status">Account registration is not available on this installation yet. You can explore the portal while account services are being connected.</p>
+    <div class="h-actions"><a class="button secondary" href="/Download">Download for Windows</a></div>
+}

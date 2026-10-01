@@ -1,127 +1,15 @@
 @page
-@inject ServerSettings Settings
-@{
-    ViewData["Title"] = "You fly the airplane. We'll run the airline."; ViewData["BodyClass"] = "portal-home";
-    // Taxiway edge lights in perspective: pairs from the foreground (t = 0) to the horizon (t = 1).
-    static string N(double v) => v.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
-    var edgeLights = Enumerable.Range(0, 11).Select(i => { var t = 1 - Math.Pow(1 - i / 11.0, 1.6); return (Y: N(480 - 228 * t), Left: N(90 + 210 * t), Right: N(550 - 210 * t), R: N(4.2 - 3.4 * t)); }).ToArray();
+@{ ViewData["Title"] = "You fly the airplane. We'll run the airline."; ViewData["BodyClass"] = "home"; }
+@section Head {
+    <link rel="preload" href="~/fonts/michroma-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="~/css/home.css" asp-append-version="true" />
 }
-<section class="hero hero-night" aria-labelledby="hero-title">
-    <div class="hero-copy">
-        <p class="eyebrow">Airline operations for Microsoft Flight Simulator 2024</p>
-        <h1 id="hero-title">You fly the airplane. We'll run the airline.</h1>
-        <p class="lead">S4 OPS reads the aircraft state from the sim, times every flight from off block to block in, and keeps your virtual airline's board current for every dispatcher.</p>
-        @if (User.Identity?.IsAuthenticated == true) {
-            <div class="actions"><a class="button" href="/Account">Go to your workspaces</a><a class="button secondary" href="/Download">Download for Windows</a></div>
-        } else if (Settings.IsConfigured) {
-            <div class="actions"><a class="button" href="/auth/signup">Create a free account</a><a class="button secondary" href="/auth/login">Sign in</a></div>
-            <p class="provider-note">Email and password, a passkey, or your Microsoft or Google account.</p>
-        } else {
-            <p class="notice" role="status">Account registration is not available on this installation yet. You can explore the portal while account services are being connected.</p>
-            <div class="actions"><a class="button secondary" href="/Download">Download for Windows</a></div>
-        }
-    </div>
-    <svg class="airfield" viewBox="0 0 640 480" role="img" aria-labelledby="airfield-title">
-        <title id="airfield-title">A taxiway at night: blue edge lights and a yellow centre line lead past a lit S4 taxiway sign toward the terminal and control tower.</title>
-        <defs>
-            <linearGradient id="airfield-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#05080d" /><stop offset="1" stop-color="#16202b" /></linearGradient>
-            <radialGradient id="airfield-glow" cx="0.5" cy="1" r="0.6"><stop offset="0" stop-color="#ffc20e" stop-opacity="0.22" /><stop offset="1" stop-color="#ffc20e" stop-opacity="0" /></radialGradient>
-        </defs>
-        <rect class="sky" width="640" height="252" fill="url(#airfield-sky)" />
-        <rect class="horizon-glow" x="120" y="150" width="440" height="102" fill="url(#airfield-glow)" />
-        <path class="terminal" d="M150 252 v-14 h90 v-8 h70 v8 h40 v14 z M380 252 v-10 h110 v10 z" />
-        @for (var x = 160; x < 480; x += 13) { <circle class="window-light" cx="@x" cy="@(x % 3 == 0 ? 244 : 247)" r="1.2" /> }
-        <path class="tower" d="M512 252 v-92 h-5 l-6 -16 h34 l-6 16 h-5 v92 z" />
-        <rect class="tower-cab" x="503" y="146" width="28" height="12" />
-        <circle class="beacon" cx="517" cy="139" r="2.6" />
-        <rect class="ground" y="252" width="640" height="228" />
-        <path class="taxiway" d="M90 480 L300 252 H340 L550 480 Z" />
-        <path class="centreline" d="M320 480 V300 C320 278 330 262 380 254" />
-        @foreach (var l in edgeLights) {
-            <circle class="edge-light" cx="@l.Left" cy="@l.Y" r="@l.R" /><circle class="edge-light" cx="@l.Right" cy="@l.Y" r="@l.R" />
-        }
-        <circle class="nav-light red" cx="312" cy="262" r="1.6" /><circle class="nav-light green" cx="330" cy="262" r="1.6" /><circle class="strobe" cx="321" cy="258" r="1.3" />
-        <g class="sign" transform="translate(28 318)">
-            <rect class="sign-post" x="18" y="70" width="5" height="34" /><rect class="sign-post" x="170" y="70" width="5" height="34" />
-            <rect class="sign-frame" width="196" height="72" rx="5" />
-            <rect class="sign-location" x="4" y="4" width="66" height="64" rx="3" />
-            <rect class="sign-border" x="9" y="9" width="56" height="54" />
-            <text class="sign-text-loc" x="37" y="47" text-anchor="middle">S4</text>
-            <text class="sign-text-dir" x="118" y="48" text-anchor="middle">OPS</text>
-            <path class="sign-arrow" d="M163 22 h17 v17 M178 24 l-22 22" />
-        </g>
-        <text class="readout" x="620" y="464" text-anchor="end">S4601  TAXI OUT  KMKE</text>
-    </svg>
-</section>
-
-<section class="phases" aria-labelledby="phases-title">
-    <div class="phases-head">
-        <h2 id="phases-title">Every flight, timed by the sim</h2>
-        <p>No forms to fill in after you land. S4 OPS watches the aircraft and records the four times airlines report for every flight, then works out block and flight time from them.</p>
-    </div>
-    <ol class="oooi" aria-label="Sample flight S4601, Milwaukee to Chicago O'Hare">
-        <li><span class="oooi-code">OUT</span><span class="oooi-time">1802Z</span><strong>Off block</strong><span class="oooi-how">Parking brake off and moving</span></li>
-        <li class="oooi-leg" aria-hidden="true"><span>Taxi out · 12 min</span></li>
-        <li><span class="oooi-code">OFF</span><span class="oooi-time">1814Z</span><strong>Takeoff</strong><span class="oooi-how">Wheels leave the runway</span></li>
-        <li class="oooi-leg air" aria-hidden="true"><span>Airborne · 47 min</span></li>
-        <li><span class="oooi-code">ON</span><span class="oooi-time">1901Z</span><strong>Landing</strong><span class="oooi-how">Wheels back on the ground</span></li>
-        <li class="oooi-leg" aria-hidden="true"><span>Taxi in · 8 min</span></li>
-        <li><span class="oooi-code">IN</span><span class="oooi-time">1909Z</span><strong>Block in</strong><span class="oooi-how">Parked, brake set, engines off</span></li>
-    </ol>
-    <p class="phases-foot muted">Sample flight S4601, KMKE to KORD: block time 1 h 07 min, flight time 47 min. A paused or slewed sim never triggers a phase change.</p>
-</section>
-
-<dl class="status-legend" aria-label="How S4 OPS shows a flight's state">
-    <div><dt><span class="flight-status on-time">On time</span></dt><dd>Off block within the schedule window</dd></div>
-    <div><dt><span class="flight-status delayed">Delayed 25 min</span></dt><dd>Late off block, carried down the rotation</dd></div>
-    <div><dt><span class="flight-status diverted">Diverted KCOS</span></dt><dd>Landed somewhere other than planned</dd></div>
-    <div><dt><span class="flight-status cancelled">Cancelled</span></dt><dd>Taken off the board by a dispatcher</dd></div>
-</dl>
-
-<section class="intro" aria-labelledby="intro-title">
-    <div class="intro-copy">
-        <h2 id="intro-title">Operations for Microsoft Flight Simulator 2024, on your desktop.</h2>
-        <p>S4 OPS watches your flight as it happens, from off block through takeoff and landing to block in. It turns that into a logbook you didn't have to type, a dispatch board your crew can see, and an airline you can run with friends. It's a Windows app that signs in with this account, not a website you fly from.</p>
-    </div>
-    <dl class="intro-facts">
-        <div><dt>Flight phases</dt><dd>Detected from the sim, not self-reported</dd></div>
-        <div><dt>Works offline</dt><dd>Sign in once, then fly without a connection</dd></div>
-        <div><dt>One account</dt><dd>Your own flying and every airline you join</dd></div>
-    </dl>
-</section>
-
-<section class="two-worlds" aria-label="For pilots and for airlines">
-    <article>
-        <h2>For pilots</h2>
-        <ul class="plain">
-            <li><strong>Logbook.</strong> Every flight recorded with times, route and aircraft, from a replay or the live sim.</li>
-            <li><strong>Dispatch.</strong> Import a SimBrief plan with your username saved to your account.</li>
-            <li><strong>Tracking.</strong> See the flight's phase and progress as you fly.</li>
-            <li><strong>Weather.</strong> Briefings for departure and destination.</li>
-        </ul>
-    </article>
-    <article>
-        <h2>For airlines</h2>
-        <ul class="plain">
-            <li><strong>Crew roster.</strong> Pilots, dispatchers and administrators, with roles you control.</li>
-            <li><strong>Invitations.</strong> A code your invitee redeems once. Nothing leaks in email.</li>
-            <li><strong>Shared dispatch.</strong> The same board for everyone on the schedule.</li>
-            <li><strong>Security.</strong> Every administrative change asks for a fresh security check.</li>
-        </ul>
-    </article>
-</section>
-
-<section class="how" aria-labelledby="how-title">
-    <h2 id="how-title">How to start</h2>
-    <ol class="how-steps">
-        <li><span class="step-n" aria-hidden="true">1</span><div><strong>Create your account</strong><p>Email and password, a passkey, or Microsoft or Google. Verify your email.</p></div></li>
-        <li><span class="step-n" aria-hidden="true">2</span><div><strong>Download for Windows</strong><p>Install S4 OPS and sign in once. It remembers you.</p></div></li>
-        <li><span class="step-n" aria-hidden="true">3</span><div><strong>Fly, or found an airline</strong><p>Log your first flight, join a crew with a code, or start your own operation.</p></div></li>
-    </ol>
-    <div class="actions">
-        @if (User.Identity?.IsAuthenticated == true) { <a class="button" href="/Account">Go to your workspaces</a> }
-        else if (Settings.IsConfigured) { <a class="button" href="/auth/signup">Create an account</a> }
-        <a class="button secondary" href="/Download">Download for Windows</a>
-        <a href="/Levels">See what each level includes</a>
-    </div>
-</section>
+@* The landing page tells one story, top to bottom: what it is, proof, the phases, how, who for, the app, trust, and go. *@
+<partial name="~/Pages/Home/_Hero.cshtml" />
+<partial name="~/Pages/Home/_OpsBoard.cshtml" />
+<partial name="~/Pages/Home/_Phases.cshtml" />
+<partial name="~/Pages/Home/_HowItWorks.cshtml" />
+<partial name="~/Pages/Home/_Audiences.cshtml" />
+<partial name="~/Pages/Home/_Desktop.cshtml" />
+<partial name="~/Pages/Home/_Security.cshtml" />
+<partial name="~/Pages/Home/_FinalCta.cshtml" />

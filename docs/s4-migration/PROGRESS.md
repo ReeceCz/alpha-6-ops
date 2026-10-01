@@ -121,8 +121,13 @@ Without the DB env vars, the accounts suite skips its integration part (53 pure 
       14-day grace period and hourly purge. **Before launch:** fill `[CONTACT EMAIL]` and `[STATE]` in
       `src/Alpha6Ops.Server/Legal.cs`; create the Auth0 M2M app (delete:users) per docs/hosting.md, or remove
       sign-ins by hand. Suites: 85 / 102 / 180 / 110.
+- [x] Full-width landing redesign and site shell (ec7b4f9): night-airfield hero (`Pages/Home/HeroScene.cs`), demo
+      operations board, OOOI timeline, waypoint "how it works", pilots/airlines split, desktop flow, security, final
+      call. Content lives in `Pages/Home/HomeContent.cs`, one partial per section, styles in `wwwroot/css/home.css`.
+      Yellow is the primary action. Phone nav is a `<details>` menu. Long IDs/emails now wrap. Suites 85/102/180/111.
+- [ ] Ask Dan: the "Diverted" status is shown on the site but the engine has no diversion detection yet.
 - [ ] Known small issues: emails are stored and shown upper-case (`AccountRules.Email` normalises); inline
-      `style=` attributes on the profile form are blocked by the CSP; long IDs/emails overflow cards at 390 px.
+      `style=` attributes on the profile form are blocked by the CSP.
 - [ ] Phase 3 remaining: replace the desktop `alpha6-mark.png` / `alpha6.ico` from `s4-tile-512.png`; the static landing page for
       `s4ops.com` on Workers static assets (reuse `Index.cshtml` output + `site.css`); carry the tokens into the WPF
       resource dictionaries; delete the now-unused photos in `wwwroot/images/*.jpg|png` (kept for now).

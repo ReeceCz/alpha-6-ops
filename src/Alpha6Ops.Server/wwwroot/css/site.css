@@ -217,18 +217,55 @@ td { font-variant-numeric: tabular-nums; }
 .hero .actions { margin-top: var(--space-6); }
 .hero .notice { max-width: 560px; }
 .hero .provider-note { font-size: var(--size-xs); color: var(--muted); margin: var(--space-3) 0 0; }
-.nav-display { width: 100%; max-width: 620px; height: auto; justify-self: center; }
-.nav-display .ring { fill: none; stroke: var(--text); stroke-opacity: 0.35; stroke-width: 1.5; }
-.nav-display .ring.dash { stroke-dasharray: 6 8; }
-.nav-display .tick { stroke: var(--text); stroke-width: 2; }
-.nav-display .route { fill: none; stroke: var(--managed); stroke-width: 3; }
-.nav-display .flown { fill: none; stroke: var(--ok); stroke-width: 3; }
-.nav-display .fix { fill: none; stroke: var(--managed); stroke-width: 2; }
-.nav-display .airport { fill: none; stroke: var(--text); stroke-width: 2; }
-.nav-display .aircraft { fill: none; stroke: var(--symbol); stroke-width: 3; stroke-linejoin: round; }
-.nav-display text { font-family: var(--mono); font-size: 16px; fill: var(--text); }
-.nav-display .fix-label { fill: var(--managed); }
-.nav-display .readout-ok { fill: var(--ok); font-size: 17px; }
+/* The hero is a night airfield in both themes, so it carries its own night tokens. */
+.hero-night { --text: #ffffff; --text-2: #c3cad1; --muted: #9aa3ab; --line-strong: #3f454d; --surface-raised: #0b0e11;
+  --action: #3cc8e8; --action-hover: #8fe3f5; --on-action: #000000; --brand-ink: #ffc20e; --caution: #ff9a3c; --caution-fill: #2e1a08;
+  color: var(--text); background: #05080d; border: 1px solid #2b3036; border-radius: var(--radius-l); margin-top: var(--space-5); padding: var(--space-6) 0 0 var(--space-7); overflow: hidden; gap: 0; align-items: end; }
+.hero-night .hero-copy { padding-bottom: var(--space-7); align-self: center; }
+.hero-night .eyebrow { margin: 0 0 var(--space-3); }
+.airfield { width: 100%; height: auto; display: block; }
+.airfield .terminal, .airfield .tower, .airfield .tower-cab { fill: #0b1017; }
+.airfield .tower-cab { stroke: #2c4a5e; stroke-width: 1; }
+.airfield .window-light { fill: #ffd27a; opacity: 0.7; }
+.airfield .ground { fill: #040507; }
+.airfield .taxiway { fill: #0c0f13; }
+.airfield .centreline { fill: none; stroke: #ffc20e; stroke-width: 3; opacity: 0.9; }
+.airfield .edge-light { fill: #4f8dff; }
+.airfield .nav-light.red { fill: #ff4d4d; }
+.airfield .nav-light.green { fill: #33d17a; }
+.airfield .strobe, .airfield .beacon { fill: #ffffff; }
+.airfield .beacon { fill: #ff3b3b; }
+.airfield .sign-post { fill: #3a3f45; }
+.airfield .sign-frame { fill: #ffc20e; }
+.airfield .sign-location { fill: #000000; }
+.airfield .sign-border { fill: none; stroke: #ffc20e; stroke-width: 3; }
+.airfield .sign-text-loc, .airfield .sign-text-dir { font: 700 34px var(--font); }
+.airfield .sign-text-loc { fill: #ffc20e; }
+.airfield .sign-text-dir { fill: #000000; }
+.airfield .sign-arrow { fill: none; stroke: #000000; stroke-width: 5; }
+.airfield .readout { font: 13px var(--mono); fill: #33d17a; letter-spacing: 0.06em; }
+@media (prefers-reduced-motion: no-preference) {
+  .airfield .beacon { animation: beacon 1.6s steps(1, end) infinite; }
+  .airfield .strobe { animation: beacon 1.1s steps(1, end) infinite; }
+}
+@keyframes beacon { 50% { opacity: 0.15; } }
+
+/* OOOI timeline: the four times the engine records for a flight */
+.phases { padding: var(--space-7) 0 var(--space-5); border-bottom: 1px solid var(--line); }
+.phases-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: var(--space-6); align-items: end; margin-bottom: var(--space-6); }
+.phases-head h2 { margin: 0; }
+.phases-head p { margin: 0; color: var(--text-2); }
+.oooi { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: auto 1fr auto 1fr auto 1fr auto; align-items: start; }
+.oooi > li:not(.oooi-leg) { display: flex; flex-direction: column; gap: 2px; min-width: 150px; }
+.oooi-code { align-self: flex-start; padding: 2px 10px; border-radius: var(--radius-s); background: var(--brand); color: #000; font: 700 var(--size-s)/1.5 var(--mono); letter-spacing: 0.08em; }
+.oooi-time { font: 700 var(--size-xl)/1.4 var(--mono); margin-top: var(--space-2); }
+.oooi strong { font-size: var(--size-s); }
+.oooi-how { font-size: var(--size-xs); color: var(--muted); }
+.oooi-leg { position: relative; height: 28px; margin: 0 var(--space-3); }
+.oooi-leg::before { content: ""; position: absolute; left: 0; right: 0; top: 14px; border-top: 2px dashed var(--line-strong); }
+.oooi-leg.air::before { border-top: 2px solid var(--managed); }
+.oooi-leg span { position: relative; display: table; margin: 0 auto; padding: 0 var(--space-2); background: var(--surface); font: var(--size-xs)/28px var(--mono); color: var(--text-2); white-space: nowrap; }
+.phases-foot { font-size: var(--size-xs); margin: var(--space-5) 0 0; }
 .status-legend { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4); margin: 0; padding: var(--space-5) 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .status-legend div { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
 .status-legend dd { margin: 0; font-size: var(--size-xs); color: var(--muted); }
@@ -400,7 +437,14 @@ td { font-variant-numeric: tabular-nums; }
 /* Responsive */
 @media (max-width: 1000px) {
   .hero { grid-template-columns: 1fr; }
-  .nav-display { max-width: 460px; }
+  .hero-night { padding: var(--space-6) 0 0 var(--space-6); }
+  .hero-night .hero-copy { padding-right: var(--space-6); }
+  .phases-head { grid-template-columns: 1fr; }
+  .oooi { grid-template-columns: 1fr; gap: var(--space-2); }
+  .oooi-leg { margin: 0 0 0 var(--space-5); height: 32px; }
+  .oooi-leg::before { left: 0; right: auto; top: 0; bottom: 0; border-top: 0; border-left: 2px dashed var(--line-strong); }
+  .oooi-leg.air::before { border-left: 2px solid var(--managed); }
+  .oooi-leg span { display: inline-block; margin: 0 0 0 var(--space-3); line-height: 32px; }
   .status-legend { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 900px) {

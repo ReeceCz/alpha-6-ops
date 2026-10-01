@@ -139,7 +139,7 @@ await using (var db = Context())
     Check(!db.Database.HasPendingModelChanges(), "migration snapshot matches current model");
     await db.Database.MigrateAsync();
     await db.Database.MigrateAsync();
-    Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 6, "migrations are repeatable");
+    Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 7, "migrations are repeatable");
 }
 var prefix = Guid.NewGuid().ToString("N")[..10];
 actor = actor with { Subject = prefix + "-owner", Email = prefix + "-owner@example.com" };
@@ -401,5 +401,54 @@ var races = await Task.WhenAll(Enumerable.Range(0, 4).Select(async i =>
     catch (IdentityException ex) { return ex.Code; }
 }));
 Check(races.Count(x => x == "created") == 1 && races.Count(x => x == "plan_limit_reached") == 3, "concurrent creation cannot bypass Community ownership limit");
+// Self-service export and deletion: owners are blocked, a fresh sign-in is required, the grace period can be
+// cancelled, and the purge erases personal data while airline history keeps an anonymous tombstone.
+async Task<int> PurgeAt(DateTimeOffset at)
+{
+    await using var db = Context();
+    return await new AccountsService(db, new FixedClock(at)).PurgeDueDeletionsAsync();
+}
+var founder = actor with { Subject = prefix + "-founder", Email = prefix + "-founder@example.com" };
+var founderVa = await Run(s => s.CreateAirlineAsync(founder, new("Founder Air", prefix + "founder", "FDR")));
+await RejectAsync(() => Run(s => s.RequestDeletionAsync(founder)), "ownership_transfer_required");
+Check((await Run(s => s.GetDeletionStatusAsync(founder))).OwnedAirlines.Single().Name == "Founder Air", "deletion status lists the airlines to transfer first");
+var leaver = actor with { Subject = prefix + "-leaver", DisplayName = "Leaver", Email = prefix + "-leaver@example.com", HasMfa = false, EmailVerified = false };
+var leaverId = (await Run(s => s.BootstrapAsync(leaver with { EmailVerified = true }))).Account.Id;
+var leaverInvite = await Run(s => s.InviteAsync(founder, founderVa.Id, new(leaver.Email, [AirlineRole.Pilot])));
+await Run(s => s.AcceptInvitationAsync(leaver with { EmailVerified = true }, leaverInvite.Token));
+await Run(s => s.ImportLogbookAsync(leaver, new(string.Join(Environment.NewLine, "date,flight,origin,destination", "2026-09-02 18:20,S4601,KMKE,KORD", ""))));
+var export = await Run(s => s.ExportAsync(leaver));
+Check(string.Equals(export.Data.Account.Email, leaver.Email, StringComparison.OrdinalIgnoreCase) && export.Data.Logbook.Single().FlightNumber == "S4601" && export.Data.Airlines.Single() is { Name: "Founder Air", Roles: ["Pilot"] }
+    && export.Data.Activity.Any(x => x.Action == "logbook.imported") && export.Avatar is null, "export holds account, logbook, airlines and activity");
+await RejectAsync(() => Run(s => s.RequestDeletionAsync(leaver with { AuthenticatedAt = now.AddMinutes(-30) })), "recent_authentication_required");
+var requested = await Run(s => s.RequestDeletionAsync(leaver));
+Check(requested is { Status: AccountStatus.PendingDeletion, RequestedAt: { } at } && requested.EraseAfter == at.AddDays(AccountRules.DeletionGraceDays),
+    "deletion works without MFA or a verified email and schedules the erase after the grace period");
+await RejectAsync(() => Run(s => s.BootstrapAsync(leaver)), "account_pending_deletion");
+await RejectAsync(() => Run(s => s.ListFlightsAsync(leaver, 1, 10)), "account_pending_deletion");
+Check((await Run(s => s.ExportAsync(leaver))).Data.Account.Status == "PendingDeletion", "export stays available during the grace period");
+Check((await Run(s => s.CancelDeletionAsync(leaver))).Status == AccountStatus.Active && (await Run(s => s.BootstrapAsync(leaver))).Account.Id == leaverId, "cancelling restores the account");
+await Run(s => s.RequestDeletionAsync(leaver));
+Check(await PurgeAt(now.AddDays(AccountRules.DeletionGraceDays - 1)) == 0, "nothing is erased before the grace period ends");
+Check(await PurgeAt(now.AddDays(AccountRules.DeletionGraceDays).AddMinutes(5)) >= 1, "due deletions are erased");
+await RejectAsync(() => Run(s => s.BootstrapAsync(leaver)), "account_deleted");
+await using (var db = Context())
+{
+    var tomb = await db.Users.SingleAsync(x => x.Id == leaverId);
+    Check(tomb is { Status: AccountStatus.Deleted, DisplayName: AccountsService.DeletedDisplayName, Email: "", DeletedAt: not null }, "the account row becomes an anonymous tombstone");
+    Check(!await db.Flights.AnyAsync(x => x.UserId == leaverId) && !await db.Profiles.AnyAsync(x => x.UserId == leaverId) && !await db.Memberships.AnyAsync(x => x.UserId == leaverId),
+        "logbook, profile and memberships are erased");
+    Check(!await db.AuditEvents.AnyAsync(x => x.ActorUserId == leaverId && x.AirlineId == null && x.Action != "account.deleted")
+        && await db.AuditEvents.AnyAsync(x => x.ActorUserId == leaverId && x.AirlineId == founderVa.Id), "personal history is erased; airline history keeps the tombstone");
+    Check((await db.Invitations.SingleAsync(x => x.Id == leaverInvite.Invitation.Id)).Email == "", "accepted invitations drop the email address");
+}
+Check((await Run(s => s.ListMembersAsync(founder, founderVa.Id))).All(x => !string.Equals(x.Email, leaver.Email, StringComparison.OrdinalIgnoreCase)), "the airline roster no longer shows the erased pilot");
+var removals = await Run(s => s.PendingIdentityRemovalsAsync());
+Check(removals.Any(x => x.UserId == leaverId && x.Subject == leaver.Subject), "the sign-in identity is queued for removal at the provider");
+await Mutation(s => s.MarkIdentityRemovedAsync(leaverId));
+Check((await Run(s => s.PendingIdentityRemovalsAsync())).All(x => x.UserId != leaverId), "a removed identity leaves the queue");
+Check((await Run(s => s.BootstrapAsync(leaver))).Account.Id != leaverId, "signing in again after removal starts a new account");
 Console.WriteLine($"{passed} account checks passed, including real PostgreSQL integration.");
 Console.WriteLine($"Disposable test schema retained for inspection: {schemaName}");
+
+sealed class FixedClock(DateTimeOffset at) : TimeProvider { public override DateTimeOffset GetUtcNow() => at; }

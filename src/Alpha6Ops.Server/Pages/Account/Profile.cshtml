@@ -40,3 +40,8 @@
     @if (p is { AvatarUrl.Length: > 0 }) { <form method="post" asp-page-handler="RemoveAvatar"><button class="text-button danger">Remove picture</button></form> }
 </aside>
 </div>
+<section class="card your-data" id="your-data" aria-labelledby="your-data-title">
+    <h2 id="your-data-title">Your data</h2>
+    <p>Download a copy of everything S4 OPS holds about you: account, profile, airlines, logbook, activity and profile picture, as JSON files in a ZIP. See the <a href="/Privacy">privacy page</a> for what each part is.</p>
+    <div class="actions"><a class="button secondary" href="/Account/Profile?handler=Export">Download my data</a><a class="danger-link" href="/Account/Delete">Delete my account</a></div>
+</section>

@@ -31,6 +31,11 @@ public static class TrustedActor
             if (authenticatedAt > (clock ?? TimeProvider.System).GetUtcNow().AddSeconds(30))
                 throw new IdentityException("invalid_identity", "The authentication proof is invalid.", 401);
         }
-        return new(issuer, subject, Required(Prefix + "display_name"), email, verified, mfa, authenticatedAt);
+        // auth_time is present after a forced sign-in (max_age=0); it is optional and only ever narrows what is allowed.
+        DateTimeOffset? signedInAt = null;
+        if (long.TryParse(principal.FindFirst("auth_time")?.Value, NumberStyles.None, CultureInfo.InvariantCulture, out var authTime)
+            && authTime is > 0 and <= 253402300799 && DateTimeOffset.FromUnixTimeSeconds(authTime) <= (clock ?? TimeProvider.System).GetUtcNow().AddSeconds(30))
+            signedInAt = DateTimeOffset.FromUnixTimeSeconds(authTime);
+        return new(issuer, subject, Required(Prefix + "display_name"), email, verified, mfa, authenticatedAt, signedInAt);
     }
 }

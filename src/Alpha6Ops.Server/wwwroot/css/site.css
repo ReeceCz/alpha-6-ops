@@ -134,6 +134,12 @@ small { font-size: var(--size-xs); }
 .button.secondary, button.secondary { background: transparent; color: var(--text); border-color: var(--line-strong); }
 .button.secondary:hover, button.secondary:hover { background: var(--surface-raised); border-color: var(--action); color: var(--text); }
 .button:disabled { opacity: 0.5; cursor: not-allowed; }
+.button.danger { background: transparent; border-color: var(--warning); color: var(--warning); }
+.button.danger:hover { background: var(--warning-fill); border-color: var(--warning); color: var(--warning); }
+.danger-link { color: var(--warning); font-size: var(--size-s); }
+.danger-link:hover { color: var(--warning); }
+.danger-card { border-color: var(--warning); }
+.your-data { margin-top: var(--space-5); }
 .small, .button.small { min-height: 40px; padding: 6px 14px; }
 .button .icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .button .arrow, .ext { margin-left: var(--space-1); }
@@ -434,6 +440,17 @@ td { font-variant-numeric: tabular-nums; }
 .faq-list dt { font-weight: 700; }
 .faq-list dd { margin: var(--space-1) 0 0; color: var(--text-2); font-size: var(--size-s); }
 
+/* Privacy and terms */
+.legal-heading p { margin: var(--space-2) 0 0; font-size: var(--size-s); }
+.legal { max-width: 760px; padding-bottom: var(--space-6); }
+.legal h2 { margin: var(--space-7) 0 var(--space-3); }
+.legal p, .legal li { color: var(--text-2); }
+.legal strong { color: var(--text); }
+.legal ul { padding-left: 20px; display: grid; gap: var(--space-3); }
+.legal-list { margin: 0 0 var(--space-4); display: grid; grid-template-columns: 200px 1fr; gap: var(--space-3) var(--space-5); }
+.legal-list dt { font-weight: 700; }
+.legal-list dd { margin: 0; color: var(--text-2); }
+
 /* Responsive */
 @media (max-width: 1000px) {
   .hero { grid-template-columns: 1fr; }
@@ -469,6 +486,8 @@ td { font-variant-numeric: tabular-nums; }
   footer { flex-direction: column; align-items: flex-start; }
 }
 @media (max-width: 680px) {
+  .legal-list { grid-template-columns: 1fr; gap: 0; }
+  .legal-list dd { margin-bottom: var(--space-3); }
   .console-shell { grid-template-columns: 1fr; }
   .console-sidebar { border-right: 0; border-bottom: 1px solid var(--line); padding: var(--space-4); gap: var(--space-3); }
   .console-sidebar ul { display: flex; overflow-x: auto; gap: var(--space-1); }

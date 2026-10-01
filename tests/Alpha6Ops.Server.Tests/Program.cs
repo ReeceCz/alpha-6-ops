@@ -360,6 +360,51 @@ if (created.IsSuccessStatusCode)
             }
             Console.WriteLine("Portal snapshot written to " + snapshotDir);
         }
+        // Privacy, terms, data export and self-service deletion.
+        foreach (var legal in new[] { "/Privacy", "/Terms" })
+        {
+            var legalPage = await anonymous.GetAsync(legal);
+            var legalHtml = await legalPage.Content.ReadAsStringAsync();
+            Check(legalPage.IsSuccessStatusCode && legalHtml.Contains("Sierra 4") && !legalHtml.Contains("<script"), $"{legal} renders anonymously without scripts");
+        }
+        var dataExport = await browser.GetAsync("/Account/Profile?handler=Export");
+        using (var zip = new System.IO.Compression.ZipArchive(await dataExport.Content.ReadAsStreamAsync()))
+            Check(dataExport.Content.Headers.ContentType?.MediaType == "application/zip" && zip.Entries.Any(e => e.FullName == "logbook.json")
+                && zip.Entries.Any(e => e.FullName == "profile-picture.png"), "Profile exports the account as a ZIP with the profile picture");
+        var ownerDelete = await browser.GetStringAsync("/Account/Delete");
+        Check(ownerDelete.Contains("Transfer your airlines first") && !ownerDelete.Contains("handler=Request"), "Delete page asks an owner to transfer airlines first");
+        // A pilot without MFA: a stale sign-in is sent to sign in again; a fresh one schedules deletion, which locks
+        // every other page to the delete page until it is cancelled.
+        HttpClient Leaver(DateTimeOffset signedInAt)
+        {
+            var claims = host.Claims("leaver-" + run);
+            claims[TrustedActor.Prefix + "mfa"] = false; claims.Remove(TrustedActor.Prefix + "mfa_at");
+            claims["auth_time"] = signedInAt.ToUnixTimeSeconds();
+            var leaverTicket = new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims.Select(p => new Claim(p.Key, p.Value.ToString()!)), CookieAuthenticationDefaults.AuthenticationScheme)),
+                new AuthenticationProperties { ExpiresUtc = DateTimeOffset.UtcNow.AddHours(1) }, CookieAuthenticationDefaults.AuthenticationScheme);
+            var client = host.CreateClient(new() { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
+            client.DefaultRequestHeaders.Add("Cookie", "__Host-Alpha6.Session=" + cookieOptions.TicketDataFormat.Protect(leaverTicket));
+            return client;
+        }
+        using var staleLeaver = Leaver(DateTimeOffset.UtcNow.AddHours(-1));
+        Check((await staleLeaver.GetAsync("/Account")).IsSuccessStatusCode, "A pilot without MFA signs in to the portal");
+        var stalePage = await staleLeaver.GetAsync("/Account/Delete");
+        var stale = await SubmitAsync(staleLeaver, stalePage, await stalePage.Content.ReadAsStringAsync(), "/Account/Delete?handler=Request", new() { ["Confirm"] = "true" });
+        var staleHtml = await stale.Content.ReadAsStringAsync();
+        Check(stale.StatusCode == HttpStatusCode.Forbidden && staleHtml.Contains("/auth/reauth?returnUrl=%2FAccount%2FDelete"), "Deletion after a stale sign-in asks the pilot to sign in again");
+        using var leaver = Leaver(DateTimeOffset.UtcNow);
+        var deletePage = await leaver.GetAsync("/Account/Delete");
+        var deleteHtml = await deletePage.Content.ReadAsStringAsync();
+        Check((await SubmitAsync(leaver, deletePage, deleteHtml, "/Account/Delete?handler=Request", new() { ["Confirm"] = "false" })).StatusCode == HttpStatusCode.BadRequest, "Deletion needs the confirmation box");
+        Check((await SubmitAsync(leaver, deletePage, deleteHtml, "/Account/Delete?handler=Request", new() { ["Confirm"] = "true" })).StatusCode == HttpStatusCode.Redirect, "A fresh sign-in schedules deletion without MFA");
+        var locked = await leaver.GetAsync("/Account");
+        Check(locked.StatusCode == HttpStatusCode.Redirect && locked.Headers.Location?.OriginalString == "/Account/Delete", "A scheduled account is locked to the delete page");
+        var scheduledPage = await leaver.GetAsync("/Account/Delete");
+        var scheduledHtml = await scheduledPage.Content.ReadAsStringAsync();
+        Check(scheduledHtml.Contains("Erased after") && (await leaver.GetAsync("/Account/Profile?handler=Export")).Content.Headers.ContentType?.MediaType == "application/zip",
+            "The delete page shows the erase date and the data can still be downloaded");
+        Check((await SubmitAsync(leaver, scheduledPage, scheduledHtml, "/Account/Delete?handler=Cancel", [])).StatusCode == HttpStatusCode.Redirect
+            && (await leaver.GetAsync("/Account")).IsSuccessStatusCode, "Cancelling unlocks the account");
     }
 }
 using (var limited = host.Client("rate-" + run, "missing-claim"))

@@ -1,7 +1,8 @@
 @model Alpha6Ops.Server.Pages.Account.AccountPage
 @if (Model.ErrorMessage is not null) {
     <div role="alert" class="notice"><p>@Model.ErrorMessage</p>
-    @if (Model.NeedsVerification) { <a href="/auth/step-up">Complete a fresh security check</a> }
+    @if (Model.ErrorCode == "recent_authentication_required") { <a href="/auth/reauth?returnUrl=@Uri.EscapeDataString(Context.Request.Path)">Sign in again</a> }
+    else if (Model.NeedsVerification) { <a href="/auth/step-up?returnUrl=@Uri.EscapeDataString(Context.Request.Path)">Complete a fresh security check</a> }
     </div>
 }
 <div asp-validation-summary="All" role="alert" class="validation"></div>

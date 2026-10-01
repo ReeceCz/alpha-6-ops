@@ -33,6 +33,7 @@ terminates TLS itself.
 | `Auth0__Authority` | `https://dev-2m805d64kx5233sh.us.auth0.com/` (trailing slash) |
 | `Auth0__Audience` | `https://api.alpha6ops.dev` |
 | `Auth0__ClientId` / `Auth0__ClientSecret` | The **Portal** (Regular Web Application) client |
+| `Auth0__ManagementClientId` / `Auth0__ManagementClientSecret` | Optional. A machine-to-machine client allowed only `delete:users`, so account deletion also removes the Auth0 sign-in (see "Account deletion") |
 | `ConnectionStrings__Accounts` | Neon pooled connection string, e.g. `Host=ep-….neon.tech;Port=5432;Username=…;Password=…;Database=alpha6_accounts;SSL Mode=Require;Channel Binding=Require` |
 | `DataProtection__CertificateBase64` / `DataProtection__CertificatePassword` | Output of `scripts/new-keyring-certificate.ps1` |
 | `Release__DownloadUrl` / `Release__Version` / `Release__Sha256` | Optional; enables `/Download` and the desktop Updates dialog once an installer is published |
@@ -96,6 +97,35 @@ placeholder records for the apex and `www`: an `A` record to `192.0.2.1`, orange
 
 The desktop keeps using the Render address until its `ApiBaseUrl`/`PortalUrl` point at `https://app.s4ops.com`.
 Both names reach the same service.
+
+## Account deletion
+
+Pilots delete their own account from **Profile → Your data → Delete my account**. The account locks at once and
+is erased 14 days later by an hourly background job (`AccountDeletionJob`): profile, logbook, picture,
+memberships and personal history go, and the account row becomes an anonymous "Deleted pilot" tombstone that
+airline history can still reference. Owners must transfer their airlines first.
+
+The pilot's Auth0 sign-in must be removed too. Two ways:
+
+**Automatic (recommended).** In Auth0, Applications → Create Application → *Machine to Machine*, name it
+`S4 OPS account deletion`, authorise it for the **Auth0 Management API** with only the `delete:users`
+permission. Put its Client ID and Client Secret in `Auth0__ManagementClientId` and
+`Auth0__ManagementClientSecret` on Render and redeploy. The job then removes each erased account's sign-in and
+drops the last identifier from the tombstone.
+
+**By hand.** Without those variables the server logs a warning each hour while sign-ins are waiting. List
+them with:
+
+```sql
+SELECT "Id", "Subject", "DeletedAt" FROM user_account WHERE "Status" = 3 AND "IdentityRemovedAt" IS NULL;
+```
+
+Delete each `Subject` (for example `auth0|65f…`) under Auth0 → User Management → Users, then mark it done:
+
+```sql
+UPDATE user_account SET "IdentityRemovedAt" = now(), "Subject" = 'deleted:' || replace("Id"::text, '-', '')
+WHERE "Id" = '<Id>' AND "Status" = 3;
+```
 
 ## Rotating secrets
 

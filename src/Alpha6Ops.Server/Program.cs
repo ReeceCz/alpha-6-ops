@@ -116,6 +116,8 @@ if (settings.IsConfigured)
 {
     builder.Services.AddDbContext<AccountsDbContext>(o => o.UseNpgsql(settings.ConnectionString));
     builder.Services.AddScoped<AccountsService>();
+    builder.Services.AddHttpClient<Auth0ManagementClient>();
+    builder.Services.AddHostedService<AccountDeletionJob>();
     auth.AddJwtBearer(o =>
     {
         o.Authority = settings.Authority;
@@ -160,6 +162,11 @@ if (settings.IsConfigured)
         {
             context.ProtocolMessage.SetParameter("audience", settings.Audience);
             if (context.Properties.Items.ContainsKey("signup")) context.ProtocolMessage.SetParameter("screen_hint", "signup");
+            if (context.Properties.Items.ContainsKey("reauth"))
+            {
+                context.ProtocolMessage.Prompt = "login";
+                context.ProtocolMessage.MaxAge = "0";
+            }
             if (context.Properties.Items.ContainsKey("stepup"))
             {
                 context.ProtocolMessage.Prompt = "login";
@@ -261,10 +268,21 @@ app.MapGet("/auth/signup", () =>
     properties.Items["signup"] = "true";
     return Results.Challenge(properties, ["Auth0"]);
 }).RequireRateLimiting("requests");
-app.MapGet("/auth/step-up", () =>
+// Only pages inside the signed-in area may be returned to, so the redirect can never leave the site.
+static string AccountReturn(string? returnUrl) => returnUrl is { Length: < 200 } r && r.StartsWith("/Account", StringComparison.Ordinal)
+    && !r.Contains("//", StringComparison.Ordinal) && r.IndexOf((char)92) < 0 ? r : "/Account";
+// Step-up: a fresh MFA proof (enrolling a factor if needed) for administrative actions.
+app.MapGet("/auth/step-up", (string? returnUrl) =>
 {
-    var properties = new AuthenticationProperties { RedirectUri = "/Account" };
+    var properties = new AuthenticationProperties { RedirectUri = AccountReturn(returnUrl) };
     properties.Items["stepup"] = "true";
+    return Results.Challenge(properties, ["Auth0"]);
+}).RequireAuthorization().RequireRateLimiting("requests");
+// Re-authentication: sign in again, without demanding MFA, for actions that only need proof it is still you.
+app.MapGet("/auth/reauth", (string? returnUrl) =>
+{
+    var properties = new AuthenticationProperties { RedirectUri = AccountReturn(returnUrl) };
+    properties.Items["reauth"] = "true";
     return Results.Challenge(properties, ["Auth0"]);
 }).RequireAuthorization().RequireRateLimiting("requests");
 if (settings.IsConfigured)

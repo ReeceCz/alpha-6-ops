@@ -3,7 +3,8 @@ using System.Text.Json.Serialization;
 namespace Alpha6Ops.Identity;
 
 [JsonConverter(typeof(JsonStringEnumConverter<AccountStatus>))]
-public enum AccountStatus { Active, Suspended }
+// PendingDeletion: locked, erased after the grace period unless cancelled. Deleted: an anonymised tombstone.
+public enum AccountStatus { Active, Suspended, PendingDeletion, Deleted }
 [JsonConverter(typeof(JsonStringEnumConverter<PersonalPlan>))]
 public enum PersonalPlan { Free, Premium }
 [JsonConverter(typeof(JsonStringEnumConverter<AirlinePlan>))]
@@ -88,8 +89,9 @@ public sealed record InvitationResponse(Guid Id, string Email, AirlineRole[] Rol
     string Status);
 // Raw tokens are returned only once to the issuing administrator, never in listings or logs.
 public sealed record IssuedInvitation(InvitationResponse Invitation, string Token);
+// AuthenticatedAt is the most recent MFA proof; SignedInAt is the most recent sign-in of any kind (OIDC auth_time).
 public sealed record ActorIdentity(string Issuer, string Subject, string DisplayName, string Email,
-    bool EmailVerified, bool HasMfa, DateTimeOffset? AuthenticatedAt);
+    bool EmailVerified, bool HasMfa, DateTimeOffset? AuthenticatedAt, DateTimeOffset? SignedInAt = null);
 
 public static class Capabilities
 {

@@ -24,6 +24,17 @@ public static partial class AccountRules
         return roles.Distinct().Order().ToArray();
     }
 
+    public const int DeletionGraceDays = 14;
+
+    // A fresh sign-in or MFA proof within five minutes. Used for account deletion, which must stay possible for
+    // accounts without a verified email or an enrolled factor.
+    public static void RequireRecentAuthentication(ActorIdentity actor, DateTimeOffset now)
+    {
+        static bool Recent(DateTimeOffset? at, DateTimeOffset now) => at is { } t && t <= now.AddSeconds(30) && t >= now.AddMinutes(-5);
+        if (!Recent(actor.SignedInAt, now) && !Recent(actor.AuthenticatedAt, now))
+            throw new IdentityException("recent_authentication_required", "Sign in again to confirm it's you, then try once more.");
+    }
+
     public static void RequireRecentMfa(ActorIdentity actor, DateTimeOffset now)
     {
         if (!actor.EmailVerified) throw new IdentityException("email_verification_required", "Verify your email first.");

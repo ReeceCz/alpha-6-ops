@@ -1,0 +1,43 @@
+@page
+@model Alpha6Ops.Server.Pages.Account.DeleteModel
+@{ ViewData["Title"] = "Delete your account"; var s = Model.Status; }
+<div class="page-heading narrow"><a href="/Account/Profile">← Profile</a><div class="eyebrow">Your data</div><h1>@(s?.Status == AccountStatus.PendingDeletion ? "Your account is scheduled for deletion" : "Delete your account")</h1></div>
+<div class="narrow">
+<partial name="_AccountError" model="Model" />
+@if (Model.Cancelled) { <div class="notice" role="status"><p>Deletion cancelled. Your account is active again.</p></div> }
+@if (s is { Status: AccountStatus.PendingDeletion, EraseAfter: { } erase }) {
+    <section class="card danger-card" aria-labelledby="scheduled-title">
+        <h2 id="scheduled-title">Erased after @erase.ToString("d MMMM yyyy, HH:mm 'UTC'", System.Globalization.CultureInfo.InvariantCulture)</h2>
+        <p>Your account is locked. The desktop app and your airlines can no longer use it. Until the date above you can change your mind, and you can still download your data.</p>
+        <div class="actions">
+            <form method="post" asp-page-handler="Cancel"><button class="button">Cancel deletion</button></form>
+            <a class="button secondary" href="/Account/Profile?handler=Export">Download my data</a>
+        </div>
+    </section>
+    <form method="post" asp-page="/Account/Index" asp-page-handler="Logout"><button class="text-button">Sign out</button></form>
+} else if (s is not null) {
+    <section class="card" aria-labelledby="what-title">
+        <h2 id="what-title">What happens</h2>
+        <ul class="plain">
+            <li><strong>Straight away.</strong> Your account locks. The desktop app and your airlines stop accepting it.</li>
+            <li><strong>For @Legal.DeletionGraceDays days.</strong> Sign in and cancel if you change your mind. Your data stays as it is.</li>
+            <li><strong>Then.</strong> Your profile, logbook, profile picture and airline memberships are erased, your name and email are removed, and your sign-in is deleted. Airline history shows a "deleted pilot" in your place.</li>
+            <li><strong>Your PC.</strong> Flights the desktop app keeps on your computer are not touched. Uninstall the app to remove them.</li>
+        </ul>
+        <p><a href="/Account/Profile?handler=Export">Download your data</a> first if you want a copy.</p>
+    </section>
+    @if (s.OwnedAirlines.Length > 0) {
+        <section class="notice" aria-labelledby="owner-title">
+            <h2 id="owner-title">Transfer your airlines first</h2>
+            <p>You own @(s.OwnedAirlines.Length == 1 ? "an airline" : "airlines") that need a new owner before your account can be deleted:</p>
+            <ul>@foreach (var a in s.OwnedAirlines) { <li><a href="/Account/Airline/@a.Id">@a.Name</a>: open Crew &amp; settings and transfer ownership.</li> }</ul>
+        </section>
+    } else {
+        <form method="post" asp-page-handler="Request" class="card danger-card stack">
+            <label class="check"><input asp-for="Confirm" type="checkbox" /> I understand my account will be erased after @Legal.DeletionGraceDays days unless I cancel.</label>
+            <p class="muted">If you haven't signed in within the last five minutes, you'll be asked to sign in again first.</p>
+            <button class="button danger">Delete my account</button>
+        </form>
+    }
+}
+</div>

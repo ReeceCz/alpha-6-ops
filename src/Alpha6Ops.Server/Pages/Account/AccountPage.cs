@@ -11,9 +11,13 @@ public abstract class AccountPage(AccountsService accounts, ServerSettings setti
     protected ActorIdentity Actor => TrustedActor.Read(User, settings);
     public string? ErrorMessage { get; protected set; }
     public bool NeedsVerification { get; protected set; }
+    public string? ErrorCode { get; protected set; }
     protected IActionResult Failure(IdentityException error)
     {
+        // A locked account can only see its deletion, cancel it, or download its data.
+        if (error.Code == "account_pending_deletion") return Redirect("/Account/Delete");
         ErrorMessage = error.Message;
+        ErrorCode = error.Code;
         NeedsVerification = error.Code is "mfa_required" or "recent_authentication_required" or "recent_mfa_required";
         Response.StatusCode = error.StatusCode;
         return Page();

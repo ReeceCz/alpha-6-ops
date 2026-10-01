@@ -59,6 +59,38 @@ public class ProfileModel(AccountsService accounts, ServerSettings settings) : A
         catch (IdentityException ex) { Fill(await Accounts.GetProfileAsync(Actor, ct)); return Failure(ex); }
     }
 
+    // A ZIP of everything the account holds, built on request and never stored. Allowed during the deletion grace period.
+    public async Task<IActionResult> OnGetExportAsync(CancellationToken ct)
+    {
+        try
+        {
+            var (data, avatar) = await Accounts.ExportAsync(Actor, ct);
+            var json = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web) { WriteIndented = true };
+            using var buffer = new MemoryStream();
+            using (var zip = new System.IO.Compression.ZipArchive(buffer, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+            {
+                void Add(string name, byte[] bytes) { using var entry = zip.CreateEntry(name).Open(); entry.Write(bytes); }
+                void AddJson<T>(string name, T value) => Add(name, System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(value, json));
+                Add("README.txt", System.Text.Encoding.UTF8.GetBytes(
+                    $"Your S4 OPS data, exported {data.ExportedAt:u}.{Environment.NewLine}{Environment.NewLine}" +
+                    $"account.json   your sign-in name, email and account status{Environment.NewLine}" +
+                    $"profile.json   callsign, home base, units and preferences{Environment.NewLine}" +
+                    $"airlines.json  airlines you belong to and your roles{Environment.NewLine}" +
+                    $"logbook.json   every flight in your logbook{Environment.NewLine}" +
+                    $"activity.json  account and airline actions you took{Environment.NewLine}"));
+                AddJson("account.json", data.Account);
+                AddJson("profile.json", data.Profile);
+                AddJson("airlines.json", data.Airlines);
+                AddJson("logbook.json", data.Logbook);
+                AddJson("activity.json", data.Activity);
+                if (avatar is not null)
+                    Add("profile-picture" + avatar.ContentType switch { "image/png" => ".png", "image/jpeg" => ".jpg", _ => ".webp" }, avatar.Bytes);
+            }
+            return File(buffer.ToArray(), "application/zip", $"s4ops-data-{data.ExportedAt:yyyyMMdd}.zip");
+        }
+        catch (IdentityException ex) { Profile = UserProfile.Default; return Failure(ex); }
+    }
+
     private void Fill(UserProfile profile)
     {
         Profile = profile;

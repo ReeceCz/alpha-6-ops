@@ -5,14 +5,19 @@ using Microsoft.EntityFrameworkCore;
 namespace Alpha6Ops.Accounts;
 
 /// <summary>Scoped service. Each request rechecks authorization inside a PostgreSQL transaction.</summary>
-public sealed class AccountsService(AccountsDbContext db, TimeProvider? timeProvider = null)
+public sealed partial class AccountsService(AccountsDbContext db, TimeProvider? timeProvider = null)
 {
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
     // One transaction-scoped lock deliberately serializes this first, low-volume account service.
     // It also makes concurrent first-login provisioning and cross-airline ownership limits safe.
     private const long LockId = 0x416C706861364F;
 
-    private async Task<T> Execute<T>(ActorIdentity actor, Func<UserAccount, DateTimeOffset, Task<T>> action, CancellationToken ct)
+    private Task<T> Execute<T>(ActorIdentity actor, Func<UserAccount, DateTimeOffset, Task<T>> action, CancellationToken ct) =>
+        Execute(actor, action, allowPendingDeletion: false, ct);
+
+    // allowPendingDeletion admits an account waiting out its deletion grace period: only to see that state,
+    // cancel it, or take a copy of the data. Everything else refuses it.
+    private async Task<T> Execute<T>(ActorIdentity actor, Func<UserAccount, DateTimeOffset, Task<T>> action, bool allowPendingDeletion, CancellationToken ct)
     {
         if (db.Database.ProviderName != "Npgsql.EntityFrameworkCore.PostgreSQL")
             throw new InvalidOperationException("Accounts requires PostgreSQL; an in-memory authentication store is not supported.");
@@ -26,8 +31,13 @@ public sealed class AccountsService(AccountsDbContext db, TimeProvider? timeProv
             throw new IdentityException("invalid_identity", "The identity issuer and subject must be exact identifiers.", 401);
         // Never merge accounts by email. Only the validated OIDC issuer and subject establish identity.
         var user = await db.Users.SingleOrDefaultAsync(x => x.Issuer == issuer && x.Subject == subject, ct);
-        if (user is not null && user.Status != AccountStatus.Active)
-            throw new IdentityException("account_suspended", "This account is suspended.");
+        switch (user?.Status)
+        {
+            case AccountStatus.Suspended: throw new IdentityException("account_suspended", "This account is suspended.");
+            case AccountStatus.Deleted: throw new IdentityException("account_deleted", "This account has been deleted.");
+            case AccountStatus.PendingDeletion when !allowPendingDeletion:
+                throw new IdentityException("account_pending_deletion", "This account is scheduled for deletion. Cancel the deletion to use it again.");
+        }
         var email = AccountRules.Email(actor.Email);
         var displayName = AccountRules.Text(actor.DisplayName, 150, "Display name");
         if (user is null)

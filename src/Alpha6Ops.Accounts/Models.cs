@@ -16,6 +16,10 @@ public sealed class UserAccount
     public DateTimeOffset? SubscriptionExpiresAt { get; set; }
     public Guid? LastAirlineId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? DeletionRequestedAt { get; set; }
+    public DateTimeOffset? DeletedAt { get; set; }
+    // When the sign-in identity was removed from the identity provider; until then Subject is kept to find it.
+    public DateTimeOffset? IdentityRemovedAt { get; set; }
 }
 
 public sealed class UserProfileRecord

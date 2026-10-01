@@ -30,6 +30,11 @@ services:
         sync: false
       - key: Auth0__ClientSecret
         sync: false
+      # Optional: a machine-to-machine client with only delete:users, so account deletion also removes the sign-in.
+      - key: Auth0__ManagementClientId
+        sync: false
+      - key: Auth0__ManagementClientSecret
+        sync: false
       - key: ConnectionStrings__Accounts
         sync: false
       - key: DataProtection__CertificateBase64

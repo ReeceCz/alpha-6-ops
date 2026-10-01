@@ -5,21 +5,20 @@
     <div class="h-scene" aria-hidden="true">
         <svg viewBox="0 0 1600 900" preserveAspectRatio="xMaxYMax slice" focusable="false">
             <defs>
-                <linearGradient id="h-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#03060a" /><stop offset="0.75" stop-color="#0c1724" /><stop offset="1" stop-color="#1b2a3a" /></linearGradient>
-                <radialGradient id="h-glow" cx="0.5" cy="1" r="0.5"><stop offset="0" stop-color="#ffb35c" stop-opacity="0.28" /><stop offset="0.6" stop-color="#ff9a3c" stop-opacity="0.06" /><stop offset="1" stop-color="#ff9a3c" stop-opacity="0" /></radialGradient>
+                <linearGradient id="h-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#04070b" /><stop offset="1" stop-color="#132131" /></linearGradient>
+                <radialGradient id="h-haze" cx="0.62" cy="1" r="0.5"><stop offset="0" stop-color="#ffc20e" stop-opacity="0.16" /><stop offset="0.5" stop-color="#3a5f86" stop-opacity="0.08" /><stop offset="1" stop-color="#04070b" stop-opacity="0" /></radialGradient>
                 <radialGradient id="h-mast"><stop offset="0" stop-color="#ffd9a0" stop-opacity="0.55" /><stop offset="1" stop-color="#ffd9a0" stop-opacity="0" /></radialGradient>
                 <radialGradient id="h-apron" cx="0.5" cy="0.4" r="0.7"><stop offset="0" stop-color="#2a2a26" /><stop offset="1" stop-color="#0d1013" /></radialGradient>
                 <linearGradient id="h-runway" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#11161c" /><stop offset="1" stop-color="#0b0e12" /></linearGradient>
             </defs>
             <rect width="1600" height="@HeroScene.Horizon" fill="url(#h-sky)" />
-            <ellipse cx="@HeroScene.DowntownGlow.X" cy="@HeroScene.DowntownGlow.Y" rx="380" ry="150" fill="url(#h-glow)" />
-            @foreach (var s in HeroScene.Skyline) { <path class="s-@s.Kind" d="@s.Path" /> }
-            @foreach (var l in HeroScene.SkylineLights) { <circle class="s-@l.Kind" cx="@l.X" cy="@l.Y" r="@l.R" /> }
+            <rect width="1600" height="@HeroScene.Horizon" fill="url(#h-haze)" />
             <rect class="s-ground" y="@HeroScene.Horizon" width="1600" height="340" />
             <path class="s-apron" d="@HeroScene.Apron" fill="url(#h-apron)" />
             @foreach (var s in HeroScene.Pavement) { <path class="s-@s.Kind" d="@s.Path" /> }
             <path class="s-runway" d="@HeroScene.Runway" fill="url(#h-runway)" />
             @foreach (var m in HeroScene.Markings) { <path class="s-paint" d="@m.Path" /> }
+            @foreach (var g in HeroScene.Designator) { <g transform="@g.Matrix"><text class="s-designator" x="50" y="100" text-anchor="middle" textLength="100" lengthAdjust="spacingAndGlyphs">@g.Text</text></g> }
             @foreach (var l in HeroScene.City) { <circle class="s-city @l.Kind" cx="@l.X" cy="@l.Y" r="@l.R" /> }
             @foreach (var l in HeroScene.Lights) { <circle class="s-@l.Kind" cx="@l.X" cy="@l.Y" r="@l.R" /> }
             <g class="s-greens">@foreach (var l in HeroScene.Greens) { <circle cx="@l.X" cy="@l.Y" r="@l.R" /> }</g>
@@ -29,6 +28,12 @@
             @foreach (var l in HeroScene.AircraftLights) { <circle class="s-@l.Kind" cx="@l.X" cy="@l.Y" r="@l.R" /> }
             @foreach (var m in HeroScene.Masts) { <line class="s-mast" x1="@m.X" y1="@m.Y" x2="@m.X" y2="@m.Kind" /><circle cx="@m.X" cy="@m.Y" r="@m.R" fill="url(#h-mast)" /><circle class="s-mast-lamp" cx="@m.X" cy="@m.Y" r="1.6" /> }
             @foreach (var l in HeroScene.Beacons) { <circle class="s-obstruction" cx="@l.X" cy="@l.Y" r="@l.R" /> }
+            @* Runway holding-position sign array at the 19R end of Taxiway E: mandatory "19R" and location "E". *@
+            <g class="s-sign" transform="translate(@HeroScene.Sign.X @HeroScene.Sign.Y) scale(@HeroScene.Sign.Scale) translate(-60 -78)">
+                <rect class="post" x="14" y="46" width="5" height="32" /><rect class="post" x="101" y="46" width="5" height="32" />
+                <rect class="mandatory" width="66" height="46" rx="2" /><text class="mandatory-text" x="33" y="34" text-anchor="middle">19R</text>
+                <rect class="loc" x="68" width="52" height="46" rx="2" /><rect class="loc-border" x="72" y="4" width="44" height="38" /><text class="loc-text" x="94" y="35" text-anchor="middle">E</text>
+            </g>
             <g class="s-route">
                 <path class="route-track" d="@HeroScene.Route" />
                 <path class="route-flown" d="@HeroScene.Route" pathLength="100" />

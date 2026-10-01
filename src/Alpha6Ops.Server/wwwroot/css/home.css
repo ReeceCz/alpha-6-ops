@@ -58,32 +58,42 @@
 .s-route .route-label { font: 700 16px var(--mono); letter-spacing: 0.08em; fill: #c3cad1; }
 .s-route .ac { fill: #ffffff; }
 .s-route .ac-pulse { fill: none; stroke: #3cc8e8; stroke-width: 1.5; opacity: 0.6; transform-box: fill-box; transform-origin: center; }
-.s-terminal, .s-tower { fill: #0b1118; }
-.s-tower-cab { fill: #12303c; stroke: #2c5466; stroke-width: 1; }
-.s-window { fill: #ffd27a; opacity: 0.55; }
-.s-obstruction { fill: #ff3b3b; }
+/* KMKE, from HeroScene.cs: horizon lights, other runways and taxiways, 19R and its lighting, terminal, tower, sign */
+.s-distant { opacity: 0.7; }
+.s-distant.warm { fill: #ffcf8a; }
+.s-distant.cool { fill: #cfe0ff; }
 .s-ground { fill: #050709; }
-.s-paint { fill: #e8ecef; opacity: 0.5; }
-.s-designator { font: 700 120px var(--font); fill: #e8ecef; opacity: 0.38; }
-.s-edge { fill: #fff3d6; }
+.s-other-runway { fill: #0e1115; }
+.s-closed-runway { fill: #0b0d10; }
 .s-taxiway { fill: #0a0d10; }
-.s-taxi-line { fill: none; stroke: #ffc20e; stroke-width: 3; opacity: 0.85; }
+.s-taxi-line { fill: #ffc20e; opacity: 0.7; }
+.s-paint { fill: #e8ecef; opacity: 0.5; }
+.s-designator { font: 700 138px var(--font); fill: #e8ecef; opacity: 0.45; }
+.s-edge { fill: #fff3d6; }
+.s-edge-caution { fill: #ffc20e; }
+.s-centre { fill: #eef3ff; opacity: 0.85; }
+.s-centre-red, .s-end { fill: #ff3b3b; }
 .s-taxi-edge { fill: #3d7bff; }
 .s-greens circle { fill: #33d17a; opacity: 0.85; }
+.s-building { fill: #0b1118; stroke: #1c2733; stroke-width: 0.8; }
+.s-tower { fill: #0b1118; stroke: #1c2733; stroke-width: 0.8; }
+.s-tower-cab { fill: #2f7f92; opacity: 0.85; }
+.s-window { fill: #ffd27a; opacity: 0.6; }
+.s-mast { stroke: #2a3038; stroke-width: 1.2; }
+.s-mast-lamp { fill: #fff1d6; }
+.s-obstruction { fill: #ff3b3b; }
 .s-sign .post { fill: #2a2f35; }
-.s-sign .frame { fill: #ffc20e; }
+.s-sign .mandatory { fill: #c8102e; }
+.s-sign .mandatory-text { font: 700 30px var(--font); fill: #ffffff; }
 .s-sign .loc { fill: #000000; }
-.s-sign .loc-border { fill: none; stroke: #ffc20e; stroke-width: 3; }
-.s-sign .loc-text, .s-sign .dir-text { font: 700 30px var(--font); }
-.s-sign .loc-text { fill: #ffc20e; }
-.s-sign .dir-text { fill: #000000; }
-.s-sign .dir-arrow { fill: none; stroke: #000000; stroke-width: 4; }
+.s-sign .loc-border { fill: none; stroke: #ffc20e; stroke-width: 2.5; }
+.s-sign .loc-text { font: 700 30px var(--font); fill: #ffc20e; }
 
 @media (prefers-reduced-motion: no-preference) {
   .s-route .route-flown { animation: route-progress 7s cubic-bezier(0.25, 0.6, 0.3, 1) both; }
   .s-route .ac-pulse { animation: pulse 2.8s ease-out infinite; }
   .s-obstruction { animation: obstruction 2.4s steps(1, end) infinite; }
-  .s-obstruction.late { animation-delay: 1.2s; }
+  .s-obstruction:nth-of-type(2n) { animation-delay: 1.2s; }
   /* "Follow the greens": centre-line lights light up ahead of the aircraft, one after another. */
   .s-greens circle { opacity: 0.18; animation: greens 3.6s linear infinite; }
   .s-greens circle:nth-child(1) { animation-delay: 0s; } .s-greens circle:nth-child(2) { animation-delay: 0.15s; }
@@ -92,6 +102,7 @@
   .s-greens circle:nth-child(7) { animation-delay: 0.9s; } .s-greens circle:nth-child(8) { animation-delay: 1.05s; }
   .s-greens circle:nth-child(9) { animation-delay: 1.2s; } .s-greens circle:nth-child(10) { animation-delay: 1.35s; }
   .s-greens circle:nth-child(11) { animation-delay: 1.5s; } .s-greens circle:nth-child(12) { animation-delay: 1.65s; }
+  .s-greens circle:nth-child(13) { animation-delay: 1.8s; } .s-greens circle:nth-child(14) { animation-delay: 1.95s; }
 }
 @keyframes route-progress { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 38; } }
 @keyframes pulse { 0% { transform: scale(0.6); opacity: 0.8; } 100% { transform: scale(2.2); opacity: 0; } }
@@ -228,6 +239,8 @@
 /* Large screens: let the hero breathe */
 @media (min-width: 1800px) {
   .h-hero-grid { padding-top: 14vh; }
+  /* The scene is wider here and the route sits where the readout would, so the readout joins the copy column. */
+  .h-readout { grid-column: 1; justify-self: start; align-self: start; margin-top: 0; }
 }
 
 /* Narrow desktops and landscape tablets: the copy needs the width, so the sky labels and the readout step aside

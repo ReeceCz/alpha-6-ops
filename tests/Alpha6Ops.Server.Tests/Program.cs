@@ -215,8 +215,37 @@ var oversized = await browser.PostAsync("/Account/Logbook?handler=Import", new S
 Check(oversized.StatusCode is HttpStatusCode.RequestEntityTooLarge or HttpStatusCode.BadRequest, "Oversized logbook uploads are refused");
 
 // Media: upload through the profile form, serve from /media with caching, reject non-images.
-static byte[] Png(int w, int h) => [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, (byte)'I', (byte)'H', (byte)'D', (byte)'R',
-    (byte)(w >> 24), (byte)(w >> 16), (byte)(w >> 8), (byte)w, (byte)(h >> 24), (byte)(h >> 16), (byte)(h >> 8), (byte)h, 8, 6, 0, 0, 0];
+// A complete, decodable PNG (solid RGBA fill) so snapshot screenshots show the image rather than a broken one.
+static byte[] Png(int w, int h, uint rgb = 0x3CC8E8)
+{
+    static uint Crc(ReadOnlySpan<byte> data)
+    {
+        var crc = 0xFFFFFFFFu;
+        foreach (var b in data) { crc ^= b; for (var k = 0; k < 8; k++) crc = (crc >> 1) ^ (0xEDB88320u & (uint)-(int)(crc & 1)); }
+        return ~crc;
+    }
+    static void Chunk(MemoryStream png, string type, byte[] data)
+    {
+        var typed = new byte[4 + data.Length]; System.Text.Encoding.ASCII.GetBytes(type, typed); data.CopyTo(typed, 4);
+        Span<byte> word = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(word, (uint)data.Length); png.Write(word);
+        png.Write(typed);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(word, Crc(typed)); png.Write(word);
+    }
+    var header = new byte[13];
+    System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(header.AsSpan(0), (uint)w);
+    System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(header.AsSpan(4), (uint)h);
+    header[8] = 8; header[9] = 6;
+    var row = new byte[1 + w * 4];
+    for (var x = 0; x < w; x++) { row[1 + x * 4] = (byte)(rgb >> 16); row[2 + x * 4] = (byte)(rgb >> 8); row[3 + x * 4] = (byte)rgb; row[4 + x * 4] = 0xFF; }
+    var pixels = new MemoryStream();
+    using (var zlib = new System.IO.Compression.ZLibStream(pixels, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true))
+        for (var y = 0; y < h; y++) zlib.Write(row);
+    var png = new MemoryStream();
+    png.Write([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+    Chunk(png, "IHDR", header); Chunk(png, "IDAT", pixels.ToArray()); Chunk(png, "IEND", []);
+    return png.ToArray();
+}
 static async Task<HttpResponseMessage> UploadAsync(HttpClient client, HttpResponseMessage page, string html, string path, string field, byte[] bytes, string fileName)
 {
     var token = Regex.Match(html, "name=\"__RequestVerificationToken\" type=\"hidden\" value=\"([^\"]+)\"").Groups[1].Value;
@@ -301,7 +330,7 @@ if (created.IsSuccessStatusCode)
             new() { ["aircraftId"] = tail!.Id.ToString(), ["registration"] = "N123A6", ["typeIcao"] = "B738", ["name"] = "Spirit of Milwaukee", ["homeBase"] = "KMKE", ["status"] = "maintenance", ["notes"] = "C check" });
         Check(fleetForm.StatusCode == HttpStatusCode.Redirect && (await pilot.GetFromJsonAsync<AircraftResponse[]>($"/api/v1/virtual-airlines/{airline.Id}/fleet"))!.Single().Status == "maintenance", "Fleet form updates an aircraft");
         Check((await browser.PostAsync($"/Account/Airline/{airline.Id}/Fleet?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string> { ["aircraftId"] = tail.Id.ToString() }))).StatusCode == HttpStatusCode.BadRequest, "Fleet removal without CSRF token is rejected");
-        var logoUpload = await UploadAsync(browser, airlinePage, airlineHtml, $"/Account/Airline/{airline.Id}?handler=Logo", "logo", Png(400, 200), "logo.png");
+        var logoUpload = await UploadAsync(browser, airlinePage, airlineHtml, $"/Account/Airline/{airline.Id}?handler=Logo", "logo", Png(400, 200, 0xE15BE0), "logo.png");
         var branded = await pilot.GetFromJsonAsync<AirlineWorkspace>($"/api/v1/virtual-airlines/{airline.Id}");
         Check(logoUpload.StatusCode == HttpStatusCode.Redirect && branded?.LogoUrl.StartsWith("/media/airline-logo/") == true && (await anonymous.GetAsync(branded.LogoUrl)).IsSuccessStatusCode, "Airline logo upload through the console and served publicly");
         Check((await browser.GetStringAsync($"/Account/Airline/{airline.Id}/Schedule")).Contains(branded!.LogoUrl), "Console header shows the logo");

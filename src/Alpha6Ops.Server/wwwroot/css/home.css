@@ -27,37 +27,26 @@
 .h-note { margin: var(--space-4) 0 0; font-size: var(--size-s); color: var(--muted); }
 
 /* 1. Hero: a night airfield at the 19R holding point, with the sample flight's route overhead. */
-.h-hero { position: relative; display: flex; align-items: stretch; min-height: max(600px, calc(92svh - 73px)); background: #04070b; border-bottom: 1px solid #242a31; overflow: hidden; }
-/* The scene is anchored right and never wider than ~2.1x the hero's height, so ultrawide screens gain night sky
-   rather than a magnified runway. Its left edge fades into the hero background. */
-.h-scene { position: absolute; top: 0; right: 0; bottom: 0; width: min(100%, max(1260px, calc(193svh - 153px)));
-  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 18%); mask-image: linear-gradient(90deg, transparent 0, #000 18%); }
-.h-scene svg { display: block; width: 100%; height: 100%; }
+.h-hero { position: relative; display: flex; align-items: center; min-height: max(640px, calc(92svh - 73px)); background: #04070b; border-bottom: 1px solid #242a31; overflow: hidden; }
+/* The scene is a background: full bleed, dimmed and desaturated into a quiet, graphic night, so the copy leads. */
+.h-scene { position: absolute; inset: 0; }
+.h-scene svg { display: block; width: 100%; height: 100%; filter: saturate(0.55) brightness(0.72) contrast(0.92); }
 .h-scene::after { content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(90deg, #04070b 0%, rgba(4, 7, 11, 0.92) 28%, rgba(4, 7, 11, 0.45) 46%, rgba(4, 7, 11, 0) 60%),
-              linear-gradient(0deg, rgba(4, 7, 11, 0.7) 0%, rgba(4, 7, 11, 0) 22%); }
-.h-hero-grid { position: relative; display: grid; grid-template-columns: minmax(0, 860px) minmax(0, 1fr); align-items: center; width: 100%; padding-top: clamp(48px, 9vh, 112px); padding-bottom: clamp(32px, 6vh, 64px); }
-.h-hero-copy { padding-bottom: var(--space-7); }
-.h-hero .eyebrow { margin: 0 0 var(--space-5); }
-.h-hero h1 { font-size: clamp(40px, 4.6vw, 76px); line-height: 1.02; margin: 0; max-width: 14em; }
+  background: linear-gradient(90deg, rgba(4, 7, 11, 0.7) 0%, rgba(4, 7, 11, 0.35) 55%, rgba(4, 7, 11, 0.15) 100%),
+              linear-gradient(0deg, rgba(4, 7, 11, 0.75) 0%, rgba(4, 7, 11, 0) 30%); }
+.h-hero-grid { position: relative; width: 100%; padding-top: clamp(40px, 8vh, 104px); padding-bottom: clamp(40px, 8vh, 104px); }
+/* The copy panel: near-opaque night glass with the sign-edge accent. */
+.h-panel { max-width: 1040px; padding: clamp(28px, 4vw, 60px); background: rgba(6, 9, 13, 0.82); border: 1px solid rgba(255, 255, 255, 0.08); border-left: 4px solid var(--brand); border-radius: 6px;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 40px 120px -40px rgba(0, 0, 0, 0.9); }
+.h-hero .eyebrow { margin: 0 0 var(--space-5); font-size: 13px; }
+.h-hero h1 { font-size: clamp(48px, 5.6vw, 88px); line-height: 0.98; margin: 0; }
 .h-hero h1 span { display: block; }
-.h-lead { font-size: clamp(18px, 1.3vw, 21px); line-height: 1.6; color: var(--text-2); max-width: 54ch; margin: var(--space-5) 0 0; }
+.h-lead { font-size: clamp(19px, 1.6vw, 24px); line-height: 1.55; color: var(--text-2); max-width: 46ch; margin: var(--space-6) 0 0; }
+.h-hero .h-actions .button { min-height: 56px; padding: 14px 30px; font-size: 18px; }
+.h-hero .h-note { font-size: var(--size-s); }
 .h-hero .notice { max-width: 560px; margin-top: var(--space-6); }
-.h-readout { align-self: start; justify-self: end; display: grid; grid-template-columns: repeat(2, auto); gap: var(--space-2) var(--space-6); margin: var(--space-2) 0 0; padding: var(--space-4) var(--space-5); background: rgba(7, 9, 12, 0.78); border-left: 3px solid var(--brand); font-size: var(--size-s); }
-.h-readout div { display: grid; gap: 2px; }
-.h-readout dt { font: 12px/1.4 var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
-.h-readout dd { margin: 0; }
-.h-readout .h-readout-head { grid-column: 1 / -1; font: 700 20px/1.2 var(--mono); }
-.tag-sample { margin-left: var(--space-2); padding: 1px 6px; border: 1px solid var(--line-strong); border-radius: 2px; font: 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); vertical-align: middle; }
-.h-phase { color: var(--action); font-weight: 700; }
 
 /* Scene paint */
-.s-route .route-track { fill: none; stroke: #e15be0; stroke-width: 2; stroke-dasharray: 3 9; opacity: 0.5; }
-.s-route .route-flown { fill: none; stroke: #e15be0; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 38; }
-.s-route .route-fix { fill: #04070b; stroke: #e15be0; stroke-width: 2; }
-.s-route .route-label { font: 700 16px var(--mono); letter-spacing: 0.08em; fill: #c3cad1; }
-.s-route .ac { fill: #ffffff; }
-.s-route .ac-pulse { fill: none; stroke: #3cc8e8; stroke-width: 1.5; opacity: 0.6; transform-box: fill-box; transform-origin: center; }
 /* KMKE on short final for 1L, from HeroScene.cs. Light colours follow the FAA systems they depict. */
 .s-ground { fill: #050709; }
 .s-apron { opacity: 0.9; }
@@ -85,7 +74,7 @@
 .s-tdz { fill: #ffffff; opacity: 0.8; }
 .s-threshold { fill: #33d17a; }
 .s-papi-white, .s-approach { fill: #fffaf0; }
-.s-rabbit circle { fill: #ffffff; }
+.s-rabbit circle { fill: #ffffff; opacity: 0.9; }
 .s-taxi-edge { fill: #3d7bff; }
 .s-greens circle { fill: #33d17a; opacity: 0.85; }
 /* Terminal, tower and apron */
@@ -105,43 +94,11 @@
 .s-mast-lamp { fill: #fff1d6; }
 
 @media (prefers-reduced-motion: no-preference) {
-  .s-route .route-flown { animation: route-progress 7s cubic-bezier(0.25, 0.6, 0.3, 1) both; }
-  .s-route .ac-pulse { animation: pulse 2.8s ease-out infinite; }
   .s-obstruction { animation: obstruction 2.4s steps(1, end) infinite; }
-  /* ALSF-2 sequenced flashers: one pass towards the runway every half second. */
-  .s-rabbit circle { opacity: 0; animation: rabbit 0.5s linear infinite; }
-  .s-rabbit circle:nth-child(1) { animation-delay: 0.00s; }
-  .s-rabbit circle:nth-child(2) { animation-delay: 0.03s; }
-  .s-rabbit circle:nth-child(3) { animation-delay: 0.06s; }
-  .s-rabbit circle:nth-child(4) { animation-delay: 0.09s; }
-  .s-rabbit circle:nth-child(5) { animation-delay: 0.12s; }
-  .s-rabbit circle:nth-child(6) { animation-delay: 0.15s; }
-  .s-rabbit circle:nth-child(7) { animation-delay: 0.18s; }
-  .s-rabbit circle:nth-child(8) { animation-delay: 0.21s; }
-  .s-rabbit circle:nth-child(9) { animation-delay: 0.24s; }
-  .s-rabbit circle:nth-child(10) { animation-delay: 0.27s; }
-  .s-rabbit circle:nth-child(11) { animation-delay: 0.30s; }
-  .s-rabbit circle:nth-child(12) { animation-delay: 0.33s; }
-  .s-rabbit circle:nth-child(13) { animation-delay: 0.36s; }
-  .s-rabbit circle:nth-child(14) { animation-delay: 0.39s; }
-  .s-rabbit circle:nth-child(15) { animation-delay: 0.42s; }
   .s-ac-beacon { animation: obstruction 1.3s steps(1, end) infinite; }
   .s-obstruction:nth-of-type(2n) { animation-delay: 1.2s; }
-  /* "Follow the greens": centre-line lights light up ahead of the aircraft, one after another. */
-  .s-greens circle { opacity: 0.18; animation: greens 3.6s linear infinite; }
-  .s-greens circle:nth-child(1) { animation-delay: 0s; } .s-greens circle:nth-child(2) { animation-delay: 0.15s; }
-  .s-greens circle:nth-child(3) { animation-delay: 0.3s; } .s-greens circle:nth-child(4) { animation-delay: 0.45s; }
-  .s-greens circle:nth-child(5) { animation-delay: 0.6s; } .s-greens circle:nth-child(6) { animation-delay: 0.75s; }
-  .s-greens circle:nth-child(7) { animation-delay: 0.9s; } .s-greens circle:nth-child(8) { animation-delay: 1.05s; }
-  .s-greens circle:nth-child(9) { animation-delay: 1.2s; } .s-greens circle:nth-child(10) { animation-delay: 1.35s; }
-  .s-greens circle:nth-child(11) { animation-delay: 1.5s; } .s-greens circle:nth-child(12) { animation-delay: 1.65s; }
-  .s-greens circle:nth-child(13) { animation-delay: 1.8s; } .s-greens circle:nth-child(14) { animation-delay: 1.95s; }
 }
-@keyframes route-progress { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 38; } }
-@keyframes pulse { 0% { transform: scale(0.6); opacity: 0.8; } 100% { transform: scale(2.2); opacity: 0; } }
 @keyframes obstruction { 50% { opacity: 0.12; } }
-@keyframes rabbit { 0%, 10% { opacity: 1; } 12%, 100% { opacity: 0; } }
-@keyframes greens { 0%, 60%, 100% { opacity: 0.18; } 8%, 40% { opacity: 1; } }
 
 /* 2. Operations: the product, shown as the console it is */
 .h-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: var(--space-7); align-items: end; }
@@ -271,17 +228,6 @@
 .h-final .h-note, .h-final .h-fine { text-align: center; }
 
 /* Large screens: let the hero breathe */
-@media (min-width: 1800px) {
-  .h-hero-grid { padding-top: 14vh; }
-  /* The scene is wider here and the route sits where the readout would, so the readout joins the copy column. */
-  .h-readout { grid-column: 1; justify-self: start; align-self: start; margin-top: 0; }
-}
-
-/* Narrow desktops and landscape tablets: the copy needs the width, so the sky labels and the readout step aside
-   (the operations board right below shows the same flight in full). */
-@media (min-width: 901px) and (max-width: 1199px) {
-  .h-readout, .s-route .route-label { display: none; }
-}
 
 /* Tablet */
 @media (max-width: 1100px) {
@@ -293,15 +239,7 @@
   .status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 900px) {
-  /* The hero recomposes: copy first, then the airfield as a banner beneath it, without the sky route labels. */
-  .h-hero { flex-direction: column; min-height: 0; }
-  .h-hero-grid { order: 1; grid-template-columns: 1fr; padding-top: var(--space-7); padding-bottom: var(--space-5); }
-  .h-hero-copy { padding-bottom: var(--space-5); }
-  .h-readout { justify-self: start; }
-  .h-scene { order: 2; position: relative; width: 100%; height: clamp(280px, 80vw, 480px); -webkit-mask-image: none; mask-image: none; }
-  .h-scene::after { background: linear-gradient(180deg, #04070b 0%, rgba(4, 7, 11, 0) 30%); }
-  .s-route .route-label { display: none; }
-  .oooi, .route-steps { grid-template-columns: 1fr; gap: var(--space-6); }
+    .oooi, .route-steps { grid-template-columns: 1fr; gap: var(--space-6); }
   .oooi::before { left: 15px; right: auto; top: 0; bottom: 0; width: 8px; height: auto; border: 0; border-left: 1px solid var(--line-strong); border-right: 1px solid var(--line-strong); }
   .oooi::after { left: 18px; right: auto; top: 0; bottom: 0; border-top: 0; border-left: 2px dashed var(--line-strong); }
   .oooi-step { padding: 0 0 0 80px; }
@@ -317,10 +255,12 @@
   .aud-airlines { padding: var(--space-7) 0 0; margin-top: var(--space-7); border-left: 0; border-top: 1px solid var(--line); }
 }
 @media (max-width: 600px) {
+  .h-panel { padding: 24px 20px; border-left-width: 3px; }
+  .h-hero h1 { font-size: clamp(30px, 8.6vw, 46px); }
+  .h-hero-grid { padding-top: var(--space-6); padding-bottom: var(--space-6); }
   .h-answers, .status-grid { grid-template-columns: 1fr; }
   .desk-facts div, .sec-list div { grid-template-columns: 1fr; gap: var(--space-1); }
   .h-actions .button { flex: 1 1 100%; }
-  .h-readout { grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
   .detail-track { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: var(--space-3); }
   .detail-track::before { display: none; }
   .roles tbody th { width: auto; }

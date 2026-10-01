@@ -11,7 +11,7 @@ namespace Alpha6Ops.Server.Pages.Home;
 /// Placed from real coordinates (OpenStreetMap: runways, taxiways, terminal outlines, gates; FAA runway and lighting
 /// data via AirNav, October 2026) and projected through one perspective camera into a 1600×900 SVG viewBox.
 /// Deliberate liberties, for legibility at hero size: the terminal is drawn 4× true height, aircraft 2.5×, the
-/// tower 3× (and 2× wide), the holding-position sign 6×; the KMKE → KORD route is a schematic overlay.
+/// tower 3× (and 2× wide), the holding-position sign 6×. On the page it is dimmed and desaturated as a background. On the page it is dimmed and desaturated as a background.
 /// </summary>
 public static class HeroScene
 {
@@ -352,21 +352,4 @@ public static class HeroScene
         var (sx, sy) = Project(330, 55);
         Sign = (N(sx), N(sy), N4(Focal * 3.0 * 6 / Cam(330, 55).F / 120)); // a 3 m array, drawn 6× true, in a 120-unit design
     }
-
-    // The sample route, KMKE to KORD, as a schematic arc above the field with the aircraft 62% along it.
-    private static readonly (double X, double Y) R0 = (1010, 410), R1 = (1250, 280), R2 = (1530, 430);
-    public static string Route => $"M{N(R0.X)} {N(R0.Y)} Q{N(R1.X)} {N(R1.Y)} {N(R2.X)} {N(R2.Y)}";
-    public const double Progress = 0.62;
-    public static (string X, string Y, string Angle) AircraftMarker
-    {
-        get
-        {
-            const double t = Progress; var u = 1 - t;
-            double x = u * u * R0.X + 2 * u * t * R1.X + t * t * R2.X, y = u * u * R0.Y + 2 * u * t * R1.Y + t * t * R2.Y;
-            double dx = 2 * u * (R1.X - R0.X) + 2 * t * (R2.X - R1.X), dy = 2 * u * (R1.Y - R0.Y) + 2 * t * (R2.Y - R1.Y);
-            return (N(x), N(y), N(Math.Atan2(dy, dx) * 180 / Math.PI + 90));
-        }
-    }
-    public static (string X, string Y) Origin => (N(R0.X), N(R0.Y));
-    public static (string X, string Y) Destination => (N(R2.X), N(R2.Y));
 }

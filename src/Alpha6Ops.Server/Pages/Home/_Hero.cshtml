@@ -1,7 +1,6 @@
 @using Alpha6Ops.Server.Pages.Home
-@{ var plane = HeroScene.AircraftMarker; var from = HeroScene.Origin; var to = HeroScene.Destination; }
 <section class="h-hero night" aria-labelledby="hero-title">
-    @* Decorative: everything it shows is also stated in text (the copy and the flight readout below). *@
+    @* Decorative background: a stylised night view of KMKE behind the copy panel. *@
     <div class="h-scene" aria-hidden="true">
         <svg viewBox="0 0 1600 900" preserveAspectRatio="xMaxYMax slice" focusable="false">
             <defs>
@@ -34,29 +33,14 @@
                 <rect class="mandatory" width="66" height="46" rx="2" /><text class="mandatory-text" x="33" y="34" text-anchor="middle">19R</text>
                 <rect class="loc" x="68" width="52" height="46" rx="2" /><rect class="loc-border" x="72" y="4" width="44" height="38" /><text class="loc-text" x="94" y="35" text-anchor="middle">E</text>
             </g>
-            <g class="s-route">
-                <path class="route-track" d="@HeroScene.Route" />
-                <path class="route-flown" d="@HeroScene.Route" pathLength="100" />
-                <path class="route-fix" d="M@(from.X) @(from.Y) m0 -7 l7 7 -7 7 -7 -7z" /><path class="route-fix" d="M@(to.X) @(to.Y) m0 -7 l7 7 -7 7 -7 -7z" />
-                <text class="route-label" x="@from.X" y="@from.Y" dx="0" dy="32" text-anchor="middle">KMKE</text>
-                <text class="route-label" x="@to.X" y="@to.Y" dx="0" dy="32" text-anchor="middle">KORD</text>
-                <g transform="translate(@plane.X @plane.Y) rotate(@plane.Angle)"><circle class="ac-pulse" r="14" /><path class="ac" d="M0 -11 L8 8 L0 4 L-8 8 Z" /></g>
-            </g>
         </svg>
     </div>
     <div class="wrap h-hero-grid">
-        <div class="h-hero-copy">
+        <div class="h-hero-copy h-panel">
             <p class="eyebrow">Airline operations for Microsoft Flight Simulator 2024</p>
             <h1 id="hero-title" class="display"><span>You fly the airplane.</span> <span>We'll run the airline.</span></h1>
             <p class="h-lead">S4 OPS is a Windows desktop app that reads the aircraft state from the simulator, times every flight from off block to block in, and keeps your logbook and your virtual airline in one account.</p>
             <partial name="~/Pages/Home/_Actions.cshtml" />
         </div>
-        <dl class="h-readout" aria-label="Sample flight in progress">
-            <div class="h-readout-head"><dt class="visually-hidden">Flight</dt><dd><span class="mono">S4601</span> <span class="tag-sample">Sample</span></dd></div>
-            <div><dt>Route</dt><dd class="mono">KMKE → KORD</dd></div>
-            <div><dt>Phase</dt><dd class="h-phase">Airborne</dd></div>
-            <div><dt>OUT</dt><dd class="mono">1802Z</dd></div>
-            <div><dt>OFF</dt><dd class="mono">1814Z</dd></div>
-        </dl>
     </div>
 </section>

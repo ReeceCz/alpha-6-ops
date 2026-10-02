@@ -1,14 +1,52 @@
 @page
 @inject Microsoft.Extensions.Options.IOptions<ReleaseSettings> Release
 @{ ViewData["Title"] = "Download"; var release = Release.Value; }
-<div class="page-heading"><div class="eyebrow">Windows desktop app</div><h1>Bring OPS aboard.</h1><p class="lead">Download the Windows desktop app, then sign in with your S4 OPS account.</p></div>
+@* Every requirement and step here matches the shipped desktop build; see docs/desktop.md and the 7.26B known limitations. *@
+<div class="page-heading"><div class="eyebrow">Windows desktop app</div><h1>Bring OPS aboard.</h1><p class="lead">Install S4 OPS on the PC that runs Microsoft Flight Simulator 2024, then sign in with your S4 OPS account.</p></div>
 <section class="card">
 @if (release.Available) {
-    <h2>S4 OPS @release.Version</h2><p>Windows desktop installer</p>
+    <h2>S4 OPS @release.Version</h2><p>Windows installer for 64-bit Windows 10 (version 1809) or Windows 11.</p>
     <a class="button" href="@release.DownloadUrl" rel="noopener noreferrer">Download for Windows</a>
     <h3>SHA-256 checksum</h3><code class="break">@release.Sha256</code>
-    <p class="muted">Check the publisher shown by Windows before installing.</p>
+    <p class="muted">To check the file before you run it, open PowerShell in your Downloads folder and run <code>Get-FileHash .\@System.IO.Path.GetFileName(new Uri(release.DownloadUrl).AbsolutePath)</code>. The hash it prints must match the one above.</p>
 } else {
-    <h2>The public download is being prepared.</h2><p>A verified release has not been published here yet. Your account will work with the desktop app when it is available.</p><a href="/">Return home</a>
+    <h2>The download is being prepared.</h2><p>A verified release has not been published here yet. Your account will work with the desktop app when it is available.</p><a href="/">Return home</a>
 }
+</section>
+<section class="grid two">
+    <article class="card">
+        <h2>Before you install</h2>
+        <ul>
+            <li>64-bit Windows 10 (version 1809 or later) or Windows 11. Windows on ARM is not supported yet.</li>
+            <li>Microsoft Flight Simulator 2024 on the same PC.</li>
+            <li>For the live map: the Microsoft Edge WebView2 Runtime, which most Windows PCs already have. Without it, S4 OPS uses its classic map.</li>
+            <li>An S4 OPS account. During testing, accounts are by invitation.</li>
+        </ul>
+        <p class="muted">The app includes everything else it needs. It installs for your Windows user only and does not need administrator rights.</p>
+    </article>
+    <article class="card">
+        <h2>Installing</h2>
+        <ol>
+            <li>Run the installer you downloaded.</li>
+            <li>This test release is not code-signed yet, so Windows will say it protected your PC from an unknown publisher. Check the checksum above, then choose <strong>More info</strong> and <strong>Run anyway</strong>.</li>
+            <li>Open S4 OPS from the Start menu and sign in with your S4 OPS account.</li>
+        </ol>
+    </article>
+</section>
+<section class="grid two">
+    <article class="card">
+        <h2>Your first flight</h2>
+        <ol>
+            <li>In <strong>Dispatch</strong>, import your SimBrief plan or enter the flight yourself, then select <strong>Accept flight</strong>.</li>
+            <li>Load the aircraft at the gate in MSFS 2024 and select <strong>Launch / connect to MSFS 2024</strong>.</li>
+            <li>Fly as you normally would. Off block, takeoff and landing are recorded as they happen.</li>
+            <li>At the gate, set the parking brake. On the Fenix A320 family, shutting down the engines confirms block in. On other aircraft, select <strong>Confirm parked</strong> when it appears.</li>
+            <li>Review the flight and submit your PIREP.</li>
+        </ol>
+    </article>
+    <article class="card">
+        <h2>If something goes wrong</h2>
+        <p>Thank you for testing. When a flight is not recorded the way you expected, open <strong>Settings</strong> and select <strong>Export test log</strong>, then send us the file with a line about what happened.</p>
+        <p>Email <a href="mailto:@Legal.Contact?subject=S4%20OPS%20test%20report">@Legal.Contact</a>. The log holds the flight's recorded simulator readings and flight plan.</p>
+    </article>
 </section>

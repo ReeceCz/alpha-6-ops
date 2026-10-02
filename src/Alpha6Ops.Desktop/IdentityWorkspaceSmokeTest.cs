@@ -71,85 +71,69 @@ internal static class IdentityWorkspaceSmokeTest
 
         var checks = 9 + await AccountFlowSmokeTest.RunAsync(outputDirectory);
         void Check(bool passed, string message) { if (!passed) throw new InvalidOperationException(message); checks++; }
-        var cacheDirectory = Path.Combine(account.DataDirectory, "SimBrief");
-        Directory.CreateDirectory(cacheDirectory);
-        File.WriteAllText(Path.Combine(cacheDirectory, "username.txt"), "isolated-pilot");
-        File.WriteAllText(Path.Combine(cacheDirectory, "ofp-isolation.txt"), "PILOT RELEASE\nATC FLIGHT PLAN\nTEST ROUTE");
-        File.WriteAllText(Path.Combine(cacheDirectory, "ofp-isolation.pdf"), "%PDF-test-fixture");
-        var otherWorkspace = Path.Combine(root, "other-workspace");
-        Check(SimBriefImporter.OfpTextPath("isolation", account.DataDirectory) is not null &&
-            SimBriefImporter.OfpPdfPath("isolation", account.DataDirectory) is not null &&
-            SimBriefImporter.OfpTextPath("isolation", otherWorkspace) is null &&
-            SimBriefImporter.OfpPdfPath("isolation", otherWorkspace) is null,
-            "OFP text and PDF must remain isolated to the account workspace.");
-        var pilot = new MainWindow(account.DataDirectory, account);
+        var dispatcher = new WpfFlightRuntimeDispatcher(Application.Current.Dispatcher);
+        FlightSessionCoordinator Session(string directory, AccountFlightIdentity? identity = null) => new(directory, true, dispatcher, null, identity);
+        var identity = account.FlightIdentity;
+        Check(identity == new AccountFlightIdentity(bootstrap.Account.Id, bootstrap.Account.DisplayName, null), "Account flight identity must name the pilot and personal workspace.");
+        Check(account.DataDirectory.StartsWith(Path.Combine(root, "accounts"), StringComparison.OrdinalIgnoreCase) && account.DataDirectory.EndsWith("personal", StringComparison.OrdinalIgnoreCase), "Personal workspace data must live under the account directory.");
+        var session = Session(account.DataDirectory, identity);
+        var pilot = new MainWindow(session, root, account);
         try
         {
             pilot.Show(); pilot.Width = 1440; pilot.Height = 960; pilot.UpdateLayout();
             Check(pilot.PilotNameBox.IsReadOnly && pilot.PilotNameBox.Text == bootstrap.Account.DisplayName, "Authenticated pilot identity must be read-only.");
-            Check(pilot.IsPilotWorkspace && pilot.DashboardViewport.IsVisible && pilot.DashboardScroll.IsVisible, "Free must use the existing dashboard shell.");
-            Check(pilot.DashboardFlights.Count == 0 && !pilot.HeroAircraftTypeText.Text.Contains("SAMPLE"), "New pilot dashboard must not display demo assignments.");
-            Check(pilot.AlertsPanel.Visibility == Visibility.Collapsed && pilot.NetworkPanel.Visibility == Visibility.Collapsed && pilot.FleetPanel.Visibility == Visibility.Collapsed && pilot.MessagesPanel.Visibility == Visibility.Collapsed, "Airline panels must be removed from Free.");
-            Check(pilot.ModuleTiles.Items.Cast<DashboardTile>().Select(t => t.Name).SequenceEqual(new[] { "PilotLogbook", "Dispatch", "FlightTracking", "Weather" }), "Free must retain only the four personal photo tiles.");
-            Check(pilot.NavigationButtons.Children.OfType<System.Windows.Controls.Button>().All(b => b.Tag is not string tag || PilotFeatureProfile.Allows(tag) || b.Visibility == Visibility.Collapsed), "Airline navigation must be hidden.");
-            Check(!PilotFeatureProfile.Allows("Aircraft") && !PilotFeatureProfile.Allows("OCC"), "Pilot module routing must exclude fleet and operations.");
+            Check(pilot.IsPilotWorkspace && pilot.Shell.AccountButton.IsVisible && pilot.Shell.AccountLabel.Text.Contains("Pilot", StringComparison.OrdinalIgnoreCase), "Signed-in shell must present the account workspace.");
+            Check(!pilot.Shell.Navigation.Allows(ShellSection.Crew) && !pilot.Shell.Navigation.Allows(ShellSection.Fleet) && !pilot.Shell.Navigation.Allows(ShellSection.Occ)
+                && pilot.Shell.Navigation.Allows(ShellSection.Flights) && pilot.Shell.Navigation.Allows(ShellSection.Dispatch) && pilot.Shell.Navigation.Allows(ShellSection.Logbook), "Pilot tier must hide airline destinations only.");
+            Check(pilot.Shell.PrimaryNavigation.Items.Cast<ShellDestination>().All(d => PilotFeatureProfile.Allows(d.Section)) && pilot.Shell.Navigation.Search("Fleet").Count == 0, "Hidden destinations must not appear in navigation or search.");
+            pilot.Shell.Navigation.Request(ShellSection.Crew);
+            Check(pilot.Shell.Navigation.Current == ShellSection.Operations, "A hidden destination request must be ignored.");
             Check(pilot.FlightHistory?.ReadRecentFlights().Count == 0, "New account must not inherit another account's history.");
-            Check(pilot.DispatchView.SimBriefUsernameBox.Text == "isolated-pilot", "Dispatch must load only the current workspace's SimBrief username.");
+            Check(!pilot.AdvancedButton.IsVisible, "Pilot tier must not expose advanced rotation controls.");
             DashboardSmokeTest.Capture(pilot, Path.Combine(outputDirectory, "identity-pilot-home.png"));
-            var logbookNav = pilot.NavigationButtons.Children.OfType<System.Windows.Controls.Button>().Single(b => b.Tag as string == "PilotLogbook");
-            logbookNav.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent)); pilot.UpdateLayout();
-            Check(pilot.PilotLogbookView.IsVisible && pilot.PilotLogbookView.VisibleFlightCount == 0 && pilot.DashboardRoot.Children.Contains(pilot.PilotLogbookView), "Logbook must use the original embedded view and account data.");
+            pilot.ShowPilotLogbook(); pilot.UpdateLayout();
+            Check(pilot.PilotLogbookView.IsVisible && pilot.PilotLogbookView.VisibleFlightCount == 0, "Logbook must show this account's empty history.");
             DashboardSmokeTest.Capture(pilot, Path.Combine(outputDirectory, "pilot-logbook-empty.png"));
-            pilot.ShowFlightTracking(); pilot.UpdateLayout();
-            Check(pilot.FlightTrackingView.IsVisible && pilot.DashboardRoot.Children.Contains(pilot.FlightTrackingView), "Tracking must retain its original instrument layout.");
-            DashboardSmokeTest.Capture(pilot, Path.Combine(outputDirectory, "pilot-tracking-empty.png"));
-            pilot.ShowDashboard();
-            pilot.HeaderDispatchButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent)); pilot.UpdateLayout();
-            Check(pilot.DispatchView.IsVisible && !pilot.DispatchView.HasActiveRelease && !pilot.ToolsOverlay.IsVisible, "Dispatch must use the integrated release workflow with an honest empty assignment.");
-            Check(!pilot.PilotLogbookView.IsVisible && !pilot.FlightTrackingView.IsVisible, "Dispatch must hide the previous embedded workspace.");
-            DashboardSmokeTest.Capture(pilot, Path.Combine(outputDirectory, "pilot-dispatch-empty.png"));
-            pilot.ShowDashboard();
-            Check(pilot.LocalWeatherButton.IsVisible && pilot.WeatherConditionText.Text.Contains("TEST"), "Existing weather header must remain available with diagnostic status.");
-            pilot.Width = 960; pilot.Height = 680; pilot.UpdateLayout();
-            Check(pilot.HeroPanel.ActualWidth > 1600 && pilot.ModuleTiles.ActualWidth > 1600 && pilot.OperationsPanel.ActualWidth > 1600, "Remaining dashboard panels must fill space left by airline panels.");
-            DashboardSmokeTest.Capture(pilot, Path.Combine(outputDirectory, "pilot-home-compact.png"));
+            pilot.ShowDispatch(); pilot.UpdateLayout();
+            Check(pilot.DispatchView.IsVisible && !pilot.DispatchView.HasActiveRelease, "Dispatch must open with an honest empty assignment.");
+            var id = session.BeginFlightHistory("diagnostic", "Isolated UI fixture", "A320", "KORD", "KMSP", "TEST 101");
+            Check(id is not null && pilot.FlightHistory!.ReadFlightEvents(id).Any(e => e.Kind == "account_identity" && e.DetailJson.Contains(bootstrap.Account.Id.ToString())), "Each flight must record the account that flew it.");
+            session.EndFlightHistory(id, "Complete");
             var plan = new ActiveFlightPlan("TEST 101", "N101", "KORD", "KMSP", now, now.AddHours(2), Route: "TEST ROUTE", AircraftType: "A320");
-            var viewer = new OfpViewerWindow(plan with { OfpCacheKey = "isolation" }, account.DataDirectory);
-            viewer.Show(); viewer.UpdateLayout();
-            Check(viewer.OpenPdfButton.IsEnabled && !viewer.DocumentStatusText.Text.Contains("UNAVAILABLE"), "OFP viewer must find the current workspace's cached release.");
-            viewer.Close();
-            Check(File.Exists(Path.Combine(account.DataDirectory, "ofp-viewer-state.json")) && !File.Exists(Path.Combine(otherWorkspace, "ofp-viewer-state.json")), "OFP viewer preferences must remain in the current workspace.");
-            ActiveFlightPlanStore.Save(plan, account.DataDirectory);
-            var id = pilot.FlightHistory!.BeginFlight(bootstrap.Account.DisplayName, "diagnostic", "Isolated UI fixture", "A320", "KORD", "KMSP", "TEST 101", "test");
-            pilot.FlightHistory.EndFlight(id, "Complete");
+            session.AcceptAssignment(plan);
         }
-        finally { pilot.CloseForWorkspaceChange(); }
-        var restored = new MainWindow(account.DataDirectory, account);
+        finally { pilot.CloseForWorkspaceChange(); session.Dispose(); }
+        session = Session(account.DataDirectory, identity);
+        var restored = new MainWindow(session, root, account);
         try
         {
-            restored.Show(); restored.Width = 1440; restored.Height = 960; restored.UpdateLayout();
-            await restored.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-            Check(restored.DashboardFlightsGrid.Columns[1].ActualWidth >= 220, "Pilot flight table must keep its route column readable.");
-            Check(restored.DashboardFlights.Count == 1 && restored.HeroFlightText.Text == "TEST 101" && restored.OriginCodeText.Text == "ORD", "Existing hero and flight table must render only the pilot's saved plan.");
-            DashboardSmokeTest.Capture(restored, Path.Combine(outputDirectory, "pilot-home-planned.png"));
-            restored.OpenTools(); restored.UpdateLayout();
-            Check(restored.ClearFlightButton.IsEnabled && restored.RouteText.Text.Contains("KORD"), "Dispatch must load the account's assignment.");
-            DashboardSmokeTest.Capture(restored, Path.Combine(outputDirectory, "pilot-dispatch-planned.png"));
-            restored.ShowFlightTracking(); restored.UpdateLayout();
-            DashboardSmokeTest.Capture(restored, Path.Combine(outputDirectory, "pilot-tracking-planned.png"));
+            restored.Show(); restored.UpdateLayout();
+            Check(restored.ActivePlanForTest?.FlightNumber == "TEST 101" && ActiveFlightPlanStore.Load(account.DataDirectory) is not null, "The workspace's assignment must survive a new application session.");
             restored.OpenTools();
             restored.ClearFlightButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
-            Check(restored.ActivePlanForTest is null && ActiveFlightPlanStore.Load(account.DataDirectory) is null && restored.DashboardScroll.IsVisible && restored.DashboardFlights.Count == 0, "Clearing a plan must return to an empty pilot dashboard.");
+            Check(restored.ActivePlanForTest is null && ActiveFlightPlanStore.Load(account.DataDirectory) is null, "Clearing a plan must clear only the assignment.");
             restored.ShowPilotLogbook();
             Check(restored.PilotLogbookView.VisibleFlightCount == 1, "Clearing an assignment must preserve recorded history.");
         }
-        finally { restored.CloseForWorkspaceChange(); }
-        var preview = new MainWindow(Path.Combine(root, "pilot-preview"), null, pilotPreview: true);
+        finally { restored.CloseForWorkspaceChange(); session.Dispose(); }
+        var otherRoot = Path.Combine(root, "other-workspace");
+        using (var other = Session(otherRoot))
+            Check(other.Snapshot.Assignment is null && other.History?.ReadRecentFlights().Count == 0, "Another workspace must not see this workspace's flights.");
+        // App owns one application session per workspace and replaces it only when the workspace changes.
+        var first = App.GetFlightSession(null, account);
+        Check(ReferenceEquals(first, App.GetFlightSession(null, account)) && first.DataDirectory == account.DataDirectory, "The same workspace must reuse its application session.");
+        var second = App.GetFlightSession(null, null);
+        var replaced = false;
+        try { first.AcceptAssignment(new ActiveFlightPlan("TEST 102", "N102", "KORD", "KMSP", now, now.AddHours(2))); } catch (ObjectDisposedException) { replaced = true; }
+        Check(replaced && !ReferenceEquals(first, second) && second.DataDirectory != account.DataDirectory, "A workspace change must dispose the previous application session.");
+        var previewRoot = Path.Combine(root, "pilot-preview");
+        var previewSession = Session(previewRoot);
+        var preview = new MainWindow(previewSession, previewRoot, null, pilotPreview: true);
         try
         {
-            Check(preview.IsPilotWorkspace && preview.FlightHistory?.ReadRecentFlights().Count == 0 && preview.ActivePlanForTest is null && preview.DashboardFlights.Count == 0, "Preview must use the restricted dashboard and isolated empty data.");
+            Check(preview.IsPilotWorkspace && preview.FlightHistory?.ReadRecentFlights().Count == 0 && preview.ActivePlanForTest is null && !preview.Shell.Navigation.Allows(ShellSection.Fleet), "Preview must use the restricted shell and isolated empty data.");
         }
-        finally { preview.CloseForWorkspaceChange(); }
+        finally { preview.CloseForWorkspaceChange(); previewSession.Dispose(); }
         File.WriteAllText(Path.Combine(outputDirectory, "identity-ui-smoke.json"), JsonSerializer.Serialize(new { passed = true, checks }));
     }
 }

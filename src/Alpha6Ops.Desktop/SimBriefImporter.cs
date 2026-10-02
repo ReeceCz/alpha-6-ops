@@ -19,28 +19,21 @@ internal record SimBriefImport(ActiveFlightPlan Plan, DateTimeOffset GeneratedUt
 internal static class SimBriefImporter
 {
     private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromSeconds(20) };
-    private static string CacheDirectory(string? root) => Path.Combine(root ?? CrashReporter.RootDirectory, "SimBrief");
-    private static string CachePath(string? root) => Path.Combine(CacheDirectory(root), "latest-ofp.json");
-    private static string UsernamePath(string? root) => Path.Combine(CacheDirectory(root), "username.txt");
+    private static string CacheDirectory => Path.Combine(CrashReporter.DiagnosticMode ? CrashReporter.RootDirectory : ProductStorage.Current.Cache, "SimBrief");
+    private static string CachePath => Path.Combine(CacheDirectory, "latest-ofp.json");
+    private static string UsernamePath => Path.Combine(CacheDirectory, "username.txt");
 
-    internal static string LoadUsername(string? root = null)
+    internal static string LoadUsername()
     {
-        try { return File.Exists(UsernamePath(root)) ? File.ReadAllText(UsernamePath(root)).Trim() : ""; }
+        try { return File.Exists(UsernamePath) ? File.ReadAllText(UsernamePath).Trim() : ""; }
         catch (IOException) { return ""; }
     }
 
-    // Seeds the local cache from the account profile so a fresh installation needs no re-typing.
-    internal static void SaveUsername(string username, string? root = null)
-    {
-        try { Directory.CreateDirectory(CacheDirectory(root)); File.WriteAllText(UsernamePath(root), username.Trim()); }
-        catch (IOException) { }
-    }
-
-    internal static async Task<SimBriefImport> ImportAsync(string username, CancellationToken token = default, string? root = null)
+    internal static async Task<SimBriefImport> ImportAsync(string username, CancellationToken token = default)
     {
         username = username.Trim();
         if (username.Length is < 2 or > 80) throw new ArgumentException("Enter your Navigraph Alias or SimBrief username.");
-        Directory.CreateDirectory(CacheDirectory(root));
+        Directory.CreateDirectory(CacheDirectory);
         try
         {
             var endpoint = "https://www.simbrief.com/api/xml.fetcher.php?username=" + Uri.EscapeDataString(username) + "&json=1";
@@ -48,15 +41,15 @@ internal static class SimBriefImporter
             var json = await response.Content.ReadAsStringAsync(token);
             if (!response.IsSuccessStatusCode) throw new HttpRequestException($"SimBrief returned {(int)response.StatusCode}. Check the username and generate a flight plan first.");
             var imported = Parse(json, username, false);
-            imported = await CacheOfpAsync(json, imported, token, root);
-            var temporary = CachePath(root) + ".tmp";
-            File.WriteAllText(temporary, json); File.Move(temporary, CachePath(root), true);
-            File.WriteAllText(UsernamePath(root), username);
+            imported = await CacheOfpAsync(json, imported, token);
+            var temporary = CachePath + ".tmp";
+            File.WriteAllText(temporary, json); File.Move(temporary, CachePath, true);
+            File.WriteAllText(UsernamePath, username);
             return imported;
         }
         catch (Exception error) when (error is HttpRequestException or TaskCanceledException)
         {
-            if (File.Exists(CachePath(root)) && LoadUsername(root).Equals(username, StringComparison.OrdinalIgnoreCase)) return WithCachedOfp(Parse(File.ReadAllText(CachePath(root)), username, true), root);
+            if (File.Exists(CachePath) && LoadUsername().Equals(username, StringComparison.OrdinalIgnoreCase)) return WithCachedOfp(Parse(File.ReadAllText(CachePath), username, true));
             throw new IOException("Could not reach SimBrief and no offline briefing is cached.", error);
         }
     }
@@ -77,9 +70,10 @@ internal static class SimBriefImporter
         var origin = Text("origin", "icao_code").Trim().ToUpperInvariant();
         var destination = Text("destination", "icao_code").Trim().ToUpperInvariant();
         var departure = DateTimeOffset.FromUnixTimeSeconds(Epoch(Text("times", "sched_out"), "scheduled departure"));
-        var arrivalValue = Text("times", "est_in");
-        if (string.IsNullOrWhiteSpace(arrivalValue)) arrivalValue = Text("times", "sched_in");
-        var arrival = DateTimeOffset.FromUnixTimeSeconds(Epoch(arrivalValue, "estimated arrival"));
+        var arrivalValue = Text("times", "sched_in");
+        if (string.IsNullOrWhiteSpace(arrivalValue)) arrivalValue = Text("times", "est_in");
+        var arrival = DateTimeOffset.FromUnixTimeSeconds(Epoch(arrivalValue, "scheduled arrival"));
+        DateTimeOffset? estimatedArrival=long.TryParse(Text("times","est_in"),out var estimatedEpoch)&&estimatedEpoch>departure.ToUnixTimeSeconds()?DateTimeOffset.FromUnixTimeSeconds(estimatedEpoch):null;
         var generated = DateTimeOffset.FromUnixTimeSeconds(Epoch(Text("params", "time_generated"), "briefing generation time"));
         if (flight.Length < 2 || origin.Length != 4 || destination.Length != 4 || arrival <= departure)
             throw new InvalidDataException("The latest SimBrief briefing has incomplete flight identification or timing data.");
@@ -94,7 +88,7 @@ internal static class SimBriefImporter
         var aircraftType=AircraftDisplayName(Text("aircraft","name"),Text("aircraft", "icao_code"));
         var departureOffset=UtcOffsetMinutes(Text("origin","timezone"));var arrivalOffset=UtcOffsetMinutes(Text("destination","timezone"));
         var plan = new ActiveFlightPlan(flight, Text("aircraft", "reg").Trim().ToUpperInvariant(), origin, destination, departure, arrival,
-            "SimBrief", username, generated,gates.DepartureGate,gates.ArrivalGate,gates.Source,gates.Confidence,route,routePoints,aircraftType,tripFuel,fuelUnits,generated.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture),altitude,departureOffset,arrivalOffset);
+            "SimBrief", username, generated,gates.DepartureGate,gates.ArrivalGate,gates.Source,gates.Confidence,route,routePoints,aircraftType,tripFuel,fuelUnits,generated.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture),altitude,departureOffset,arrivalOffset,estimatedArrival);
         double? payload=double.TryParse(Text("weights","payload"),NumberStyles.Float,CultureInfo.InvariantCulture,out var payloadValue)?payloadValue:null;
         int? passengers=int.TryParse(Text("weights","pax_count"),NumberStyles.Integer,CultureInfo.InvariantCulture,out var paxValue)?paxValue:null;
         double? distance=double.TryParse(Text("general","route_distance"),NumberStyles.Float,CultureInfo.InvariantCulture,out var distanceValue)?distanceValue:null;
@@ -117,23 +111,23 @@ internal static class SimBriefImporter
         return route;
     }
 
-    internal static string? OfpTextPath(string? key, string? root = null){if(string.IsNullOrWhiteSpace(key))return null;var path=Path.Combine(CacheDirectory(root),$"ofp-{key}.txt");return File.Exists(path)?path:null;}
-    internal static string? OfpPdfPath(string? key, string? root = null){if(string.IsNullOrWhiteSpace(key))return null;var path=Path.Combine(CacheDirectory(root),$"ofp-{key}.pdf");return File.Exists(path)?path:null;}
-    private static SimBriefImport WithCachedOfp(SimBriefImport value, string? root)=>value with{HasOfpText=OfpTextPath(value.Plan.OfpCacheKey, root) is not null,HasOfpPdf=OfpPdfPath(value.Plan.OfpCacheKey, root) is not null};
-    private static async Task<SimBriefImport> CacheOfpAsync(string json,SimBriefImport value,CancellationToken token, string? root)
+    internal static string? OfpTextPath(string? key){if(string.IsNullOrWhiteSpace(key))return null;var path=Path.Combine(CacheDirectory,$"ofp-{key}.txt");return File.Exists(path)?path:null;}
+    internal static string? OfpPdfPath(string? key){if(string.IsNullOrWhiteSpace(key))return null;var path=Path.Combine(CacheDirectory,$"ofp-{key}.pdf");return File.Exists(path)?path:null;}
+    private static SimBriefImport WithCachedOfp(SimBriefImport value)=>value with{HasOfpText=OfpTextPath(value.Plan.OfpCacheKey) is not null,HasOfpPdf=OfpPdfPath(value.Plan.OfpCacheKey) is not null};
+    private static async Task<SimBriefImport> CacheOfpAsync(string json,SimBriefImport value,CancellationToken token)
     {
-        if(string.IsNullOrWhiteSpace(value.Plan.OfpCacheKey))return value;Directory.CreateDirectory(CacheDirectory(root));
-        using var document=JsonDocument.Parse(json);var documentRoot=document.RootElement;
-        string Nested(params string[] names){var current=documentRoot;foreach(var name in names)if(current.ValueKind==JsonValueKind.Object&&current.TryGetProperty(name,out var next))current=next;else return "";return current.ValueKind==JsonValueKind.String?current.GetString()??"":current.ToString();}
+        if(string.IsNullOrWhiteSpace(value.Plan.OfpCacheKey))return value;Directory.CreateDirectory(CacheDirectory);
+        using var document=JsonDocument.Parse(json);var root=document.RootElement;
+        string Nested(params string[] names){var current=root;foreach(var name in names)if(current.ValueKind==JsonValueKind.Object&&current.TryGetProperty(name,out var next))current=next;else return "";return current.ValueKind==JsonValueKind.String?current.GetString()??"":current.ToString();}
         var html=Nested("text","plan_html");if(string.IsNullOrWhiteSpace(html))html=Nested("text","plan_text");
-        if(!string.IsNullOrWhiteSpace(html)){var plain=Regex.Replace(html,"<br\\s*/?>","\n",RegexOptions.IgnoreCase);plain=Regex.Replace(plain,"</(p|div|tr|h[1-6])>","\n",RegexOptions.IgnoreCase);plain=Regex.Replace(plain,"<[^>]+>","");plain=System.Net.WebUtility.HtmlDecode(plain);plain=Regex.Replace(plain,@"[ \t]+\r?\n","\n");File.WriteAllText(Path.Combine(CacheDirectory(root),$"ofp-{value.Plan.OfpCacheKey}.txt"),plain.Trim());}
+        if(!string.IsNullOrWhiteSpace(html)){var plain=Regex.Replace(html,"<br\\s*/?>","\n",RegexOptions.IgnoreCase);plain=Regex.Replace(plain,"</(p|div|tr|h[1-6])>","\n",RegexOptions.IgnoreCase);plain=Regex.Replace(plain,"<[^>]+>","");plain=System.Net.WebUtility.HtmlDecode(plain);plain=Regex.Replace(plain,@"[ \t]+\r?\n","\n");File.WriteAllText(Path.Combine(CacheDirectory,$"ofp-{value.Plan.OfpCacheKey}.txt"),plain.Trim());}
         var pdfLink=Nested("files","pdf","link").Trim();
         if(!string.IsNullOrWhiteSpace(pdfLink))
         {
             if(Uri.TryCreate(pdfLink,UriKind.Relative,out _)){var directory=Nested("files","directory").TrimEnd('/');pdfLink=directory+"/"+pdfLink.TrimStart('/');}
-            if(Uri.TryCreate(pdfLink,UriKind.Absolute,out var pdfUri))try{var bytes=await Client.GetByteArrayAsync(pdfUri,token);if(bytes.Length>4&&bytes[0]==0x25&&bytes[1]==0x50&&bytes[2]==0x44&&bytes[3]==0x46)File.WriteAllBytes(Path.Combine(CacheDirectory(root),$"ofp-{value.Plan.OfpCacheKey}.pdf"),bytes);}catch(Exception error)when(error is HttpRequestException or TaskCanceledException or IOException){/* The release remains usable without the optional PDF. */}
+            if(Uri.TryCreate(pdfLink,UriKind.Absolute,out var pdfUri))try{var bytes=await Client.GetByteArrayAsync(pdfUri,token);if(bytes.Length>4&&bytes[0]==0x25&&bytes[1]==0x50&&bytes[2]==0x44&&bytes[3]==0x46)File.WriteAllBytes(Path.Combine(CacheDirectory,$"ofp-{value.Plan.OfpCacheKey}.pdf"),bytes);}catch(Exception error)when(error is HttpRequestException or TaskCanceledException or IOException){/* The release remains usable without the optional PDF. */}
         }
-        return WithCachedOfp(value, root);
+        return WithCachedOfp(value);
     }
 
     private static string AircraftDisplayName(string name,string icao)

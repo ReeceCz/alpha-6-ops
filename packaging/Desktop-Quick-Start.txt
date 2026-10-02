@@ -1,0 +1,41 @@
+SIERRA 4 — VERSION 0.23.0 — CHECKPOINT 7.26B PRE-UI BASELINE
+
+Sierra 4 now uses its own Windows product identity, executable, installer,
+shortcut, installation directory and per-user storage root. The application is
+installed to %LOCALAPPDATA%\Programs\Sierra 4 and stores user data separately
+under %LOCALAPPDATA%\Sierra 4.
+
+FIRST START AND LEGACY DATA
+
+On first ordinary start, Sierra 4 checks the prior
+%LOCALAPPDATA%\Alpha6Designs\Alpha6OPS profile. If one exists, Sierra 4 copies
+it into a staging directory, verifies every copied file with SHA-256, and only
+then promotes the new categorized profile. The legacy profile remains intact.
+If verification or promotion fails, Sierra 4 continues with the legacy profile
+without deleting or partially adopting it.
+
+The Sierra 4 profile separates durable flight data, settings, diagnostics,
+caches and process state. Flight history, PIREPs and active recovery remain
+durable. Diagnostic journals and caches have bounded retention; the active
+flight, newest unresolved interruption and active SimBrief release are
+protected from cleanup.
+
+INSTALL OR UPDATE
+
+Exit Sierra 4 from its Exit action or tray menu before running setup. Run
+Sierra4-Setup-0.23.0.exe for a per-user installation. Setup replaces only a
+verified Sierra 4 installation directory and preserves the external profile.
+It creates a Sierra 4 Start menu shortcut and an Installed apps entry.
+
+For portable use, fully extract Sierra4-Desktop-0.23.0-win-x64.zip, then start
+Sierra4.exe. The package includes the required .NET runtime. Microsoft Edge
+WebView2 Evergreen Runtime must already be installed for Map V2; the classic
+map remains available if WebView2 cannot start.
+
+CHECKPOINT SCOPE
+
+This is the clean pre-premium-UI baseline after the validated 7.25A A350
+endurance candidate. It preserves lifecycle, OOOI, PIREP, recovery, observed
+cruise, step-climb, TOD, ETA, map-history and terminal-shutdown behavior. Map V2
+remains opt-in for the current session. Checkpoint 7.27 Premium UI Foundation
+has not started.

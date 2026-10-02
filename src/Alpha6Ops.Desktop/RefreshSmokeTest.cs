@@ -19,13 +19,13 @@ internal static class RefreshSmokeTest
     internal static async Task RunAsync(MainWindow window, string directory)
     {
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
-        void Set(string name, object? value) => typeof(MainWindow).GetField(name, flags)!.SetValue(window, value);
-        T Get<T>(string name) => (T)typeof(MainWindow).GetField(name, flags)!.GetValue(window)!;
+        void Set(string name, object? value) => FlightSessionDiagnosticAccess.Set(window,name,value);
+        T Get<T>(string name) => (T)FlightSessionDiagnosticAccess.Get(window,name)!;
         var refresh = typeof(MainWindow).GetMethod("RefreshRotation", flags)!.CreateDelegate<Action>(window);
-        var observe = typeof(MainWindow).GetMethod("ObserveLive", flags)!.CreateDelegate<Action<LiveReading>>(window);
+        var observe = (Action<LiveReading>)(value=>FlightSessionDiagnosticAccess.Invoke(window,"ObserveLive",value));
         var tracker = typeof(MainWindow).GetMethod("RefreshLiveTracker", flags)!
             .CreateDelegate<Action<string?, DateTimeOffset?, FlightPhase?, string>>(window);
-        var resetIdentity = typeof(MainWindow).GetMethod("ResetLiveIdentity", flags)!.CreateDelegate<Action>(window);
+        var resetIdentity = (Action)(()=>FlightSessionDiagnosticAccess.Invoke(window,"ResetLiveIdentity"));
         var checks = new List<string>();
         void Check(bool value, string label) { if (!value) throw new InvalidOperationException(label); checks.Add(label); }
         var states = new List<object>();
@@ -112,14 +112,18 @@ internal static class RefreshSmokeTest
                     var fraction = Math.Clamp((liveSamples[i].At - airborneSamples[0].At).TotalSeconds / (airborneSamples[^1].At - airborneSamples[0].At).TotalSeconds, 0, 1);
                     var position = new GeoPosition(origin.Position.Latitude + (destination.Position.Latitude - origin.Position.Latitude) * fraction,
                         origin.Position.Longitude + (destination.Position.Longitude - origin.Position.Longitude) * fraction);
-                    expected.Observe(liveSamples[i]); observe(new("Test aircraft", liveSamples[i], new(position, plan.Registration,
-                        new(plan.Origin, plan.Destination), true)));
+                    var positioned = liveSamples[i] with { LatitudeDegrees=position.Latitude, LongitudeDegrees=position.Longitude };
+                    expected.Observe(positioned); observe(FlightSessionDiagnosticAccess.WithTerminalFixture(new("Test aircraft", positioned, new(position, plan.Registration,
+                        new(plan.Origin, plan.Destination), true))));
                     var rotation = Get<AircraftRotation>("liveRotation");
                     Check(window.DashboardFlights.Select(f => f.Leg).SequenceEqual(RotationPlanner.Project(rotation)), $"{fixture} live projection sample {i}");
                     states.Add(State(fixture + ":live", i));
                 }
                 var recorder = Get<TimelineRecorder>("liveRecorder");
-                Check(recorder.Snapshots.SequenceEqual(expected.Snapshots) && recorder.Events.SequenceEqual(expected.Events), fixture + " live records every sample in order");
+                // The new intent/policy envelope is tested by TerminalShutdownChecks;
+                // retain this fixture's exact underlying samples and phase chronology.
+                Check(recorder.Snapshots.Select(s=>s with {Sample=s.Sample with {TerminalShutdown=null,TerminalBlockInEligible=null,BlockInAllowed=true}}).SequenceEqual(expected.Snapshots)
+                    && recorder.Events.SequenceEqual(expected.Events), fixture + " live records every sample in order");
                 Check(window.DashboardIsLive && window.HeroFlightText.Text == "JBU124" && window.HeroDepartureGateText.Text == "52A", fixture + " live flight identity and gates");
                 Check(window.ElapsedValueText.Text != "—" && window.ReplayProgress.Value == 100, fixture + " elapsed and completion progress");
                 DashboardSmokeTest.Capture(window, Path.Combine(directory, fixture + "-live.png"));

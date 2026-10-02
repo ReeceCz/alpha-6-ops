@@ -4,6 +4,8 @@ namespace Alpha6Ops.Desktop;
 internal static class PilotFeatureProfile
 {
     internal static bool Allows(string module) => module is "PilotLogbook" or "Dispatch" or "FlightTracking" or "Weather" or "Settings";
+    internal static bool Allows(ShellSection section) => section is ShellSection.Operations or ShellSection.Flights or ShellSection.Dispatch
+        or ShellSection.Logbook or ShellSection.Settings or ShellSection.Help or ShellSection.Messages or ShellSection.Tools or ShellSection.Status;
 
     internal static readonly DashboardTile[] Tiles =
     [

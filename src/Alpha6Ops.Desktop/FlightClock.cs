@@ -20,6 +20,6 @@ internal static class FlightClock
         var utcText=utc.UtcDateTime.ToString("dd MMM • HH:mm'Z'");
         if(offsetMinutes is null)return utcText;
         var local=utc.ToOffset(TimeSpan.FromMinutes(offsetMinutes.Value));
-        return $"{utcText}  /  {local:dd MMM • HH:mm} LOCAL";
+        return $"{utcText}\n{local:dd MMM • HH:mm} LOCAL";
     }
 }

@@ -37,6 +37,12 @@ internal sealed record RememberedLogin(string Email, string? Password)
     internal static RememberedLogin None { get; } = new("", null);
 }
 
+// Recorded once per flight-history row as the "account_identity" event.
+internal sealed record AccountFlightIdentity(
+    [property: System.Text.Json.Serialization.JsonPropertyName("userId")] Guid UserId,
+    [property: System.Text.Json.Serialization.JsonPropertyName("displayName")] string DisplayName,
+    [property: System.Text.Json.Serialization.JsonPropertyName("airlineId")] Guid? AirlineId);
+
 internal sealed class DesktopAccountSession
 {
     private readonly SemaphoreSlim gate = new(1, 1);
@@ -59,6 +65,8 @@ internal sealed class DesktopAccountSession
     internal string DataDirectory => Path.Combine(rootDirectory, "accounts", Bootstrap!.Account.Id.ToString("N"),
         Workspace.AirlineId is { } id ? Path.Combine("airlines", id.ToString("N")) : "personal");
     internal UserProfile Profile => Bootstrap?.Profile ?? UserProfile.Default;
+    internal AccountFlightIdentity? FlightIdentity => Bootstrap is { } bootstrap
+        ? new(bootstrap.Account.Id, bootstrap.Account.DisplayName, Workspace.AirlineId) : null;
     internal static string ClientVersion { get; } = typeof(DesktopAccountSession).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
     internal const string MultiFactorPolicy = "http://schemas.openid.net/pape/policies/2007/06/multi-factor";
 

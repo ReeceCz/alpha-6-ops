@@ -20,37 +20,44 @@ internal static class DashboardSmokeTest
     {
         var checks=new List<string>();
         void Check(bool result,string label) {if(!result)throw new InvalidOperationException(label);checks.Add(label);}
+        Check(typeof(MainWindow).Assembly.GetType("Alpha6Ops.Desktop.OperationsWorkspace") is not null,"Operations has a dedicated Sierra workspace instead of the photographic portal");
+        var resolverDirectory=Path.GetFullPath(Path.Combine(outputDirectory,"simconnect-resolver"));Directory.CreateDirectory(resolverDirectory);
+        var resolverDll=Path.Combine(resolverDirectory,"SimConnect.dll");File.WriteAllBytes(resolverDll,[0]);
+        Check(SimConnectSource.ResolveSimConnectPath(outputDirectory,resolverDll,[])==resolverDll,"SimConnect resolver accepts an explicit installed SDK DLL");
+        Check(SimConnectSource.ResolveSimConnectPath(resolverDirectory,null,[])==resolverDll,"SimConnect resolver finds a DLL beside the packaged executable");
         await HeaderSmokeTest.RunAsync(window, Check);
-        await FlightLabSmokeTest.RunAsync(Check);
+        await SierraShellSmokeTest.RunAsync(window, outputDirectory, Check);
+        await OperationsSmokeTest.RunAsync(window, outputDirectory, Check);
         await ResponsiveSmokeTest.RunAsync(window, outputDirectory, Check);
         await MonitorSmokeTest.RunAsync(window, outputDirectory, Check);
         window.SetAdvanced(false);window.UpdateLayout();
         await window.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);
         Check(window.DashboardFlights.Count==3 && window.HeroFlightText.Text=="A601","Dashboard hero and table use the current rotation");
-        Check(window.ModuleTiles.Items.Count==8,"All eight photographic module tiles load");
+        Check(window.OperationsView.Metrics.Items.Count==6,"Operations replaces launcher tiles with six source-aware KPIs");
         Check(window.ConnectionBadgeText.Text.Contains("DISCONNECTED",StringComparison.Ordinal),"Disconnected simulator is never presented as connected");
-        Check(window.FleetCountText.Text=="1,006","Fleet chart uses the bundled reference catalog");
-        Check(window.VersionText.Text.StartsWith("ALPHA 6 OPS  •  v",StringComparison.Ordinal)&&!window.VersionText.Text.Contains("PREVIEW",StringComparison.Ordinal),"Footer presents a clean product version without preview wording");
-        var exitStyle=(Style)window.FindResource("OpsExit");
+        Check(FleetDatabase.Read().Count==1006,"Reference fleet remains accessible without presenting catalog counts as airline availability");
+        Check(window.VersionText.Text.StartsWith("SIERRA 4  •  v",StringComparison.Ordinal)&&!window.VersionText.Text.Contains("PREVIEW",StringComparison.Ordinal),"Footer presents a clean product version without preview wording");
+        var exitStyle=(Style)window.FindResource("S4.Button");
         var dispatchHeaderStyle=(Style)window.FindResource("DispatchHeaderCard");
-        Check(window.ExitOpsButton.Style==exitStyle&&window.ExitOpsButton.MinWidth>=88&&window.ExitOpsButton.MinHeight>=34,"Exit OPS is a full themed action button");
-        Check(window.ExitOpsButton.BorderBrush.ToString()=="#FF415362"&&exitStyle.Triggers.OfType<Trigger>().Any(t=>t.Property==UIElement.IsMouseOverProperty&&Equals(t.Value,true)&&t.Setters.OfType<Setter>().Any(s=>s.Property==Control.BackgroundProperty&&s.Value is SolidColorBrush brush&&brush.Color==Color.FromRgb(255,218,0))),"Exit OPS uses the panel border and yellow navigation hover treatment");
-        Check(window.FooterBrand.FontSize==11&&window.FooterBrand.FontWeight==FontWeights.SemiBold,"Left footer branding matches the updated version treatment");
-        Check(window.NavigationTagline.Text=="YOU FLY THE AIRPLANE.\nWE RUN THE AIRLINE."&&window.NavigationTagline.TextWrapping==TextWrapping.NoWrap,"Navigation tagline keeps the pilot phrase on one line");
-        Check(window.NavigationProfile.Margin.Top==23&&window.NavigationProfile.Margin.Bottom==-6,"Pilot identity section sits lower in the navigation rail");
-        Check(AutomationProperties.GetName(window.FlightTrackingNavButton)=="FLIGHT TRACKING"&&window.HeroFlightDetailsButton.Content?.ToString()?.StartsWith("OPEN DISPATCH",StringComparison.Ordinal)==true&&window.HeaderDispatchButton.Style==dispatchHeaderStyle&&window.HeaderDispatchButton.Background.ToString()==window.ConnectionBadge.Background.ToString()&&window.HeaderDispatchButton.BorderBrush.ToString()==window.ConnectionBadge.BorderBrush.ToString(),"Dashboard presents one contextual hero action and a Dispatch card matching the connection-card palette");
+        Check(window.ExitOpsButton.Style==exitStyle&&window.ExitOpsButton.MinWidth>=64&&window.ExitOpsButton.MinHeight>=32,"Sierra Exit remains a themed action with a usable target");
+        Check(window.ExitOpsButton.BorderBrush==window.FindResource("S4.Divider")&&window.ExitOpsButton.FocusVisualStyle==window.FindResource("S4.Focus"),"Exit uses semantic borders and the shared keyboard focus visual");
+        Check(window.FooterBrand.FontSize==11&&window.FooterBrand.Text.StartsWith("SIERRA 4"),"Footer carries the Sierra identity at native readable size");
+        Check(window.Shell.PrimaryNavigation.Items.Count==9,"Shell exposes all nine primary destinations");
+        Check(window.Shell.ProfileButton.ActualWidth>=40&&AutomationProperties.GetName(window.Shell.ProfileButton).Contains("profile"),"Pilot profile remains accessible from the header");
+        Check(window.Shell.Navigation.Destinations.Any(d=>d.Section==ShellSection.Flights)&&window.HeroFlightDetailsButton.Content?.ToString()?.StartsWith("OPEN DISPATCH",StringComparison.Ordinal)==true&&window.HeaderDispatchButton.Style==dispatchHeaderStyle&&window.HeaderDispatchButton.Background.ToString()==window.ConnectionBadge.Background.ToString()&&window.HeaderDispatchButton.BorderBrush.ToString()==window.ConnectionBadge.BorderBrush.ToString(),"Shell preserves contextual hero action and legacy Dispatch status card");
         window.HeroFlightDetailsButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));window.UpdateLayout();
-        Check(window.DispatchView.Visibility==Visibility.Visible&&!window.DispatchView.HasActiveRelease&&window.DispatchSubtitleText.Text=="FLIGHT DESK"&&window.HeaderDispatchButton.Background.ToString()!="#FFFFDA00"&&window.HeaderDispatchButton.BorderBrush.ToString()=="#FFFFDA00"&&window.DispatchNavButton.Background.ToString()=="#FFFFDA00","Dispatch uses a dark active header card and the standard solid-yellow selected sidebar item");
+        Check(window.DispatchView.Visibility==Visibility.Visible&&!window.DispatchView.HasActiveRelease&&window.DispatchSubtitleText.Text=="FLIGHT DESK"&&window.Shell.Navigation.Current==ShellSection.Dispatch&&window.Shell.Navigation.Destinations.Single(d=>d.Section==ShellSection.Dispatch).IsSelected,"Dispatch opens in place with typed selected navigation");
         Capture(window,Path.Combine(outputDirectory,"dispatch-empty.png"));window.ShowFlightTracking();window.UpdateLayout();
         Check(window.DashboardScroll.Visibility==Visibility.Collapsed&&window.FlightTrackingView.Visibility==Visibility.Visible&&window.FlightTrackingView.EmptyState.Visibility==Visibility.Visible,"Flight Tracking opens inside the main application with a No Active Flight state");
         Capture(window,Path.Combine(outputDirectory,"flight-tracking-empty.png"));
         var trackingPlan=new ActiveFlightPlan("FJI911","DQ-FAM","NFFN","YSSY",new DateTimeOffset(2026,9,8,21,0,0,TimeSpan.Zero),new DateTimeOffset(2026,9,9,1,52,0,TimeSpan.Zero),"SimBrief",DepartureGate:"A4",ArrivalGate:"B12",Route:"NFFN NOBAR YSSY",RoutePoints:[new("NFFN",-17.7554,177.4434,"Departure"),new("NOBAR",-25.0,170.0),new("YSSY",-33.9399,151.1753,"Destination")],AircraftType:"A359",PlannedTripFuel:8000,FuelUnits:"LBS");
-        var unavailableOfp=new OfpViewerWindow(trackingPlan, outputDirectory);unavailableOfp.Show();unavailableOfp.UpdateLayout();Check(unavailableOfp.DocumentStatusText.Text.Contains("UNAVAILABLE",StringComparison.Ordinal)&&!unavailableOfp.OpenPdfButton.IsEnabled&&unavailableOfp.IsContinuousDocument&&unavailableOfp.BookmarkCount>=2,"OFP viewer provides continuous scrolling, bookmarks, an unavailable state and a guarded PDF fallback");Capture(unavailableOfp,Path.Combine(outputDirectory,"ofp-viewer.png"));unavailableOfp.Close();
+        var unavailableOfp=new OfpViewerWindow(trackingPlan);unavailableOfp.Show();unavailableOfp.UpdateLayout();Check(unavailableOfp.DocumentStatusText.Text.Contains("UNAVAILABLE",StringComparison.Ordinal)&&!unavailableOfp.OpenPdfButton.IsEnabled&&unavailableOfp.IsContinuousDocument&&unavailableOfp.BookmarkCount>=2,"OFP viewer provides continuous scrolling, bookmarks, an unavailable state and a guarded PDF fallback");Capture(unavailableOfp,Path.Combine(outputDirectory,"ofp-viewer.png"));unavailableOfp.Close();
         var ofpSections=OfpViewerWindow.SplitSections("OFP HEADER\nATC FLIGHT PLAN\nROUTE\nRUNWAY ANALYSIS\nDATA\nNOTAM\nTEXT\nMAPS\nCHART");Check(ofpSections.Count>=5&&ofpSections.Any(section=>section.Title=="ATC flight plan")&&ofpSections.Any(section=>section.Title=="NOTAMs"),"OFP bookmarks detect operational sections in document order");
         Check(unavailableOfp.ShowBookmarksButton.Content is Viewbox&&AutomationProperties.GetName(unavailableOfp.ShowBookmarksButton)=="Show OFP bookmarks","Collapsed OFP bookmark rail uses an accessible book icon");
         Check(DispatchWorkspace.SameRelease(trackingPlan,trackingPlan with{})&&!DispatchWorkspace.SameRelease(trackingPlan,trackingPlan with{Route="DIFFERENT ROUTE"})&&DispatchWorkspace.ValidationIssues(trackingPlan with{Route=null,AircraftType=null}).Count==2,"Dispatch detects unchanged releases and blocks missing aircraft or route data");
-        window.DispatchView.PresentDraft(new(trackingPlan,new DateTimeOffset(2026,9,8,20,0,0,TimeSpan.Zero),"AIRBUS A350-900","NFFN NOBAR YSSY",35000,22000,"LBS",false,12500,"LBS",286,1720));window.DispatchView.Visibility=Visibility.Visible;window.FlightTrackingView.Visibility=Visibility.Collapsed;window.UpdateLayout();
-        Check(window.DispatchView.ReviewState.Visibility==Visibility.Visible&&window.DispatchView.ReviewAircraftText.Text=="A359"&&window.DispatchView.ReviewPassengersText.Text=="286"&&window.DispatchView.AcceptButton.IsEnabled,"Dispatch reviews SimBrief schedule, route, aircraft, fuel, payload and passengers before acceptance");Capture(window,Path.Combine(outputDirectory,"dispatch-review.png"));
+        window.ShowDispatch();window.DispatchView.PresentDraft(new(trackingPlan,new DateTimeOffset(2026,9,8,20,0,0,TimeSpan.Zero),"AIRBUS A350-900","NFFN NOBAR YSSY",35000,22000,"LBS",false,12500,"LBS",286,1720));window.DispatchView.Visibility=Visibility.Visible;window.FlightTrackingView.Visibility=Visibility.Collapsed;window.UpdateLayout();
+        Check(window.DispatchView.ReviewState.Visibility==Visibility.Visible&&window.DispatchView.ReviewAircraftText.Text=="Airbus A350-900"&&window.DispatchView.ReviewPassengersText.Text=="286"&&window.DispatchView.AcceptButton.IsEnabled,"Dispatch reviews SimBrief schedule, route, aircraft, fuel, payload and passengers before acceptance");
+        Check(window.DispatchView.ReviewOriginNameText.Text==DashboardData.AirportName(trackingPlan.Origin)&&window.DispatchView.ReviewDestinationNameText.Text==DashboardData.AirportName(trackingPlan.Destination),"Dispatch draft shows catalog airport names beneath both ICAO codes");Capture(window,Path.Combine(outputDirectory,"dispatch-review.png"));
         var accepted=false;var trackingHandoff=false;var isolatedDispatch=new DispatchWorkspace();isolatedDispatch.FlightAccepted+=(_,plan)=>accepted=plan.FlightNumber=="FJI911";isolatedDispatch.TrackingRequested+=(_,_)=>trackingHandoff=true;isolatedDispatch.PresentDraft(new(trackingPlan,new DateTimeOffset(2026,9,8,20,0,0,TimeSpan.Zero),"AIRBUS A350-900","NFFN NOBAR YSSY",35000,22000,"LBS",false,12500,"LBS",286,1720));isolatedDispatch.AcceptButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));await Task.Delay(1700);Check(accepted&&isolatedDispatch.AcceptButton.Content?.ToString()=="VIEW FLIGHT TRACKING","Dispatch animates acceptance and changes the primary action to View Flight Tracking");isolatedDispatch.AcceptButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Check(trackingHandoff,"Accepted release primary action emits the Flight Tracking handoff");
         window.DispatchView.DiscardDraft();
         var runningField=typeof(MainWindow).GetField("running",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!;
@@ -64,18 +71,20 @@ internal static class DashboardSmokeTest
         }
         finally { runningField.SetValue(window,false);window.DispatchView.DiscardDraft(); }
         window.DispatchView.Render(trackingPlan,"VIEW RELEASE");window.DispatchView.Visibility=Visibility.Visible;window.FlightTrackingView.Visibility=Visibility.Collapsed;window.UpdateLayout();
-        Check(window.DispatchView.HasActiveRelease&&window.DispatchView.FlightNumberText.Text=="FJI911","Dispatch renders the current active release inside the main shell");Capture(window,Path.Combine(outputDirectory,"dispatch-active.png"));window.ShowFlightTracking();
+        Check(window.DispatchView.HasActiveRelease&&window.DispatchView.FlightNumberText.Text=="FJI911","Dispatch renders the current active release inside the main shell");
+        Check(window.DispatchView.OriginNameText.Text==DashboardData.AirportName(trackingPlan.Origin)&&window.DispatchView.DestinationNameText.Text==DashboardData.AirportName(trackingPlan.Destination),"Active Dispatch release retains both airport names");Capture(window,Path.Combine(outputDirectory,"dispatch-active.png"));window.ShowFlightTracking();
         var trackingEvents=new[]{new TrackingEventEntry(new DateTimeOffset(2026,9,8,21,0,0,TimeSpan.Zero),"Assignment loaded","NFFN to YSSY","SimBrief route loaded")};
         window.FlightTrackingView.Render(trackingPlan,"A350-900 (No Cabin)","AT GATE","Assignment ready",null,null,null,0,trackingEvents,false);window.UpdateLayout();
-        Check(window.FlightTrackingView.ActiveState.Visibility==Visibility.Visible&&window.FlightTrackingView.RouteText.Text.Contains("NFFN")&&window.FlightTrackingView.AircraftText.Text=="A359"&&window.FlightTrackingView.EventList.Items.Count==1,"Flight Tracking renders the SimBrief aircraft type, route summary, and chronological events");
+        Check(window.FlightTrackingView.ActiveState.Visibility==Visibility.Visible&&window.FlightTrackingView.RouteText.Text.Contains("NFFN")&&window.FlightTrackingView.AircraftText.Text=="Airbus A350-900"&&window.FlightTrackingView.EventList.Items.Count==1,"Flight Tracking renders the canonical aircraft type, route summary, and chronological events");
         Check(window.FlightTrackingView.ArrivalText.Text=="—","Actual or estimated arrival remains blank before live flight telemetry provides an estimate");
         Check(window.FlightTrackingView.TrackingMap.RoutePointCount==3&&window.FlightTrackingView.TrackingMap.FittedZoom>1,"Flight Tracking plots and frames the saved SimBrief route");
-        window.FlightTrackingView.Render(trackingPlan,"Alpha 6 Test A321","CRUISE","Live Flight Lab telemetry",null,null,new DateTimeOffset(2026,9,8,23,45,0,TimeSpan.Zero),58,trackingEvents,true,new(new DateTimeOffset(2026,9,8,23,0,0,TimeSpan.Zero),false,450,false,true,AltitudeFeet:35000,IndicatedAirspeedKnots:285,VerticalSpeedFeetPerMinute:0,GearExtendedRatio:0),.58);window.UpdateLayout();
+        window.FlightTrackingView.Render(trackingPlan,"Alpha 6 Test A321","CRUISE","Recorded test telemetry",null,null,new DateTimeOffset(2026,9,8,23,45,0,TimeSpan.Zero),58,trackingEvents,true,new(new DateTimeOffset(2026,9,8,23,0,0,TimeSpan.Zero),false,450,false,true,AltitudeFeet:35000,IndicatedAirspeedKnots:285,VerticalSpeedFeetPerMinute:0,GearExtendedRatio:0),.58);window.UpdateLayout();
         Check(window.FlightTrackingView.TrackingMap.HasLiveAircraft&&window.FlightTrackingView.TrackingMap.CompletedFraction==.58&&window.FlightTrackingView.TrackingMap.TrackPointCount==1,"Live telemetry moves the filled aircraft and splits completed from remaining route");
         Check(window.FlightTrackingView.ProgressAircraftTranslate.X>window.FlightTrackingView.ProgressTrack.ActualWidth*.5,"Filled progress aircraft advances across the operational progress track");
         window.UpdateHeroProgress(58,false);window.UpdateLayout();Check(window.ReplayProgress.Value==58&&window.HeroProgressTrack.Children.Count==1,"Dashboard hero animates continuous progress as a clean line without an aircraft marker");
         Check(window.FlightTrackingView.DistanceRemainingText.Text.EndsWith(" NM")&&window.FlightTrackingView.DistanceRemainingText.Text!="— NM"&&window.FlightTrackingView.ArrivalText.Text!="—"&&window.FlightTrackingView.ScheduleVarianceText.Text.StartsWith("ESTIMATE"),"Airborne route progress supplies distance remaining, live ETA, and schedule variance");
-        window.FlightTrackingView.Render(trackingPlan,"A350-900","BLOCK-IN / COMPLETE","Flight complete",trackingPlan.PlannedDepartureUtc,trackingPlan.PlannedDepartureUtc.AddHours(5),null,100,trackingEvents,false);window.UpdateLayout();Check(window.FlightTrackingView.SubmitPirepButton.Visibility==Visibility.Visible&&window.FlightTrackingView.ProgressAircraftIcon.Visibility==Visibility.Collapsed&&window.FlightTrackingView.ProgressBar.Foreground.ToString()=="#FF55D66B","Completed flight uses a green aircraft-free progress bar and exposes Submit PIREP");Capture(window,Path.Combine(outputDirectory,"flight-tracking-pirep-ready.png"));window.FlightTrackingView.Render(trackingPlan,"Alpha 6 Test A321","CRUISE","Live Flight Lab telemetry",null,null,new DateTimeOffset(2026,9,8,23,45,0,TimeSpan.Zero),58,trackingEvents,true,new(new DateTimeOffset(2026,9,8,23,0,0,TimeSpan.Zero),false,450,false,true,AltitudeFeet:35000,IndicatedAirspeedKnots:285,VerticalSpeedFeetPerMinute:0,GearExtendedRatio:0),.58);window.UpdateLayout();
+        window.FlightTrackingView.Render(trackingPlan,"A350-900","BLOCK-IN / COMPLETE","Awaiting recorded IN",trackingPlan.PlannedDepartureUtc,null,null,100,trackingEvents,false,complete:true);window.UpdateLayout();Check(window.FlightTrackingView.SubmitPirepButton.Visibility==Visibility.Collapsed,"Complete phase without recorded actual IN keeps Submit PIREP hidden");
+        window.FlightTrackingView.Render(trackingPlan,"A350-900","BLOCK-IN / COMPLETE","Flight complete",trackingPlan.PlannedDepartureUtc,trackingPlan.PlannedDepartureUtc.AddHours(5),null,100,trackingEvents,false,complete:true,pirepReady:true);window.UpdateLayout();Check(window.FlightTrackingView.SubmitPirepButton.Visibility==Visibility.Visible&&window.FlightTrackingView.ProgressAircraftIcon.Visibility==Visibility.Collapsed&&window.FlightTrackingView.ProgressBar.Foreground.ToString()=="#FF55D66B","Completed flight with recorded actual IN uses a green aircraft-free progress bar and exposes Submit PIREP");Capture(window,Path.Combine(outputDirectory,"flight-tracking-pirep-ready.png"));window.FlightTrackingView.Render(trackingPlan,"Alpha 6 Test A321","CRUISE","Recorded test telemetry",null,null,new DateTimeOffset(2026,9,8,23,45,0,TimeSpan.Zero),58,trackingEvents,true,new(new DateTimeOffset(2026,9,8,23,0,0,TimeSpan.Zero),false,450,false,true,AltitudeFeet:35000,IndicatedAirspeedKnots:285,VerticalSpeedFeetPerMinute:0,GearExtendedRatio:0),.58);window.UpdateLayout();
         var eventMonitor=new FlightTrackingEventMonitor();var eventTime=new DateTimeOffset(2026,9,8,22,0,0,TimeSpan.Zero);
         var detected=new List<TrackingEventEntry>();for(var second=0;second<3;second++)detected.AddRange(eventMonitor.Observe(new(eventTime.AddSeconds(second),false,285,false,true,AltitudeFeet:12000+second*500,IndicatedAirspeedKnots:290,VerticalSpeedFeetPerMinute:1800,GearExtendedRatio:0),FlightPhase.Airborne,second==0?new(FlightPhase.Airborne,eventTime):null,.2,trackingPlan,null));
         Check(detected.FindIndex(entry=>entry.Title=="Liftoff")>=0&&detected.FindIndex(entry=>entry.Title=="Liftoff")<detected.FindIndex(entry=>entry.Title=="Initial climb")&&detected.All(entry=>entry.Detail.Contains("IAS")&&!entry.Detail.Contains("Route progress")&&!entry.Detail.Contains("Distance remaining")&&!entry.Detail.Contains("NEAR ")),"Flight events keep liftoff before initial climb and omit repetitive route proximity");
@@ -86,25 +95,154 @@ internal static class DashboardSmokeTest
         systemsEvents.AddRange(systemsMonitor.Observe(new(eventTime.AddSeconds(3),true,0,true,true,FuelTotalWeightPounds:33980,RunningEngineCount:2,RunningEngineMask:3,FlapsExtendedRatio:.2),FlightPhase.AtGate,null,0,trackingPlan,null));
         systemsEvents.AddRange(systemsMonitor.Observe(new(eventTime.AddSeconds(4),true,0,true,true,FuelTotalWeightPounds:33980,RunningEngineCount:2,RunningEngineMask:3,FlapsExtendedRatio:.2),FlightPhase.AtGate,null,0,trackingPlan,null));
         systemsEvents.AddRange(systemsMonitor.Observe(new(eventTime.AddSeconds(5),true,3,false,true,FuelTotalWeightPounds:33970,RunningEngineCount:2,RunningEngineMask:3,FlapsExtendedRatio:.2),FlightPhase.TaxiOut,new(FlightPhase.TaxiOut,eventTime.AddSeconds(5)),0,trackingPlan,null));
+        systemsEvents.AddRange(systemsMonitor.Observe(new(eventTime.AddMinutes(10),false,150,false,true,FuelTotalWeightPounds:33000,RunningEngineCount:2,RunningEngineMask:3),FlightPhase.Airborne,new(FlightPhase.Airborne,eventTime.AddMinutes(10)),.01,trackingPlan,null));
         systemsEvents.AddRange(systemsMonitor.Observe(new(eventTime.AddHours(3).AddSeconds(-2),false,135,false,true,AltitudeFeet:120,AltitudeAboveGroundFeet:80,IndicatedAirspeedKnots:132,VerticalSpeedFeetPerMinute:-420,FuelTotalWeightPounds:25100,RunningEngineCount:2,RunningEngineMask:3,FlapsExtendedRatio:1),FlightPhase.Airborne,null,.96,trackingPlan,null));
         systemsEvents.AddRange(systemsMonitor.Observe(new(eventTime.AddHours(4),true,128,false,true,AltitudeFeet:0,IndicatedAirspeedKnots:125,VerticalSpeedFeetPerMinute:-353,FuelTotalWeightPounds:25000,RunningEngineCount:2,RunningEngineMask:3,FlapsExtendedRatio:1),FlightPhase.TaxiIn,new(FlightPhase.TaxiIn,eventTime.AddHours(4)),.97,trackingPlan,null));
-        Check(systemsEvents.Any(entry=>entry.Title=="Engine 1 on")&&systemsEvents.Any(entry=>entry.Title=="Engine 2 on")&&systemsEvents.Any(entry=>entry.Title=="Flaps changed"&&entry.Summary.Contains("Flaps 1"))&&systemsEvents.Any(entry=>entry.Title=="Touchdown"&&entry.Summary.Contains("-420 ft/min")&&entry.Summary.Contains("fuel burn")),"Event Log uses aircraft flap detents, block-out fuel and the airborne contact sample for touchdown rate");
+        systemsEvents.AddRange(systemsMonitor.Observe(new(eventTime.AddHours(4).AddSeconds(1),true,0,true,true,FuelTotalWeightPounds:24990,RunningEngineCount:2,RunningEngineMask:3),FlightPhase.TaxiIn,null,.98,trackingPlan,null));
+        Check(systemsEvents.Any(entry=>entry.Title=="Engine 1 on")&&systemsEvents.Any(entry=>entry.Title=="Engine 2 on")&&systemsEvents.Any(entry=>entry.Title=="Flaps 1 selected")&&systemsEvents.Any(entry=>entry.Title=="Touchdown"&&entry.Summary.Contains("-420 ft/min")&&entry.Summary.Contains("fuel burn")),"Event Log uses aircraft flap detents, airborne fuel and the airborne contact sample for touchdown rate");
+        Check(systemsEvents.Any(entry=>entry.Title=="Parking brake set"&&entry.Summary=="Parking brake set at stand"),"Parking-brake event stays neutral until block-in is confirmed");
         var restartMonitor=new FlightTrackingEventMonitor();var restartEvents=new List<TrackingEventEntry>();
         restartMonitor.Observe(new(eventTime,true,0,true,false,RunningEngineCount:0,RunningEngineMask:0),FlightPhase.AtGate,null,0,trackingPlan,null);
         foreach(var (second,mask,count) in new[]{(1,2,1),(2,2,1),(3,0,0),(4,0,0),(5,1,1),(6,1,1),(7,3,2),(8,3,2)})restartEvents.AddRange(restartMonitor.Observe(new(eventTime.AddSeconds(second),true,0,true,count>0,RunningEngineCount:count,RunningEngineMask:mask),FlightPhase.AtGate,null,0,trackingPlan,null));
         Check(restartEvents.Any(entry=>entry.Title=="Engine 2 start interrupted")&&restartEvents.Any(entry=>entry.Title=="Engine 2 restarted")&&restartEvents.Count(entry=>entry.Title.Contains("Engine 2",StringComparison.Ordinal))==3,"Debounced engine events preserve an interrupted start and successful restart");
+        var evidencePlan=trackingPlan with{AircraftType="A220-300"};var evidenceMonitor=new FlightTrackingEventMonitor();var evidenceEvents=new List<TrackingEventEntry>();
+        EngineAssessment E(int index,EngineCondition condition)=>new(index,condition,"N1 / N2 spool");
+        evidenceEvents.AddRange(evidenceMonitor.Observe(new(eventTime,true,0,true,false,FuelTotalWeightPounds:6200,RunningEngineCount:-1,RunningEngineMask:-1,EngineDataValid:false,EngineStates:[E(1,EngineCondition.Unknown),E(2,EngineCondition.Starting)]),FlightPhase.AtGate,null,0,evidencePlan,null));
+        evidenceEvents.AddRange(evidenceMonitor.Observe(new(eventTime.AddSeconds(1),true,0,true,true,FuelTotalWeightPounds:6199,RunningEngineCount:-1,RunningEngineMask:-1,EngineDataValid:false,EngineStates:[E(1,EngineCondition.Unknown),E(2,EngineCondition.Running)]),FlightPhase.AtGate,null,0,evidencePlan,null));
+        evidenceEvents.AddRange(evidenceMonitor.Observe(new(eventTime.AddSeconds(2),true,0,true,true,FuelTotalWeightPounds:6198,RunningEngineCount:-1,RunningEngineMask:-1,EngineDataValid:false,EngineStates:[E(1,EngineCondition.Starting),E(2,EngineCondition.Running)]),FlightPhase.AtGate,null,0,evidencePlan,null));
+        evidenceEvents.AddRange(evidenceMonitor.Observe(new(eventTime.AddSeconds(3),true,0,true,true,FuelTotalWeightPounds:6197,RunningEngineCount:2,RunningEngineMask:3,EngineDataValid:true,EngineStates:[E(1,EngineCondition.Running),E(2,EngineCondition.Running)]),FlightPhase.AtGate,null,0,evidencePlan,null));
+        evidenceEvents.AddRange(evidenceMonitor.Observe(new(eventTime.AddSeconds(4),true,0,true,true,FuelTotalWeightPounds:6196,RunningEngineCount:-1,RunningEngineMask:-1,EngineDataValid:false,EngineStates:[E(1,EngineCondition.Stopping),E(2,EngineCondition.Running)]),FlightPhase.AtGate,null,0,evidencePlan,null));
+        evidenceEvents.AddRange(evidenceMonitor.Observe(new(eventTime.AddSeconds(5),true,0,true,true,FuelTotalWeightPounds:6195,RunningEngineCount:1,RunningEngineMask:2,EngineDataValid:true,EngineStates:[E(1,EngineCondition.Off),E(2,EngineCondition.Running)]),FlightPhase.AtGate,null,0,evidencePlan,null));
+        Check(evidenceEvents.Select(x=>x.Title).SequenceEqual(["Engine 2 starting","Engine 2 running","Engine 1 starting","Engine 1 running","Engine 1 shutdown","Engine 1 shut down"])&&!evidenceEvents.Any(x=>x.Detail.Contains("ENGINE DATA UNAVAILABLE")),"Per-engine evidence stays ordered with operational shutdown wording and no contradictory unavailable label");
+        var enhancedCompletionMonitor=new FlightTrackingEventMonitor();
+        var enhancedShutdown=new TerminalShutdownEvidence(ShutdownIntentSupport.Enhanced,"validated test adapter","presentation-enhanced",2,
+            [new(1,true,false,eventTime),new(2,true,false,eventTime)],eventTime,eventTime,true,true);
+        var enhancedCompletionSample=new Telemetry(eventTime,true,0,true,false,FuelTotalWeightPounds:6100,EngineDataValid:false,
+            EngineStates:[E(1,EngineCondition.Unknown),E(2,EngineCondition.Stopping)],TerminalShutdown:enhancedShutdown,TerminalBlockInEligible:true);
+        var enhancedCompletionMilestone=new FlightEvent(FlightPhase.Complete,eventTime);
+        var enhancedCompletionEvents=enhancedCompletionMonitor.Observe(enhancedCompletionSample,FlightPhase.Complete,enhancedCompletionMilestone,1,trackingPlan,null);
+        var enhancedCompletion=enhancedCompletionEvents.Single(entry=>entry.Title=="Block-in / flight complete");
+        Check(enhancedCompletionSample.TerminalShutdown==enhancedShutdown&&enhancedCompletionSample.TerminalBlockInEligible==true
+            &&enhancedCompletionSample.EngineStates![0].Condition==EngineCondition.Unknown&&enhancedCompletionSample.EngineStates[1].Condition==EngineCondition.Stopping
+            &&enhancedCompletionMilestone.Phase==FlightPhase.Complete,
+            "Enhanced completion wording does not mutate terminal authority, mechanics or the Complete milestone");
+
+        var manualCompletionMonitor=new FlightTrackingEventMonitor();
+        var manualShutdown=new TerminalShutdownEvidence(ShutdownIntentSupport.Limited,"unsupported","presentation-manual",0,[],eventTime,eventTime,true,false);
+        var manualCompletionSample=new Telemetry(eventTime.AddSeconds(1),true,0,true,false,FuelTotalWeightPounds:6099,EngineDataValid:false,
+            PilotConfirmedBlockIn:true,TerminalShutdown:manualShutdown,TerminalBlockInEligible:true);
+        var manualCompletionMilestone=new FlightEvent(FlightPhase.Complete,eventTime.AddSeconds(1));
+        var manualCompletionEvents=manualCompletionMonitor.Observe(manualCompletionSample,FlightPhase.Complete,manualCompletionMilestone,1,trackingPlan,null);
+        var manualCompletion=manualCompletionEvents.Single(entry=>entry.Title=="Block-in / flight complete");
+        File.WriteAllText(Path.Combine(outputDirectory,"completion-wording-evidence.json"),JsonSerializer.Serialize(new
+        {
+            enhanced=new{input=new{enhancedCompletionSample.EngineDataValid,enhancedCompletionSample.TerminalBlockInEligible,enhancedCompletionSample.PilotConfirmedBlockIn,
+                support=enhancedCompletionSample.TerminalShutdown?.Support.ToString(),mechanics=enhancedCompletionSample.EngineStates?.Select(x=>x.Condition.ToString()).ToArray(),
+                milestone=enhancedCompletionMilestone.Phase.ToString()},output=new{enhancedCompletion.Title,enhancedCompletion.Summary,enhancedCompletion.Detail}},
+            manual=new{input=new{manualCompletionSample.EngineDataValid,manualCompletionSample.TerminalBlockInEligible,manualCompletionSample.PilotConfirmedBlockIn,
+                support=manualCompletionSample.TerminalShutdown?.Support.ToString(),milestone=manualCompletionMilestone.Phase.ToString()},output=new{manualCompletion.Title,manualCompletion.Summary,manualCompletion.Detail}}
+        },new JsonSerializerOptions{WriteIndented=true}));
+        Check(manualCompletion.Summary.Contains("pilot-confirmed Block In",StringComparison.OrdinalIgnoreCase)
+            &&manualCompletion.Detail.Contains("PILOT-CONFIRMED BLOCK IN",StringComparison.Ordinal),
+            "Manual completion identifies the pilot-confirmed Block In authority");
+        Check(manualCompletionSample.PilotConfirmedBlockIn&&manualCompletionSample.TerminalBlockInEligible==true
+            &&manualCompletionSample.TerminalShutdown==manualShutdown&&manualCompletionMilestone.Phase==FlightPhase.Complete,
+            "Manual completion wording does not mutate terminal authority or the Complete milestone");
+        Check(enhancedCompletion.Summary.Contains("terminal shutdown confirmed",StringComparison.OrdinalIgnoreCase)
+            &&enhancedCompletion.Detail.Contains("mechanical spool-down continues",StringComparison.OrdinalIgnoreCase)
+            &&enhancedCompletion.Detail.Contains("partial mechanical engine data",StringComparison.OrdinalIgnoreCase),
+            "Enhanced completion reports verified terminal shutdown separately from continuing or partial mechanical evidence");
+
+        var genericCompletionMonitor=new FlightTrackingEventMonitor();
+        var genericTaxiIn=new Telemetry(eventTime.AddSeconds(2),true,3,false,false,EngineDataValid:false,EngineStates:[E(1,EngineCondition.Unknown),E(2,EngineCondition.Unknown)]);
+        genericCompletionMonitor.Observe(genericTaxiIn,FlightPhase.TaxiIn,new(FlightPhase.TaxiIn,eventTime.AddSeconds(2)),.98,trackingPlan,null);
+        var genericStopped=genericTaxiIn with{At=eventTime.AddSeconds(3),GroundSpeedKnots=0,ParkingBrake=true};
+        var genericEvents=genericCompletionMonitor.Observe(genericStopped,FlightPhase.TaxiIn,null,.99,trackingPlan,null);
+        Check(genericEvents.Any(entry=>entry.Title=="Parking brake set"&&entry.Detail.Contains("ENGINE DATA UNAVAILABLE",StringComparison.Ordinal))
+            &&genericEvents.All(entry=>entry.Title!="Block-in / flight complete")&&genericStopped.TerminalBlockInEligible is null,
+            "Unsupported noncompletion samples retain conservative mechanical wording and cannot imply completion");
         Check(Math.Abs(SimConnectSource.NormalizeGear(.01)-1)<.001,"MSFS gear percentage is normalized to the recorder's zero-to-one range");
         Check(AirportCatalog.Find("YSSY")?.Name.Contains("Sydney",StringComparison.OrdinalIgnoreCase)==true&&AirportCatalog.Find("NZQN")?.Name.Contains("Queenstown",StringComparison.OrdinalIgnoreCase)==true,"international airport names are available for the hero");
-        var cruiseMonitor=new FlightTrackingEventMonitor();var cruiseEvents=new List<TrackingEventEntry>();for(var second=0;second<3;second++)cruiseEvents.AddRange(cruiseMonitor.Observe(new(eventTime.AddSeconds(second),false,440,false,true,AltitudeFeet:36600-second*50,VerticalSpeedFeetPerMinute:0),FlightPhase.Airborne,null,.5,trackingPlan,null));for(var second=3;second<8;second++)cruiseEvents.AddRange(cruiseMonitor.Observe(new(eventTime.AddSeconds(second),false,440,false,true,AltitudeFeet:36500,VerticalSpeedFeetPerMinute:0),FlightPhase.Airborne,null,.5,trackingPlan,null));
+        var cruiseMonitor=new FlightTrackingEventMonitor();var cruiseEvents=new List<TrackingEventEntry>();for(var second=0;second<35;second++)cruiseEvents.AddRange(cruiseMonitor.Observe(new(eventTime.AddSeconds(second),false,440,false,true,AltitudeFeet:36900-Math.Min(second,8)*50,VerticalSpeedFeetPerMinute:0),FlightPhase.Airborne,null,.5,trackingPlan with{CruiseAltitudeFeet=37000},null));for(var second=35;second<40;second++)cruiseEvents.AddRange(cruiseMonitor.Observe(new(eventTime.AddSeconds(second),false,440,false,true,AltitudeFeet:36500,VerticalSpeedFeetPerMinute:0),FlightPhase.Airborne,null,.5,trackingPlan with{CruiseAltitudeFeet=37000},null));
         Check(cruiseEvents.Any(entry=>entry.Summary.Contains("FL370"))&&!cruiseEvents.Any(entry=>entry.Title=="Cruise altitude changed"),"FL370 remains stable across geometric-altitude midpoint variation");
         var profilePlan=trackingPlan with{AircraftType="B737-800",CruiseAltitudeFeet=32000};var profileMonitor=new FlightTrackingEventMonitor();var profileEvents=new List<TrackingEventEntry>();
         for(var second=0;second<35;second++)profileEvents.AddRange(profileMonitor.Observe(new(eventTime.AddSeconds(second),false,390,false,true,AltitudeFeet:23900,PressureAltitudeFeet:25000,VerticalSpeedFeetPerMinute:0,FlapsExtendedRatio:0),FlightPhase.Airborne,null,.25,profilePlan,null));
         for(var second=35;second<70;second++)profileEvents.AddRange(profileMonitor.Observe(new(eventTime.AddSeconds(second),false,430,false,true,AltitudeFeet:30600,PressureAltitudeFeet:32000,VerticalSpeedFeetPerMinute:0,FlapsExtendedRatio:0),FlightPhase.Airborne,null,.45,profilePlan,null));
         Check(profileEvents.Count(entry=>entry.Title=="Top of climb / cruise established")==1&&profileEvents.Any(entry=>entry.Summary.Contains("FL320"))&&!profileEvents.Any(entry=>entry.Title is "Step climb started" or "Top of descent"),"SimBrief cruise and pressure altitude keep a procedural FL250 level-off in climb and establish cruise at FL320");
+        var mismatchPlan=trackingPlan with{CruiseAltitudeFeet=35000};var mismatchMonitor=new FlightTrackingEventMonitor();var mismatchEvents=new List<TrackingEventEntry>();
+        mismatchMonitor.Observe(new(eventTime,false,420,false,true,AltitudeFeet:32500,PressureAltitudeFeet:32500,VerticalSpeedFeetPerMinute:1200),FlightPhase.Airborne,null,.42,mismatchPlan,null);
+        for(var second=1;second<=240;second++)mismatchEvents.AddRange(mismatchMonitor.Observe(new(eventTime.AddSeconds(second),false,440,false,true,AltitudeFeet:33020,PressureAltitudeFeet:33020,VerticalSpeedFeetPerMinute:20),FlightPhase.Airborne,null,.55,mismatchPlan,null));
+        for(var second=241;second<=271;second++)mismatchEvents.AddRange(mismatchMonitor.Observe(new(eventTime.AddSeconds(second),false,420,false,true,AltitudeFeet:32200,PressureAltitudeFeet:32200,VerticalSpeedFeetPerMinute:-850),FlightPhase.Airborne,null,.68,mismatchPlan,null));
+        Check(mismatchPlan.CruiseAltitudeFeet==35000&&mismatchEvents.Count(entry=>entry.Title=="Top of climb / cruise established")==1&&mismatchEvents.Any(entry=>entry.Summary.Contains("FL330")&&entry.Summary.Contains("filed FL350",StringComparison.OrdinalIgnoreCase))&&mismatchEvents.Count(entry=>entry.Title=="Top of descent")==1,"Observed FL330 cruise and TOD are established without mutating filed FL350");
+
+        var recoveryMonitor=new FlightTrackingEventMonitor();var recoveryBefore=new List<TrackingEventEntry>();
+        recoveryMonitor.Observe(new(eventTime.AddSeconds(-1),false,410,false,true,AltitudeFeet:32500,PressureAltitudeFeet:32500,VerticalSpeedFeetPerMinute:1000),FlightPhase.Airborne,null,.4,mismatchPlan,null);
+        for(var second=0;second<=120;second++)recoveryBefore.AddRange(recoveryMonitor.Observe(new(eventTime.AddSeconds(second),false,430,false,true,AltitudeFeet:33000,PressureAltitudeFeet:33000,VerticalSpeedFeetPerMinute:0),FlightPhase.Airborne,null,.5,mismatchPlan,null));
+        var recoveryRestored=new FlightTrackingEventMonitor(recoveryMonitor.CaptureState());var recoveryAfter=new List<TrackingEventEntry>();
+        recoveryAfter.AddRange(recoveryRestored.Observe(new(eventTime.AddSeconds(210),false,430,false,true,AltitudeFeet:33000,PressureAltitudeFeet:33000,VerticalSpeedFeetPerMinute:0),FlightPhase.Airborne,null,.52,mismatchPlan,null));
+        for(var second=211;second<=270;second++)recoveryAfter.AddRange(recoveryRestored.Observe(new(eventTime.AddSeconds(second),false,430,false,true,AltitudeFeet:33000,PressureAltitudeFeet:33000,VerticalSpeedFeetPerMinute:0),FlightPhase.Airborne,null,.54,mismatchPlan,null));
+        Check(!recoveryBefore.Any(entry=>entry.Title=="Top of climb / cruise established")&&recoveryAfter.Count(entry=>entry.Title=="Top of climb / cruise established")==1,"Observed cruise recovery counts 180 telemetry seconds but excludes 90 seconds of restart downtime");
+
+        var matchedMonitor=new FlightTrackingEventMonitor();var matchedEvents=new List<TrackingEventEntry>();var matchedPlan=trackingPlan with{CruiseAltitudeFeet=33000};
+        matchedMonitor.Observe(new(eventTime.AddSeconds(-1),false,410,false,true,PressureAltitudeFeet:32500,AltitudeFeet:32500,VerticalSpeedFeetPerMinute:1000),FlightPhase.Airborne,null,.4,matchedPlan,null);
+        for(var second=0;second<=30;second++)matchedEvents.AddRange(matchedMonitor.Observe(new(eventTime.AddSeconds(second),false,430,false,true,PressureAltitudeFeet:33000,AltitudeFeet:33000,VerticalSpeedFeetPerMinute:0),FlightPhase.Airborne,null,.5,matchedPlan,null));
+        Check(matchedEvents.Count(entry=>entry.Title=="Top of climb / cruise established")==1,"Observed cruise matching the filed level qualifies after 30 observed seconds");
+
+        var highMismatchMonitor=new FlightTrackingEventMonitor();var highMismatchEvents=new List<TrackingEventEntry>();
+        highMismatchMonitor.Observe(new(eventTime.AddSeconds(-1),false,410,false,true,PressureAltitudeFeet:34200,AltitudeFeet:34200,VerticalSpeedFeetPerMinute:1000),FlightPhase.Airborne,null,.4,matchedPlan,null);
+        for(var second=0;second<=180;second++)highMismatchEvents.AddRange(highMismatchMonitor.Observe(new(eventTime.AddSeconds(second),false,430,false,true,PressureAltitudeFeet:35000,AltitudeFeet:35000,VerticalSpeedFeetPerMinute:0),FlightPhase.Airborne,null,.55,matchedPlan,null));
+        Check(highMismatchEvents.Count(entry=>entry.Title=="Top of climb / cruise established")==1&&highMismatchEvents.Any(entry=>entry.Summary.Contains("FL350")&&entry.Summary.Contains("filed FL330",StringComparison.OrdinalIgnoreCase)),"Observed FL350 qualifies independently after 180 seconds while filed FL330 is preserved");
+
+        var rejectedMonitor=new FlightTrackingEventMonitor();var rejectedEvents=new List<TrackingEventEntry>();
+        rejectedMonitor.Observe(new(eventTime.AddSeconds(-1),false,410,false,true,PressureAltitudeFeet:32200,AltitudeFeet:32200,VerticalSpeedFeetPerMinute:1000),FlightPhase.Airborne,null,.35,mismatchPlan,null);
+        for(var second=0;second<=179;second++)rejectedEvents.AddRange(rejectedMonitor.Observe(new(eventTime.AddSeconds(second),false,430,false,true,PressureAltitudeFeet:33000,AltitudeFeet:33000,VerticalSpeedFeetPerMinute:0),FlightPhase.Airborne,null,.5,mismatchPlan,null));
+        rejectedEvents.AddRange(rejectedMonitor.Observe(new(eventTime.AddSeconds(180),false,430,false,true,PressureAltitudeFeet:33600,AltitudeFeet:33600,VerticalSpeedFeetPerMinute:900),FlightPhase.Airborne,null,.52,mismatchPlan,null));
+        Check(!rejectedEvents.Any(entry=>entry.Title=="Top of climb / cruise established"),"A 179-second mismatched level-off followed by continued climb is not cruise");
+
+        var invalidMonitor=new FlightTrackingEventMonitor();var invalidEvents=new List<TrackingEventEntry>();
+        invalidMonitor.Observe(new(eventTime,false,410,false,true,PressureAltitudeFeet:32200,AltitudeFeet:32200,VerticalSpeedFeetPerMinute:1000),FlightPhase.Airborne,null,.35,mismatchPlan,null);
+        for(var second=1;second<=80;second++)invalidEvents.AddRange(invalidMonitor.Observe(new(eventTime.AddSeconds(second),false,430,false,true,PressureAltitudeFeet:33000+(second%2==0?350:-350),AltitudeFeet:33000,VerticalSpeedFeetPerMinute:0),FlightPhase.Airborne,null,.5,mismatchPlan,null));
+        invalidEvents.AddRange(invalidMonitor.Observe(new(eventTime.AddSeconds(81),false,430,false,true,Paused:true,PressureAltitudeFeet:33000,AltitudeFeet:33000,VerticalSpeedFeetPerMinute:0),FlightPhase.Airborne,null,.5,mismatchPlan,null));
+        invalidEvents.AddRange(invalidMonitor.Observe(new(eventTime.AddSeconds(82),false,430,false,true,Slewing:true,PressureAltitudeFeet:33000,AltitudeFeet:33000,VerticalSpeedFeetPerMinute:0),FlightPhase.Airborne,null,.5,mismatchPlan,null));
+        for(var second=90;second<180;second+=5)invalidEvents.AddRange(invalidMonitor.Observe(new(eventTime.AddSeconds(second),false,430,false,true,PressureAltitudeFeet:33000,AltitudeFeet:33000,VerticalSpeedFeetPerMinute:0),FlightPhase.Airborne,null,.5,mismatchPlan,null));
+        Check(!invalidEvents.Any(entry=>entry.Title=="Top of climb / cruise established"),"Turbulence, pause, slew and telemetry gaps contribute no observed cruise qualification time");
+
+        var stepMonitor=new FlightTrackingEventMonitor();var stepEvents=new List<TrackingEventEntry>();
+        stepMonitor.Observe(new(eventTime.AddSeconds(-1),false,410,false,true,PressureAltitudeFeet:32500,AltitudeFeet:32500,VerticalSpeedFeetPerMinute:1000),FlightPhase.Airborne,null,.42,matchedPlan,null);
+        for(var second=0;second<=30;second++)stepEvents.AddRange(stepMonitor.Observe(new(eventTime.AddSeconds(second),false,430,false,true,PressureAltitudeFeet:33000,AltitudeFeet:33000,VerticalSpeedFeetPerMinute:0),FlightPhase.Airborne,null,.5,matchedPlan,null));
+        for(var second=31;second<=60;second++)stepEvents.AddRange(stepMonitor.Observe(new(eventTime.AddSeconds(second),false,430,false,true,PressureAltitudeFeet:34200+(second-31)*28,AltitudeFeet:34200,VerticalSpeedFeetPerMinute:700),FlightPhase.Airborne,null,.56,matchedPlan,null));
+        for(var second=61;second<=121;second++)stepEvents.AddRange(stepMonitor.Observe(new(eventTime.AddSeconds(second),false,430,false,true,PressureAltitudeFeet:35000,AltitudeFeet:35000,VerticalSpeedFeetPerMinute:0),FlightPhase.Airborne,null,.62,matchedPlan,null));
+        Check(stepEvents.Count(entry=>entry.Title=="Top of climb / cruise established")==1&&stepEvents.Count(entry=>entry.Title=="Step climb started")==1&&stepEvents.Count(entry=>entry.Title=="Cruise altitude changed")==1&&stepEvents.FindIndex(entry=>entry.Title=="Top of climb / cruise established")<stepEvents.FindIndex(entry=>entry.Title=="Cruise altitude changed"),"Step climb preserves the original observed cruise event and records the new observed level");
+
+        var descentMonitor=new FlightTrackingEventMonitor();var descentEvents=new List<TrackingEventEntry>();
+        descentMonitor.Observe(new(eventTime.AddSeconds(-1),false,410,false,true,PressureAltitudeFeet:32500,AltitudeFeet:32500,VerticalSpeedFeetPerMinute:1000),FlightPhase.Airborne,null,.42,matchedPlan,null);
+        for(var second=0;second<=30;second++)descentEvents.AddRange(descentMonitor.Observe(new(eventTime.AddSeconds(second),false,430,false,true,PressureAltitudeFeet:33000,AltitudeFeet:33000,VerticalSpeedFeetPerMinute:0),FlightPhase.Airborne,null,.5,matchedPlan,null));
+        for(var second=31;second<=61;second++)descentEvents.AddRange(descentMonitor.Observe(new(eventTime.AddSeconds(second),false,410,false,true,PressureAltitudeFeet:32100,AltitudeFeet:32100,VerticalSpeedFeetPerMinute:-700),FlightPhase.Airborne,null,.65,matchedPlan,null));
+        for(var second=62;second<=100;second++)descentEvents.AddRange(descentMonitor.Observe(new(eventTime.AddSeconds(second),false,410,false,true,PressureAltitudeFeet:31000,AltitudeFeet:31000,VerticalSpeedFeetPerMinute:0),FlightPhase.Airborne,null,.7,matchedPlan,null));
+        Check(descentEvents.Count(entry=>entry.Title=="Top of descent")==1&&descentMonitor.AirbornePhase=="Descent","A descent level-off retains the observed Descent presentation stage");
+        descentMonitor.Observe(new(eventTime.AddSeconds(101),true,20,false,true,PressureAltitudeFeet:0,AltitudeFeet:0,VerticalSpeedFeetPerMinute:-200),FlightPhase.TaxiIn,new(FlightPhase.TaxiIn,eventTime.AddSeconds(101)),.98,matchedPlan,null);
+        var goAroundEvents=descentMonitor.Observe(new(eventTime.AddSeconds(102),false,150,false,true,PressureAltitudeFeet:500,AltitudeFeet:500,VerticalSpeedFeetPerMinute:1200),FlightPhase.Airborne,new(FlightPhase.Airborne,eventTime.AddSeconds(102)),.98,matchedPlan,null);
+        Check(descentMonitor.AirbornePhase=="Climb"&&goAroundEvents.Count(entry=>entry.Title=="Go-around")==1&&descentEvents.Count(entry=>entry.Title=="Top of descent")==1,"Go-around resets the current observed stage to Climb without deleting historical TOD");
+        File.WriteAllText(Path.Combine(outputDirectory,"cruise-provenance.json"),JsonSerializer.Serialize(new{filedCruise=mismatchPlan.CruiseAltitudeFeet,events=mismatchEvents.Concat(stepEvents).Select(entry=>new{entry.At,entry.Title,entry.Summary}),recoveredPhase=recoveryRestored.AirbornePhase},new JsonSerializerOptions{WriteIndented=true}));
         var boeingMonitor=new FlightTrackingEventMonitor();var boeingEvents=new List<TrackingEventEntry>();boeingMonitor.Observe(new(eventTime,true,0,true,false,FlapsExtendedRatio:0),FlightPhase.AtGate,null,0,profilePlan,null);for(var second=1;second<=2;second++)boeingEvents.AddRange(boeingMonitor.Observe(new(eventTime.AddSeconds(second),true,0,true,false,FlapsExtendedRatio:.6),FlightPhase.AtGate,null,0,profilePlan,null));
         Check(boeingEvents.Any(entry=>entry.Summary=="Flaps 15"),"Boeing 737 normalized flap telemetry is presented as a real handle detent");
         var fenixPlan=trackingPlan with{AircraftType="FENIX A320"};var fenixMonitor=new FlightTrackingEventMonitor();var fenixEvents=new List<TrackingEventEntry>();fenixMonitor.Observe(new(eventTime,true,0,true,false,FlapsExtendedRatio:0),FlightPhase.AtGate,null,0,fenixPlan,null);for(var second=1;second<=2;second++)fenixEvents.AddRange(fenixMonitor.Observe(new(eventTime.AddSeconds(second),true,0,true,false,FlapsExtendedRatio:.6),FlightPhase.AtGate,null,0,fenixPlan,null));
         Check(fenixEvents.Any(entry=>entry.Summary=="Flaps 2"),"Fenix six-position telemetry maps configuration two without reporting Flaps 3");
+        var a321Plan=trackingPlan with{AircraftType="Airbus A321"};var a321Monitor=new FlightTrackingEventMonitor();var a321Events=new List<TrackingEventEntry>();
+        a321Monitor.Observe(new(eventTime,true,0,true,false,FlapHandleRatio:0,FlapHandleIndex:0,FlapHandlePositions:5,LeftFlapDegrees:0,RightFlapDegrees:0),FlightPhase.AtGate,null,0,a321Plan,null);
+        for(var second=1;second<=2;second++)a321Events.AddRange(a321Monitor.Observe(new(eventTime.AddSeconds(second),true,0,true,false,FlapHandleRatio:.6,FlapHandleIndex:3,FlapHandlePositions:5,LeftFlapDegrees:15,RightFlapDegrees:15),FlightPhase.AtGate,null,0,a321Plan,null));
+        Check(a321Events.Any(entry=>entry.Title=="Flaps 2 selected"&&!entry.Detail.Contains("SURFACE")),"A32x handle index three maps to Flaps 2 without treating agreeing surface angles as a settled configuration");
+        var a220Plan=trackingPlan with{AircraftType="A220-300",CruiseAltitudeFeet=36000};var a220Monitor=new FlightTrackingEventMonitor();var a220Events=new List<TrackingEventEntry>();
+        a220Monitor.Observe(new(eventTime,true,0,true,false,FlapsExtendedRatio:0),FlightPhase.AtGate,null,0,a220Plan,null);for(var second=1;second<=2;second++)a220Events.AddRange(a220Monitor.Observe(new(eventTime.AddSeconds(second),true,0,true,false,FlapsExtendedRatio:.4),FlightPhase.AtGate,null,0,a220Plan,null));
+        Check(a220Events.Any(entry=>entry.Summary=="Flaps 2"),"A220 normalized flap telemetry maps to the aircraft handle detent");
+        var indexedA220=new FlightTrackingEventMonitor();var indexedEvents=new List<TrackingEventEntry>();var flapSecond=0;
+        foreach(var detent in new[]{0,1,2,3,4,5,0})for(var repeat=0;repeat<2;repeat++)
+            indexedEvents.AddRange(indexedA220.Observe(new(eventTime.AddSeconds(flapSecond++),true,0,true,false,FlapHandleRatio:detent/5d,FlapHandleIndex:detent,FlapHandlePositions:5,LeftFlapDegrees:36.9,RightFlapDegrees:36.9),FlightPhase.AtGate,null,0,a220Plan,null));
+        Check(indexedEvents.Select(x=>x.Title).SequenceEqual(new[]{"Flaps 1 selected","Flaps 2 selected","Flaps 3 selected","Flaps 4 selected","Flaps 5 selected","Flaps UP selected"})&&!indexedEvents.Any(x=>x.Detail.Contains("SURFACE",StringComparison.Ordinal)),"A220 count-five telemetry maps all six selections without claiming physical surface confirmation");
+        var climbMonitor=new FlightTrackingEventMonitor();var climbEvents=new List<TrackingEventEntry>();
+        for(var second=0;second<20;second++)climbEvents.AddRange(climbMonitor.Observe(new(eventTime.AddSeconds(second),false,210,false,true,AltitudeFeet:4300,AltitudeAboveGroundFeet:4290,VerticalSpeedFeetPerMinute:-220,RunningEngineCount:2,RunningEngineMask:3),FlightPhase.Airborne,null,.08,a220Plan,null));
+        Check(!climbEvents.Any(entry=>entry.Title is "Approach started" or "Final approach"),"A departure climb oscillation cannot start approach or final");
+        Check(AircraftIdentity.CanonicalType("FENIX A320","FenixA320 IAE SL")=="Airbus A320"&&AircraftIdentity.CanonicalType("B737-800","737-800 PAX BW TC")=="Boeing 737-800"&&AircraftIdentity.CanonicalType("A220-300","A220-300")=="Airbus A220-300","Aircraft display identity excludes simulator add-on vendors and cabin-title noise");
         Check(!FlightClock.DepartureScheduleIsPlausible(trackingPlan,trackingPlan.PlannedDepartureUtc.AddHours(-12))&&FlightClock.DepartureScheduleIsPlausible(trackingPlan,trackingPlan.PlannedDepartureUtc.AddHours(2)),"Schedule validation catches a twelve-hour UTC error without rejecting a reasonable operational offset");
         Check(ActiveFlightWindow.TryFlightTime("2026-09-16 15:40 +10:00",out var localDeparture)&&localDeparture.UtcDateTime.Hour==5&&ActiveFlightWindow.TryFlightTime("2026-09-16 05:40Z",out var utcDeparture)&&utcDeparture==localDeparture,"Manual planning accepts explicit airport-local offsets and UTC as the same flight instant");
         Capture(window,Path.Combine(outputDirectory,"flight-tracking-live-aircraft.png"));
@@ -139,22 +277,23 @@ internal static class DashboardSmokeTest
         window.HeaderDispatchButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Check(window.DispatchView.Visibility==Visibility.Visible,"Header Dispatch card opens the native Dispatch workspace");window.ShowDashboard();
         var sampleFlight=window.HeroFlightText.Text;
         window.HeroFlightText.Text="DAL742";window.UpdateLayout();
-        Check(window.HeroFlightText.FontSize==48,"Combined airline ICAO and flight number use the larger hero treatment");
+        Check(window.HeroFlightText.FontSize==22,"Current flight identifier uses a compact native-size treatment");
         Check(window.HeroFlightText.ActualWidth>0 && window.HeroFlightText.Text=="DAL742","Imported flight identifier fits without a separate airline badge");
         window.HeroFlightText.Text=sampleFlight;
         Capture(window,Path.Combine(outputDirectory,"dashboard-default.png"));
         var width=window.Width;var height=window.Height;
         window.Width=1366;window.Height=768;window.UpdateLayout();
-        Check(window.DashboardScroll.ScrollableHeight<=1 && window.DashboardScroll.VerticalOffset==0,"1920x1080 and compact displays keep the dashboard stationary");
-        Check(window.HeroFlightText.ActualWidth>0 && window.ViewAlertsButton.ActualWidth>0,"Scaled dashboard preserves the hero and alerts");
+        Check(window.DashboardScroll.VerticalScrollBarVisibility==ScrollBarVisibility.Auto && window.DashboardScroll.VerticalOffset==0,"Compact Operations can scroll secondary information at native text size");
+        Check(window.HeroFlightText.ActualWidth>0 && window.OperationsView.AlertsPanel.ActualWidth>0,"Native dashboard preserves the current flight and alerts");
         Capture(window,Path.Combine(outputDirectory,"dashboard-1366.png"));
         window.Width=1100;window.UpdateLayout();Capture(window,Path.Combine(outputDirectory,"dashboard-1100.png"));
-        Check(window.HeaderLogo.ActualWidth >= 250 && window.HeaderLogo.ActualHeight >= 95,"Complete logo has a larger high-quality rendering area");
-        Check(window.ClockText.ActualWidth >= 140 && window.LocalClockText.ActualWidth >= 140,"Both clocks retain readable space at minimum window width");
+        Check(window.Shell.BrandMark.ActualWidth>=32&&window.Shell.BrandMark.ActualHeight>=32,"S4 mark retains a sharp native-size rendering area");
+        window.Shell.ShowUtilities();window.UpdateLayout();
+        Check(window.ClockText.ActualWidth >= 140 && window.LocalClockText.ActualWidth >= 140,"Both clocks retain readable space at minimum window width");window.Shell.CloseOverlays();
         window.DashboardScroll.ScrollToBottom();window.UpdateLayout();
         await window.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);
-        Check(window.DashboardScroll.VerticalOffset==0,"Dashboard does not move after a scroll request");
-        Check(window.DashboardFlightsGrid.Columns[1].ActualWidth >= 80,"Compact operations table keeps route text visible");
+        Check(Math.Abs(window.DashboardScroll.VerticalOffset-window.DashboardScroll.ScrollableHeight)<1,"Dashboard scroll reaches secondary information");
+        Check(window.DashboardFlightsGrid.Columns[1].ActualWidth >= 80,$"Compact operations table keeps route text visible (actual {window.DashboardFlightsGrid.Columns[1].ActualWidth}, table {window.DashboardFlightsGrid.ActualWidth})");
         Capture(window,Path.Combine(outputDirectory,"dashboard-1100-stationary.png"));
         window.DashboardScroll.ScrollToTop();
         window.Width=width;window.Height=height;window.UpdateLayout();
@@ -179,11 +318,11 @@ internal static class DashboardSmokeTest
         Check(reopened.CompletedCount==2,"Reopened preflight shows saved checks");reopened.Close();
 
         window.AcknowledgeAlert("atl-wx");
-        Check(window.AlertsItems.Items.Count==4 && store.Load().AcknowledgedAlerts.Contains("atl-wx"),"Acknowledging a demo alert persists and refills the alert panel");
-        window.RouteMap.SelectStation("JFK");window.RouteMap.Zoom(1.25);
-        Check(window.RouteMap.SelectedStation=="JFK" && window.RouteMap.ZoomLevel>1,"Map station selection and zoom change the view");
-        window.RouteMap.ResetView();
-        Check(window.RouteMap.SelectedStation=="ATL" && window.RouteMap.ZoomLevel==1,"Map reset restores its hub and scale");
+        Check(window.OperationsView.AlertsList.Items.Count==0 && store.Load().AcknowledgedAlerts.Contains("atl-wx"),"Demo alert acknowledgment persists without leaking into production Operations alerts");
+        var retainedDemoMap=new NetworkMap();retainedDemoMap.SelectStation("JFK");retainedDemoMap.Zoom(1.25);
+        Check(retainedDemoMap.SelectedStation=="JFK" && retainedDemoMap.ZoomLevel>1,"Retained demo network station selection and zoom work");
+        retainedDemoMap.ResetView();
+        Check(retainedDemoMap.SelectedStation=="ATL" && retainedDemoMap.ZoomLevel==1,"Retained demo network reset restores its hub and scale");
 
         foreach(var name in new[]{"Operations","Maintenance","Crews","Passengers","Weather","Dispatch","OCC","Network"})
         {
@@ -236,7 +375,7 @@ internal static class DashboardSmokeTest
             "Logs and diagnostics presents program-monitor and flight-log status");
         Capture(settings,Path.Combine(outputDirectory,"settings-logs-preview.png"));settings.Close();
         window.ToolsOverlay.Visibility=Visibility.Visible;window.UpdateLayout();Capture(window,Path.Combine(outputDirectory,"flight-tools-preview.png"));
-        Check(window.ConnectButton.IsEnabled && window.ConnectFlightLabButton.IsEnabled && !window.DisconnectButton.IsEnabled && !window.LiveTimelineButton.IsEnabled,"Flight tools preserves real and virtual simulator connection guards");
+        Check(window.ConnectButton.IsEnabled && !window.DisconnectButton.IsEnabled && !window.LiveTimelineButton.IsEnabled,"Flight tools preserves simulator connection guards");
         window.ToolsOverlay.Visibility=Visibility.Collapsed;
         Check(DashboardData.Tiles[0] is {Name:"PilotLogbook",Label:"PILOT LOGBOOK",Image:"Assets/Dashboard/pilot-logbook.png"},"Dashboard replaces Fly with the Pilot Logbook tile and image");
         window.ShowPilotLogbook();window.UpdateLayout();

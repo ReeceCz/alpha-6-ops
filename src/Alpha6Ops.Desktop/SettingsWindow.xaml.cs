@@ -15,14 +15,14 @@ public partial class SettingsWindow : Window
     private readonly Action exportLog;
     private readonly Action minimizeToTray;
     private readonly Action<GeneralSettings> applyGeneralSettings;
-    private readonly string DataDirectory;
+    private static string DataDirectory => CrashReporter.DiagnosticMode ? CrashReporter.RootDirectory : ProductStorage.Current.Root;
+    private static string CrashDirectory => CrashReporter.DiagnosticMode ? Path.Combine(CrashReporter.RootDirectory, "CrashReports") : Path.Combine(ProductStorage.Current.Diagnostics, "CrashReports");
 
     internal SettingsWindow(string simulatorStatus, string pilotName, Action showFlightTools,
         Action? showFlightHistory = null, Action? showLogDatabase = null, Action? exportTestLog = null,
         Action? minimizeOps = null, string? programHealth = null, string? loggingStatus = null,
-        GeneralSettings? currentGeneralSettings = null, Action<GeneralSettings>? saveGeneralSettings = null, string? dataDirectory = null)
+        GeneralSettings? currentGeneralSettings = null, Action<GeneralSettings>? saveGeneralSettings = null)
     {
-        DataDirectory = dataDirectory ?? CrashReporter.RootDirectory;
         InitializeComponent();
         openFlightTools = showFlightTools;
         openFlightHistory = showFlightHistory ?? (() => { });
@@ -30,8 +30,8 @@ public partial class SettingsWindow : Window
         exportLog = exportTestLog ?? (() => { });
         minimizeToTray = minimizeOps ?? (() => { });
         applyGeneralSettings = saveGeneralSettings ?? (_ => { });
-        LoadGeneralSettings(currentGeneralSettings ?? GeneralSettingsStore.Load(DataDirectory));
-        var simBriefUser = SimBriefImporter.LoadUsername(DataDirectory);
+        LoadGeneralSettings(currentGeneralSettings ?? GeneralSettingsStore.Load());
+        var simBriefUser = SimBriefImporter.LoadUsername();
         var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "unknown";
         SimulatorStatusText.Text = simulatorStatus.ToUpperInvariant();
         SimConnectPluginStatusText.Text = simulatorStatus.Contains("CONNECTED", StringComparison.OrdinalIgnoreCase) &&
@@ -43,7 +43,7 @@ public partial class SettingsWindow : Window
         DataPathText.Text = DataDirectory;
         ProgramHealthText.Text = string.IsNullOrWhiteSpace(programHealth) ? "PROGRAM MONITOR STARTING" : programHealth;
         LoggingStatusText.Text = string.IsNullOrWhiteSpace(loggingStatus) ? "Test logs save automatically when you connect." : loggingStatus;
-        VersionText.Text = $"ALPHA 6 OPS v{version}";
+        VersionText.Text = $"SIERRA 4 v{version}";
         StateChanged += (_, _) => UpdateWindowStateIcon();
     }
 
@@ -86,7 +86,7 @@ public partial class SettingsWindow : Window
     private void SaveGeneral_Click(object sender, RoutedEventArgs e)
     {
         var settings = ReadGeneralSettings();
-        GeneralSettingsStore.Save(settings, DataDirectory);
+        GeneralSettingsStore.Save(settings);
         applyGeneralSettings(settings);
         GeneralStatusText.Text = "SETTINGS SAVED";
     }
@@ -106,7 +106,7 @@ public partial class SettingsWindow : Window
         Application.Current.Dispatcher.BeginInvoke(action);
     }
     private void OpenDataFolder_Click(object sender, RoutedEventArgs e) => OpenFolder(DataDirectory);
-    private void OpenCrashReports_Click(object sender, RoutedEventArgs e) => OpenFolder(Path.Combine(DataDirectory, "CrashReports"));
+    private void OpenCrashReports_Click(object sender, RoutedEventArgs e) => OpenFolder(CrashDirectory);
     private static void OpenFolder(string path)
     {
         Directory.CreateDirectory(path);

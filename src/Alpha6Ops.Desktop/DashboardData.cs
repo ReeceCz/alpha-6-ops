@@ -13,13 +13,16 @@ internal sealed record DashboardMessage(string Id, string Title, string Subtitle
 internal sealed record OpsRow(string Reference, string Item, string Timing, string State, string Detail);
 internal sealed record OpsMetric(string Label, string Value, string Note);
 internal sealed record OpsModule(string Title, string Subtitle, string Source, IReadOnlyList<OpsMetric> Metrics, IReadOnlyList<OpsRow> Rows, string Image = "occ");
-internal sealed record DashboardFlightRow(LegProjection Leg, string Aircraft)
+internal sealed record DashboardFlightRow(LegProjection Leg, string Aircraft, bool ScheduleComparisonAvailable=true, string? AircraftType=null, string? OperationalStatus=null)
 {
     public string Id => Leg.Id;
     public string Route => $"{DashboardData.AirportCode(Leg.Origin)} → {DashboardData.AirportCode(Leg.Destination)}";
     public string Out => Leg.EstimatedOut.UtcDateTime.ToString("HH:mm");
     public string In => Leg.EstimatedIn.UtcDateTime.ToString("HH:mm");
-    public string Status => Leg.Completed ? "COMPLETE" : Leg.DepartureDelayMinutes > 0 ? $"+{Leg.DepartureDelayMinutes:0} MIN" : "ON TIME";
+    public string ScheduledOut => Leg.ScheduledOut.UtcDateTime.ToString("dd MMM HH:mm'Z'");
+    public string ScheduledIn => Leg.ScheduledIn.UtcDateTime.ToString("dd MMM HH:mm'Z'");
+    public string Status => OperationalStatus ?? (Leg.Completed ? "COMPLETE" : !ScheduleComparisonAvailable ? "SCHEDULE UNVERIFIED" : Leg.DepartureDelayMinutes > 0 ? $"+{Leg.DepartureDelayMinutes:0} MIN" : "ON TIME");
+    public string DisplayAircraft => AircraftType is null ? Aircraft : AircraftIdentity.CanonicalType(AircraftType,Aircraft);
     public string StatusColor => Leg.Completed ? "#60B7FF" : Leg.DepartureDelayMinutes > 0 ? "#FFDE36" : "#82DF69";
     public string StatusBackground => Leg.Completed ? "#142D45" : Leg.DepartureDelayMinutes > 0 ? "#3D3510" : "#193821";
     public string Key => $"{Aircraft}|{Leg.ScheduledOut:yyyy-MM-dd}|{Id}";
@@ -88,7 +91,7 @@ internal static class DashboardData
     ];
     internal static readonly DashboardMessage[] Messages =
     [
-        new("welcome", "Welcome to Alpha 6 OPS", "Your airline day starts here", "The dashboard brings your next flight, aircraft rotation, alerts and reference fleet together. Flight tools contains SimBrief import, simulator connection, recorded replay, timeline and debrief. The operations, crew, maintenance and weather desks currently contain clearly labeled demonstration scenarios.", "\uE8F2", "#F2F5F8"),
+        new("welcome", "Welcome to Sierra 4", "Your airline day starts here", "The dashboard brings your next flight, aircraft rotation, alerts and reference fleet together. Flight tools contains SimBrief import, simulator connection, recorded replay, timeline and debrief. The operations, crew, maintenance and weather desks currently contain clearly labeled demonstration scenarios.", "\uE8F2", "#F2F5F8"),
         new("weather-note", "Weather desk preview", "Explore the Atlanta scenario", "Open Weather to compare illustrative airport observations, visibility, wind and arrival-bank impacts. All weather entries are example data, not current observations or flight-planning information.", "\uE946", "#42A8FF"),
         new("brief", "Operations briefing", "How delay moves through a rotation", "Run the delayed fixture from Flight tools. A601 arrives 30 minutes late, A602 inherits 30 minutes, and A603 recovers to a five-minute delay. Open the debrief to inspect the actual milestones behind those projections.", "\uE8A5", "#EAF0F4"),
         new("workflow", "Make it your flight deck", "Watchlists & preflight preparation", "Select a flight and choose Watch selected. Your watchlist, read messages, acknowledged demo alerts and preflight checks are saved on this computer. They do not alter a flight assignment or authorize a departure.", "\uE734", "#FFDC29")

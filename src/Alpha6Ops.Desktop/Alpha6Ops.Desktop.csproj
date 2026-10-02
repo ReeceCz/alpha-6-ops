@@ -1,18 +1,33 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup><InternalsVisibleTo Include="Alpha6Ops.MigrationChecks" /></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="Alpha6Ops.RecoveryChecks" /></ItemGroup>
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.17763.0</TargetFramework>
     <UseWPF>true</UseWPF>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>disable</ImplicitUsings>
-    <AssemblyName>Alpha6OPS</AssemblyName>
-    <Version>0.16.0</Version>
+    <AssemblyName>Sierra4</AssemblyName>
+    <Version>0.23.0</Version>
     <ApplicationIcon>Assets\Alpha6OPS.ico</ApplicationIcon>
     <Company>Alpha 6 Designs</Company>
-    <Product>Alpha 6 OPS</Product>
+    <Product>Sierra 4</Product>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <IncludeDiagnosticHarnesses Condition="'$(IncludeDiagnosticHarnesses)' == ''">true</IncludeDiagnosticHarnesses>
+    <DefineConstants Condition="'$(IncludeDiagnosticHarnesses)' == 'true'">$(DefineConstants);DIAGNOSTIC_HARNESSES</DefineConstants>
   </PropertyGroup>
+  <ItemGroup Condition="'$(IncludeDiagnosticHarnesses)' != 'true'">
+    <Compile Remove="*SmokeTest.cs" />
+    <Compile Remove="OperationsLayoutChecks.cs" />
+    <Compile Remove="ObservedCruiseNativeProfileChecks.cs" />
+    <Compile Remove="RecordedFlightReplay.cs" />
+    <Compile Remove="SimConnectProbe.cs" />
+    <Compile Remove="MapV2\*Checks*.cs" />
+  </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
+    <Content Include="MapV2/Web/**/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Resource Include="Assets\Alpha6OPS.ico" />
     <ProjectReference Include="../Alpha6Ops.Core/Alpha6Ops.Core.csproj" />
     <ProjectReference Include="../Alpha6Ops.Identity/Alpha6Ops.Identity.csproj" />
@@ -31,5 +46,6 @@
     <None Update="alpha6-identity.example.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <!-- Machine-local, gitignored: mirrors alpha6-identity.example.json so a real config survives every fresh build/launcher run. -->
     <None Update="alpha6-identity.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="Exists('alpha6-identity.json')" />
+    <Resource Include="Assets/Sierra4/*.png" />
   </ItemGroup>
 </Project>

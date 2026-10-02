@@ -26,79 +26,43 @@
 .h-actions .button { min-height: 50px; padding: 12px 26px; font-size: var(--size-m); }
 .h-note { margin: var(--space-4) 0 0; font-size: var(--size-s); color: var(--muted); }
 
-/* 1. Hero: a night airfield at the 19R holding point, with the sample flight's route overhead. */
-.h-hero { position: relative; display: flex; align-items: center; min-height: max(640px, calc(92svh - 73px)); background: #04070b; border-bottom: 1px solid #242a31; overflow: hidden; }
-/* The scene is a background: full bleed, dimmed and desaturated into a quiet, graphic night, so the copy leads. */
-.h-scene { position: absolute; inset: 0; }
-.h-scene svg { display: block; width: 100%; height: 100%; filter: saturate(0.55) brightness(0.72) contrast(0.92); }
-.h-scene::after { content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(90deg, rgba(4, 7, 11, 0.7) 0%, rgba(4, 7, 11, 0.35) 55%, rgba(4, 7, 11, 0.15) 100%),
-              linear-gradient(0deg, rgba(4, 7, 11, 0.75) 0%, rgba(4, 7, 11, 0) 30%); }
-.h-hero-grid { position: relative; width: 100%; padding-top: clamp(40px, 8vh, 104px); padding-bottom: clamp(40px, 8vh, 104px); }
-/* The copy panel: near-opaque night glass with the sign-edge accent. */
-.h-panel { max-width: 1040px; padding: clamp(28px, 4vw, 60px); background: rgba(6, 9, 13, 0.82); border: 1px solid rgba(255, 255, 255, 0.08); border-left: 4px solid var(--brand); border-radius: 6px;
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 40px 120px -40px rgba(0, 0, 0, 0.9); }
-.h-hero .eyebrow { margin: 0 0 var(--space-5); font-size: 13px; }
-.h-hero h1 { font-size: clamp(48px, 5.6vw, 88px); line-height: 0.98; margin: 0; }
+/* 1. Hero: KMKE from above at night on the right, fading to black under the copy on the left, in a bracketed frame. */
+.h-hero { position: relative; display: flex; align-items: center; min-height: max(640px, calc(92svh - 73px)); background: #0a0d11; border-bottom: 1px solid #242a31; overflow: hidden; isolation: isolate; }
+.h-plan { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; object-position: 78% 50%; }
+.h-hero::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(90deg, #0a0d11 0%, rgba(10, 13, 17, 0.96) 30%, rgba(10, 13, 17, 0.6) 52%, rgba(10, 13, 17, 0.08) 74%, rgba(10, 13, 17, 0) 100%),
+              linear-gradient(0deg, rgba(10, 13, 17, 0.85) 0%, rgba(10, 13, 17, 0) 22%); }
+/* Corner brackets, like a viewfinder over the field. */
+.h-corner { position: absolute; width: 28px; height: 28px; border: 0 solid rgba(255, 194, 14, 0.55); pointer-events: none; }
+.h-corner.tl { top: 20px; left: 20px; border-top-width: 2px; border-left-width: 2px; }
+.h-corner.tr { top: 20px; right: 20px; border-top-width: 2px; border-right-width: 2px; }
+.h-corner.bl { bottom: 20px; left: 20px; border-bottom-width: 2px; border-left-width: 2px; }
+.h-corner.br { bottom: 20px; right: 20px; border-bottom-width: 2px; border-right-width: 2px; }
+.h-hero-grid { position: relative; width: 100%; padding-top: clamp(48px, 9vh, 120px); padding-bottom: clamp(56px, 10vh, 128px); }
+.h-hero-copy { max-width: 880px; }
+.h-eyebrow { display: flex; align-items: center; gap: 14px; margin: 0 0 var(--space-5); font-size: 13px; }
+.h-eyebrow::before { content: ""; flex: none; width: 32px; height: 2px; background: var(--brand); }
+.h-hero h1 { font-size: clamp(48px, 5.6vw, 92px); line-height: 0.98; margin: 0; }
 .h-hero h1 span { display: block; }
-.h-lead { font-size: clamp(19px, 1.6vw, 24px); line-height: 1.55; color: var(--text-2); max-width: 46ch; margin: var(--space-6) 0 0; }
-.h-hero .h-actions .button { min-height: 56px; padding: 14px 30px; font-size: 18px; }
+.h-hero h1 .h-accent { color: var(--brand); }
+.h-lead { font-size: clamp(19px, 1.5vw, 23px); line-height: 1.55; color: var(--text-2); max-width: 46ch; margin: var(--space-6) 0 0; }
+.h-hero .h-actions { margin-top: var(--space-7); }
+.h-hero .h-actions .button { min-height: 56px; padding: 14px 28px; font-size: 18px; }
 .h-hero .h-note { font-size: var(--size-s); }
 .h-hero .notice { max-width: 560px; margin-top: var(--space-6); }
+.h-credit { position: absolute; right: 56px; bottom: 16px; margin: 0; font: 11px/1.4 var(--mono); color: #6f7881; white-space: nowrap; }
+.h-credit a { color: inherit; }
+.h-credit a:hover { color: var(--text-2); }
 
-/* Scene paint */
-/* KMKE on short final for 1L, from HeroScene.cs. Light colours follow the FAA systems they depict. */
-.s-ground { fill: #050709; }
-.s-apron { opacity: 0.9; }
-.s-other-runway { fill: #0e1115; }
-.s-closed-runway { fill: #0b0d10; }
-.s-taxiway { fill: #0a0d10; }
-.s-taxi-line { fill: #ffc20e; opacity: 0.6; }
-.s-paint { fill: #e8ecef; opacity: 0.45; }
-.s-designator { font: 700 138px var(--font); fill: #e8ecef; opacity: 0.45; }
-.s-sign .post { fill: #2a2f35; }
-.s-sign .mandatory { fill: #c8102e; }
-.s-sign .mandatory-text { font: 700 32px var(--font); fill: #ffffff; }
-.s-sign .loc { fill: #000000; }
-.s-sign .loc-border { fill: none; stroke: #ffc20e; stroke-width: 2.5; }
-.s-sign .loc-text { font: 700 32px var(--font); fill: #ffc20e; }
-/* Neighbourhoods under the approach and lights on the horizon */
-.s-city.street { fill: #ffb35c; opacity: 0.95; }
-.s-city.warm { fill: #ffcf8a; opacity: 0.6; }
-.s-city.cool { fill: #cfe0ff; opacity: 0.5; }
-/* Runway, approach and taxiway lighting */
-.s-edge { fill: #fff3d6; }
-.s-edge-caution { fill: #ffc20e; }
-.s-edge-red, .s-centre-red, .s-end, .s-approach-red, .s-papi-red { fill: #ff3b3b; }
-.s-centre { fill: #eef3ff; opacity: 0.85; }
-.s-tdz { fill: #ffffff; opacity: 0.8; }
-.s-threshold { fill: #33d17a; }
-.s-papi-white, .s-approach { fill: #fffaf0; }
-.s-rabbit circle { fill: #ffffff; opacity: 0.9; }
-.s-taxi-edge { fill: #3d7bff; }
-.s-greens circle { fill: #33d17a; opacity: 0.85; }
-/* Terminal, tower and apron */
-.s-wall { fill: #0c1219; stroke: #1c2733; stroke-width: 0.6; }
-.s-glass { fill: #f0bd73; opacity: 0.3; }
-.s-mullion { fill: none; stroke: #0c1219; stroke-width: 0.9; }
-.s-roof { fill: #0a0e13; stroke: #233140; stroke-width: 0.7; }
-.s-tower { fill: #0b1118; stroke: #1c2733; stroke-width: 0.8; }
-.s-tower-cab { fill: #2f7f92; opacity: 0.85; }
-.s-bridge { stroke: #2b323b; stroke-linecap: butt; }
-.s-fuselage { stroke: #9ba7b3; stroke-linecap: round; }
-.s-wing { stroke: #6c7784; stroke-linecap: round; }
-.s-fin { stroke: #b8c2cc; stroke-linecap: butt; }
-.s-nav-red, .s-ac-beacon, .s-obstruction { fill: #ff3b3b; }
-.s-nav-green { fill: #33d17a; }
-.s-mast { stroke: #2a3038; stroke-width: 1.2; }
-.s-mast-lamp { fill: #fff1d6; }
-
+/* The primary call to action carries its arrow behind a divider, like a sign's arrow panel. */
+.button.has-arrow { gap: 0; padding-right: 0; }
+.btn-arrow { display: inline-grid; place-items: center; align-self: stretch; margin-left: 20px; padding: 0 18px; border-left: 1px solid rgba(0, 0, 0, 0.28); }
+.btn-arrow svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.h-hero .h-actions .button.has-arrow { padding-right: 0; }
 @media (prefers-reduced-motion: no-preference) {
-  .s-obstruction { animation: obstruction 2.4s steps(1, end) infinite; }
-  .s-ac-beacon { animation: obstruction 1.3s steps(1, end) infinite; }
-  .s-obstruction:nth-of-type(2n) { animation-delay: 1.2s; }
+  .btn-arrow svg { transition: transform 0.15s ease; }
+  .button.has-arrow:hover .btn-arrow svg { transform: translateX(3px); }
 }
-@keyframes obstruction { 50% { opacity: 0.12; } }
 
 /* 2. Operations: the product, shown as the console it is */
 .h-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: var(--space-7); align-items: end; }
@@ -227,8 +191,6 @@
 .h-final .h-actions { justify-content: center; }
 .h-final .h-note, .h-final .h-fine { text-align: center; }
 
-/* Large screens: let the hero breathe */
-
 /* Tablet */
 @media (max-width: 1100px) {
   .h-head, .h-split-head { grid-template-columns: 1fr; gap: var(--space-6); align-items: start; }
@@ -239,6 +201,7 @@
   .status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 900px) {
+  .h-hero::before { background: linear-gradient(90deg, rgba(10, 13, 17, 0.94) 0%, rgba(10, 13, 17, 0.82) 60%, rgba(10, 13, 17, 0.55) 100%), linear-gradient(0deg, rgba(10, 13, 17, 0.9) 0%, rgba(10, 13, 17, 0) 30%); }
     .oooi, .route-steps { grid-template-columns: 1fr; gap: var(--space-6); }
   .oooi::before { left: 15px; right: auto; top: 0; bottom: 0; width: 8px; height: auto; border: 0; border-left: 1px solid var(--line-strong); border-right: 1px solid var(--line-strong); }
   .oooi::after { left: 18px; right: auto; top: 0; bottom: 0; border-top: 0; border-left: 2px dashed var(--line-strong); }
@@ -255,9 +218,12 @@
   .aud-airlines { padding: var(--space-7) 0 0; margin-top: var(--space-7); border-left: 0; border-top: 1px solid var(--line); }
 }
 @media (max-width: 600px) {
-  .h-panel { padding: 24px 20px; border-left-width: 3px; }
   .h-hero h1 { font-size: clamp(30px, 8.6vw, 46px); }
-  .h-hero-grid { padding-top: var(--space-6); padding-bottom: var(--space-6); }
+  .h-hero-grid { padding-top: var(--space-7); padding-bottom: 72px; }
+  .h-corner { width: 18px; height: 18px; }
+  .h-corner.tl, .h-corner.tr { top: 12px; } .h-corner.bl, .h-corner.br { bottom: 12px; }
+  .h-corner.tl, .h-corner.bl { left: 12px; } .h-corner.tr, .h-corner.br { right: 12px; }
+  .h-credit { left: 40px; right: 40px; bottom: 12px; white-space: normal; }
   .h-answers, .status-grid { grid-template-columns: 1fr; }
   .desk-facts div, .sec-list div { grid-template-columns: 1fr; gap: var(--space-1); }
   .h-actions .button { flex: 1 1 100%; }

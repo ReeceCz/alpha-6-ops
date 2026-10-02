@@ -33,7 +33,8 @@
                         <img src="/images/brand/s4-lockup-full-dark.svg" alt="Sierra 4 S4 OPS home" />
                     </picture>
                 </a>
-                <span class="topbar-state">Early access · MSFS 2024</span>
+                <span class="topbar-state"><span class="state-dot" aria-hidden="true"></span>Early access · MSFS 2024</span>
+                <span class="topbar-plus" aria-hidden="true">+</span>
                 <nav class="site-nav" aria-label="Main navigation">
                     @foreach (var (href, label) in links) { <a href="@href" aria-current="@(path.StartsWith(href, StringComparison.OrdinalIgnoreCase) ? "page" : null)">@label</a> }
                     @if (signedIn) {

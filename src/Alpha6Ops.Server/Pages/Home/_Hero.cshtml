@@ -1,46 +1,15 @@
-@using Alpha6Ops.Server.Pages.Home
 <section class="h-hero night" aria-labelledby="hero-title">
-    @* Decorative background: a stylised night view of KMKE behind the copy panel. *@
-    <div class="h-scene" aria-hidden="true">
-        <svg viewBox="0 0 1600 900" preserveAspectRatio="xMaxYMax slice" focusable="false">
-            <defs>
-                <linearGradient id="h-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#04070b" /><stop offset="1" stop-color="#132131" /></linearGradient>
-                <radialGradient id="h-haze" cx="0.62" cy="1" r="0.5"><stop offset="0" stop-color="#ffc20e" stop-opacity="0.16" /><stop offset="0.5" stop-color="#3a5f86" stop-opacity="0.08" /><stop offset="1" stop-color="#04070b" stop-opacity="0" /></radialGradient>
-                <radialGradient id="h-mast"><stop offset="0" stop-color="#ffd9a0" stop-opacity="0.55" /><stop offset="1" stop-color="#ffd9a0" stop-opacity="0" /></radialGradient>
-                <radialGradient id="h-apron" cx="0.5" cy="0.4" r="0.7"><stop offset="0" stop-color="#2a2a26" /><stop offset="1" stop-color="#0d1013" /></radialGradient>
-                <linearGradient id="h-runway" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#11161c" /><stop offset="1" stop-color="#0b0e12" /></linearGradient>
-            </defs>
-            <rect width="1600" height="@HeroScene.Horizon" fill="url(#h-sky)" />
-            <rect width="1600" height="@HeroScene.Horizon" fill="url(#h-haze)" />
-            <rect class="s-ground" y="@HeroScene.Horizon" width="1600" height="340" />
-            <path class="s-apron" d="@HeroScene.Apron" fill="url(#h-apron)" />
-            @foreach (var s in HeroScene.Pavement) { <path class="s-@s.Kind" d="@s.Path" /> }
-            <path class="s-runway" d="@HeroScene.Runway" fill="url(#h-runway)" />
-            @foreach (var m in HeroScene.Markings) { <path class="s-paint" d="@m.Path" /> }
-            @foreach (var g in HeroScene.Designator) { <g transform="@g.Matrix"><text class="s-designator" x="50" y="100" text-anchor="middle" textLength="100" lengthAdjust="spacingAndGlyphs">@g.Text</text></g> }
-            @foreach (var l in HeroScene.City) { <circle class="s-city @l.Kind" cx="@l.X" cy="@l.Y" r="@l.R" /> }
-            @foreach (var l in HeroScene.Lights) { <circle class="s-@l.Kind" cx="@l.X" cy="@l.Y" r="@l.R" /> }
-            <g class="s-greens">@foreach (var l in HeroScene.Greens) { <circle cx="@l.X" cy="@l.Y" r="@l.R" /> }</g>
-            <g class="s-rabbit">@foreach (var l in HeroScene.Rabbit) { <circle cx="@l.X" cy="@l.Y" r="@l.R" /> }</g>
-            @foreach (var s in HeroScene.Walls) { <path class="s-@s.Kind" d="@s.Path" /> }
-            @foreach (var a in HeroScene.Aircraft) { <line class="s-@a.Kind" x1="@a.X1" y1="@a.Y1" x2="@a.X2" y2="@a.Y2" stroke-width="@a.Width" /> }
-            @foreach (var l in HeroScene.AircraftLights) { <circle class="s-@l.Kind" cx="@l.X" cy="@l.Y" r="@l.R" /> }
-            @foreach (var m in HeroScene.Masts) { <line class="s-mast" x1="@m.X" y1="@m.Y" x2="@m.X" y2="@m.Kind" /><circle cx="@m.X" cy="@m.Y" r="@m.R" fill="url(#h-mast)" /><circle class="s-mast-lamp" cx="@m.X" cy="@m.Y" r="1.6" /> }
-            @foreach (var l in HeroScene.Beacons) { <circle class="s-obstruction" cx="@l.X" cy="@l.Y" r="@l.R" /> }
-            @* Runway holding-position sign array at the 19R end of Taxiway E: mandatory "19R" and location "E". *@
-            <g class="s-sign" transform="translate(@HeroScene.Sign.X @HeroScene.Sign.Y) scale(@HeroScene.Sign.Scale) translate(-60 -78)">
-                <rect class="post" x="14" y="46" width="5" height="32" /><rect class="post" x="101" y="46" width="5" height="32" />
-                <rect class="mandatory" width="66" height="46" rx="2" /><text class="mandatory-text" x="33" y="34" text-anchor="middle">19R</text>
-                <rect class="loc" x="68" width="52" height="46" rx="2" /><rect class="loc-border" x="72" y="4" width="44" height="38" /><text class="loc-text" x="94" y="35" text-anchor="middle">E</text>
-            </g>
-        </svg>
-    </div>
+    @* Decorative background: KMKE from above at night, generated from OpenStreetMap by tools/hero/build_kmke_plan.py. *@
+    <img class="h-plan" src="/images/hero/kmke-plan.svg" alt="" width="2200" height="1237" fetchpriority="high" />
+    <span class="h-corner tl" aria-hidden="true"></span><span class="h-corner tr" aria-hidden="true"></span>
+    <span class="h-corner bl" aria-hidden="true"></span><span class="h-corner br" aria-hidden="true"></span>
     <div class="wrap h-hero-grid">
-        <div class="h-hero-copy h-panel">
-            <p class="eyebrow">Airline operations for Microsoft Flight Simulator 2024</p>
-            <h1 id="hero-title" class="display"><span>You fly the airplane.</span> <span>We'll run the airline.</span></h1>
+        <div class="h-hero-copy">
+            <p class="eyebrow h-eyebrow">Airline operations for Microsoft Flight Simulator 2024</p>
+            <h1 id="hero-title" class="display"><span>You fly the airplane.</span> <span class="h-accent">We'll run the airline.</span></h1>
             <p class="h-lead">S4 OPS is a Windows desktop app that reads the aircraft state from the simulator, times every flight from off block to block in, and keeps your logbook and your virtual airline in one account.</p>
             <partial name="~/Pages/Home/_Actions.cshtml" />
         </div>
     </div>
+    <p class="h-credit">KMKE, General Mitchell International. Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a></p>
 </section>

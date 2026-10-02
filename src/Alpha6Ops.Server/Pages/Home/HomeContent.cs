@@ -12,13 +12,6 @@ public static class HomeContent
     public sealed record BoardRow(string Flight, string From, string To, string Aircraft, string SchedOut, string ActualOut, string ActualIn, string Phase, string StatusCss, string Status);
     public sealed record LogEvent(string Time, string Code, string Text);
 
-    // The hero's split-flap board: the headline, one sentence per row on wide screens and two rows each on phones.
-    // Accent rows are set in taxiway-sign yellow ("we" is S4).
-    public const int FlapSteps = 5, FlapDelays = 40;
-    public const int BoardWideColumns = 22, BoardNarrowColumns = 13; // every position is a tile; spaces land blank
-    public static readonly (string Text, bool Accent)[] BoardWide = [("YOU FLY THE AIRPLANE.", false), ("WE'LL RUN THE AIRLINE.", true)];
-    public static readonly (string Text, bool Accent)[] BoardNarrow = [("YOU FLY THE", false), ("AIRPLANE.", false), ("WE'LL RUN THE", true), ("AIRLINE.", true)];
-
     // Sample flight S4601, KMKE to KORD, 2 September 2026 (the repository's fixed sample date).
     public static readonly Phase[] Phases =
     [

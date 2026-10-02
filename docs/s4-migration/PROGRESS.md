@@ -104,6 +104,32 @@ Without the DB env vars, the accounts suite skips its integration part (53 pure 
   - The installer is custom (no MSI UpgradeCode). There is no AppUserModelID, URI scheme or DPAPI entropy.
   - The log catalog stores absolute paths, so the migration rewrites them.
 
+## Dan's 7.26B merge — 2026-10-02
+
+Branch `merge/dan-7.26b` (worktree `C:\Dev\_scratch\s4-merge`, off `chore/s4-rebrand`), merge commit `230ca85`.
+Not pushed. Dan's handoff doc: `docs/SIERRA4-PROJECT-CONTINUITY.md`.
+
+- Dan's flight tracking, recovery, storage (`%LOCALAPPDATA%\Sierra 4`), Map V2 and `SierraShell` are taken as-is.
+- The account layer was rebuilt on his `FlightSessionCoordinator`. `App` keeps one coordinator per account workspace
+  (`Data\accounts\<id>\{personal|airlines\<id>}`) and swaps it on an account change, which is refused mid-flight.
+- Settings, preferences, the SimBrief cache and diagnostics live in the shared profile. The SimBrief username follows
+  the account profile.
+- Dropped: the old pilot-tier dashboard layout tweaks (their panels no longer exist). The tier is now a shell
+  navigation filter (`PilotFeatureProfile.Allows(ShellSection)`).
+- Verified: both solutions 0 warnings. Core 194, desktop identity 102, accounts 180, server 111. Desktop smoke all pass
+  (dashboard 565, identity UI 65). Recovery 21, retention 8 (+1 new), storage 9, logbook 13, terminal 203,
+  active restart 74. Map V2: mailbox 7, browser 7, in-app 208. Not run: `verify-migration-baseline.ps1` (needs
+  Dan's nine 7.17 journals).
+- Dan's `scripts/verify-*.ps1` fail under Windows PowerShell 5.1 (`*>` on native stderr with `Stop`). Run the
+  underlying commands from Bash, or use pwsh 7.
+
+**For Dan (protected areas, his sign-off):**
+1. The coordinator takes an optional account identity and writes an `account_identity` history event when a row
+   begins. The row identity is unchanged.
+2. Retention also protects OFPs referenced by `Data\accounts\**\active-flight.json` (it only adds files to the keep set).
+   New check: `ACCOUNT_WORKSPACE_ACTIVE_OFP_SURVIVES_QUOTA`.
+3. Also: `verify-desktop.ps1` timeout went from 60s to 120s, because the full smoke run takes about 70s here.
+
 ## Next steps
 
 - [x] Code for `app.s4ops.com` behind Cloudflare (server suite 99/99).

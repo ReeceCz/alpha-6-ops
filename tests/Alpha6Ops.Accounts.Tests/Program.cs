@@ -37,6 +37,12 @@ async Task RejectDatabaseAsync(Func<Task> action, string name)
 }
 
 Check(AccountRules.Email(" Pilot@Example.com ") == "PILOT@EXAMPLE.COM", "email normalization");
+var invited = AccountAdmission.InviteOnly(" Tester@Example.com ;; second@example.com; ");
+Check(AccountAdmission.Open.Admits("anyone@example.com", false) is null, "open admission creates any account");
+Check(invited.Admits("tester@example.com", true) is null && invited.Admits("SECOND@EXAMPLE.COM", true) is null, "invited emails match case-insensitively after trimming");
+Check(invited.Admits("stranger@example.com", true)?.Code == "invite_required", "an uninvited email is refused");
+Check(invited.Admits("tester@example.com", false)?.Code == "invite_email_unverified", "an invited email must be verified before an account is created");
+Check(invited.Admits("", true)?.Code == "invite_required" && AccountAdmission.InviteOnly(null).Admits("tester@example.com", true)?.Code == "invite_required", "an empty list admits nobody");
 Reject(() => AccountRules.Email("Name <pilot@example.com>"), "invalid_email");
 Reject(() => AccountRules.Roles([(AirlineRole)99]), "invalid_roles");
 Reject(() => AccountRules.Roles([AirlineRole.Owner]), "invalid_roles");
@@ -448,6 +454,21 @@ Check(removals.Any(x => x.UserId == leaverId && x.Subject == leaver.Subject), "t
 await Mutation(s => s.MarkIdentityRemovedAsync(leaverId));
 Check((await Run(s => s.PendingIdentityRemovalsAsync())).All(x => x.UserId != leaverId), "a removed identity leaves the queue");
 Check((await Run(s => s.BootstrapAsync(leaver))).Account.Id != leaverId, "signing in again after removal starts a new account");
+// Invite-only admission gates only the creation of a new account; existing accounts keep working.
+async Task<T> RunAdmitting<T>(AccountAdmission admission, Func<AccountsService, Task<T>> action)
+{
+    await using var db = Context();
+    return await action(new AccountsService(db, null, admission));
+}
+var tester = actor with { Subject = prefix + "-tester", DisplayName = "Tester", Email = prefix + "-tester@example.com", EmailVerified = false, HasMfa = false };
+var stranger = actor with { Subject = prefix + "-stranger", DisplayName = "Stranger", Email = prefix + "-stranger@example.com", HasMfa = false };
+var testerList = AccountAdmission.InviteOnly(tester.Email);
+await RejectAsync(() => RunAdmitting(testerList, s => s.BootstrapAsync(stranger)), "invite_required");
+await RejectAsync(() => RunAdmitting(testerList, s => s.BootstrapAsync(tester)), "invite_email_unverified");
+await using (var db = Context())
+    Check(!await db.Users.AnyAsync(x => x.Subject == stranger.Subject || x.Subject == tester.Subject), "a refused sign-in creates no account");
+Check((await RunAdmitting(testerList, s => s.BootstrapAsync(tester with { EmailVerified = true }))).Account.DisplayName == "Tester", "an invited, verified email creates an account");
+Check((await RunAdmitting(testerList, s => s.BootstrapAsync(actor))).Account.Id == ownerBootstrap.Account.Id, "an existing account is never locked out by the invite list");
 Console.WriteLine($"{passed} account checks passed, including real PostgreSQL integration.");
 Console.WriteLine($"Disposable test schema retained for inspection: {schemaName}");
 

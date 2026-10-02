@@ -5,9 +5,10 @@ using Microsoft.EntityFrameworkCore;
 namespace Alpha6Ops.Accounts;
 
 /// <summary>Scoped service. Each request rechecks authorization inside a PostgreSQL transaction.</summary>
-public sealed partial class AccountsService(AccountsDbContext db, TimeProvider? timeProvider = null)
+public sealed partial class AccountsService(AccountsDbContext db, TimeProvider? timeProvider = null, AccountAdmission? admission = null)
 {
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
+    private readonly AccountAdmission admission = admission ?? AccountAdmission.Open;
     // One transaction-scoped lock deliberately serializes this first, low-volume account service.
     // It also makes concurrent first-login provisioning and cross-airline ownership limits safe.
     private const long LockId = 0x416C706861364F;
@@ -42,6 +43,7 @@ public sealed partial class AccountsService(AccountsDbContext db, TimeProvider? 
         var displayName = AccountRules.Text(actor.DisplayName, 150, "Display name");
         if (user is null)
         {
+            if (admission.Admits(actor.Email, actor.EmailVerified) is { } refused) throw refused;
             user = new UserAccount { Id = Guid.NewGuid(), Issuer = issuer, Subject = subject, DisplayName = displayName,
                 Email = email, EmailVerified = actor.EmailVerified, CreatedAt = now };
             db.Users.Add(user);

@@ -115,6 +115,9 @@ auth.AddCookie(o =>
 if (settings.IsConfigured)
 {
     builder.Services.AddDbContext<AccountsDbContext>(o => o.UseNpgsql(settings.ConnectionString));
+    // Invite-only unless explicitly opened, so a missing setting never opens sign-up.
+    builder.Services.AddSingleton(string.Equals(builder.Configuration["Accounts:Admission"], "Open", StringComparison.OrdinalIgnoreCase)
+        ? AccountAdmission.Open : AccountAdmission.InviteOnly(builder.Configuration["Accounts:InvitedEmails"]));
     builder.Services.AddScoped<AccountsService>();
     builder.Services.AddHttpClient<Auth0ManagementClient>();
     builder.Services.AddHostedService<AccountDeletionJob>();

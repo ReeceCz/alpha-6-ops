@@ -425,10 +425,21 @@ var anonymousLimited = false;
 for (var i = 0; i < 301 && !anonymousLimited; i++)
     anonymousLimited = (await anonymous.GetAsync("/api/v1/me/bootstrap")).StatusCode == HttpStatusCode.TooManyRequests;
 Check(anonymousLimited, "Anonymous authentication traffic is rate limited before token validation");
+// With no admission setting the server is invite-only: a stranger gets no account, an invited pilot does.
+var inviteSuffix = Guid.NewGuid().ToString("N")[..8];
+using (var inviteOnly = new ServerFactory(connection, admission: null, invitedEmails: $"invited-{inviteSuffix}@example.test"))
+{
+    using var stranger = inviteOnly.Client("stranger-" + inviteSuffix);
+    var refused = await stranger.GetAsync("/api/v1/me/bootstrap");
+    var refusal = await refused.Content.ReadAsStringAsync();
+    Check(refused.StatusCode == HttpStatusCode.Forbidden && refusal.Contains("invite_required") && refusal.Contains("invite-only"), "An uninvited first sign-in is refused with an explanation");
+    using var invitedPilot = inviteOnly.Client("invited-" + inviteSuffix);
+    Check((await invitedPilot.GetAsync("/api/v1/me/bootstrap")).StatusCode == HttpStatusCode.OK, "An invited, verified email creates an account");
+}
 Console.WriteLine($"Server integration tests complete: {failures} failures.");
 return failures == 0 ? 0 : 1;
 
-sealed class ServerFactory(string? connection, string environment = "Development", string? certificateBase64 = null) : WebApplicationFactory<ServerSettings>
+sealed class ServerFactory(string? connection, string environment = "Development", string? certificateBase64 = null, string? admission = "Open", string? invitedEmails = null) : WebApplicationFactory<ServerSettings>
 {
     private readonly RSA key = RSA.Create(2048);
     internal const string Issuer = "https://identity.example.test/";
@@ -442,6 +453,8 @@ sealed class ServerFactory(string? connection, string environment = "Development
         builder.UseSetting("Auth0:ClientId", connection is null ? "" : "test-client");
         builder.UseSetting("Auth0:ClientSecret", connection is null ? "" : "test-only-not-a-real-secret");
         builder.UseSetting("ConnectionStrings:Accounts", connection ?? "");
+        builder.UseSetting("Accounts:Admission", admission ?? "");
+        builder.UseSetting("Accounts:InvitedEmails", invitedEmails ?? "");
         builder.UseSetting("DataProtection:KeyDirectory", "");
         builder.UseSetting("DataProtection:CertificatePath", "");
         builder.UseSetting("DataProtection:CertificateBase64", certificateBase64 ?? "");

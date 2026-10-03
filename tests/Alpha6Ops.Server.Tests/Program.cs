@@ -377,6 +377,12 @@ if (created.IsSuccessStatusCode)
             var legalHtml = await legalPage.Content.ReadAsStringAsync();
             Check(legalPage.IsSuccessStatusCode && legalHtml.Contains("Sierra 4") && !legalHtml.Contains("<script"), $"{legal} renders anonymously without scripts");
         }
+        var chrome = await anonymous.GetStringAsync("/Levels");
+        Check(chrome.Contains("s4-tile.svg") && !chrome.Contains("s4-lockup") && !chrome.Contains("topbar-plus") && chrome.Contains("content=\"dark\""),
+            "Shared header uses the S4 tile, no lockup or stray plus, and declares a dark-only colour scheme");
+        var css = await anonymous.GetStringAsync("/css/site.css");
+        Check(!css.Contains("prefers-color-scheme: light") && css.Contains("--surface: #090c0f") && css.Contains("Bahnschrift SemiCondensed") && css.Contains("calc(0.3125vw + 12px)"),
+            "Portal styles are charcoal-only, use the Sierra display face and the fluid base size");
         var dataExport = await browser.GetAsync("/Account/Profile?handler=Export");
         using (var zip = new System.IO.Compression.ZipArchive(await dataExport.Content.ReadAsStreamAsync()))
             Check(dataExport.Content.Headers.ContentType?.MediaType == "application/zip" && zip.Entries.Any(e => e.FullName == "logbook.json")

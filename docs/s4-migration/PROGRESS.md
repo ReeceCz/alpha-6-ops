@@ -131,6 +131,10 @@ Not pushed. Dan's handoff doc: `docs/SIERRA4-PROJECT-CONTINUITY.md`.
 3. Also: `verify-desktop.ps1` timeout went from 60s to 120s, because the full smoke run takes about 70s here.
 
 ## Next steps
+- [x] s4ops.com landing site built in `sites/s4ops.com` (simulated traffic-map hero, charcoal theme). Spec
+      `docs/superpowers/specs/2026-10-02-s4ops-landing-design.md`.
+- [ ] Reece: deploy s4ops.com per `sites/s4ops.com/README.md` (needs the Cloudflare go-ahead).
+- [ ] Simplify the portal home to a short script-free entrance linking to s4ops.com.
 
 - [x] Code for `app.s4ops.com` behind Cloudflare (server suite 99/99).
 - [ ] Deploy `chore/s4-rebrand` (or merge to `accounts`) to Render, then follow `docs/hosting.md` "Custom domain through Cloudflare".

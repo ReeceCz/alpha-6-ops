@@ -9,7 +9,7 @@ else start();
 function start() {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const canHover = matchMedia('(hover: hover) and (pointer: fine)').matches;
-  const copy = hero.querySelector('.copy'), $ = id => document.getElementById(id), card = $('flightCard');
+  const copy = hero.querySelector('.copy'), note = hero.querySelector('.note'), $ = id => document.getElementById(id), card = $('flightCard');
   const rng = Math.random;
   let W = 0, H = 0, K = 1, FONT = '', proj = null, lakes = [], mx = null, my = null, last = performance.now(), visible = true, running = false;
   const flights = [];
@@ -29,7 +29,8 @@ function start() {
     flights.length = target;
   }
   size();
-  new ResizeObserver(() => { size(); if (!running) draw(0); }).observe(hero);
+  // Setting canvas.width clears the bitmap; redraw before paint so a live resize never shows a blank hero.
+  new ResizeObserver(() => { size(); draw(performance.now()); }).observe(hero);
 
   if (canHover) {
     hero.addEventListener('pointermove', e => { const r = hero.getBoundingClientRect(); mx = e.clientX - r.left; my = e.clientY - r.top; });
@@ -54,11 +55,15 @@ function start() {
 
   function draw(now) {
     const dt = (now - last) / 1000; last = now;
-    const t = now / 1000, idle = mx === null;
-    const cx = idle ? W * (W < 900 ? 0.5 + 0.18 * Math.cos(t * 0.17) : 0.7 + 0.12 * Math.cos(t * 0.17)) : mx;
-    const cy = idle ? H * (W < 900 ? 0.68 + 0.1 * Math.sin(t * 0.23) : 0.52 + 0.16 * Math.sin(t * 0.23)) : my;
+    const t = now / 1000, idle = mx === null, narrow = W < 900, hr = hero.getBoundingClientRect();
+    // No tags over the copy: left of its right edge on wide screens, above its last line on narrow ones.
+    const copyRight = narrow ? -Infinity : copy.getBoundingClientRect().right - hr.left;
+    const copyBottom = narrow ? note.getBoundingClientRect().bottom - hr.top + 8 * K : -Infinity;
+    const inCopy = b => b.x < copyRight || b.y < copyBottom;
+    const freeMid = narrow ? (Math.min(copyBottom, H) + H) / 2 / H : 0.52;
+    const cx = idle ? W * (narrow ? 0.5 + 0.18 * Math.cos(t * 0.17) : 0.7 + 0.12 * Math.cos(t * 0.17)) : mx;
+    const cy = idle ? H * (narrow ? freeMid + 0.06 * Math.sin(t * 0.23) : 0.52 + 0.16 * Math.sin(t * 0.23)) : my;
     const R = Math.min(W, H) * 0.34, near = (x, y) => Math.max(0, 1 - Math.hypot(x - cx, y - cy) / R);
-    const copyRight = W < 900 ? W + 1 : copy.getBoundingClientRect().right - hero.getBoundingClientRect().left;
 
     // Charcoal land, near-black water, faint neutral coastlines.
     const bg = ctx.createRadialGradient(W * 0.66, H * 0.5, 0, W * 0.66, H * 0.5, Math.max(W, H) * 0.75);
@@ -77,7 +82,8 @@ function start() {
       const [x, y] = P(a.lon, a.lat), k = near(x, y), hub = a.weight >= 3, pinned = code === 'KORD' || code === 'KMKE';
       ctx.fillStyle = '#101418'; ctx.strokeStyle = hub ? 'rgba(242,244,245,.75)' : 'rgba(187,194,200,.45)'; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(x, y, (hub ? 4 : 3) * K, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      if ((k > 0.08 || pinned) && x + 7 * K > copyRight) { const b = measure(x + 7 * K, y - 4 * K, [code]); blocked.push(b); tag(b, [code], ['#f4cf22'], Math.max(pinned ? 0.7 : 0, k)); }
+      const b = measure(x + 7 * K, y - 4 * K, [code]);
+      if ((k > 0.08 || pinned) && !inCopy(b)) { blocked.push(b); tag(b, [code], ['#f4cf22'], Math.max(pinned ? 0.7 : 0, k)); }
     }
 
     // Traffic
@@ -93,12 +99,13 @@ function start() {
       for (let j = 1; j < f.trail.length; j++) { const [ax, ay] = P(...f.trail[j - 1]), [bx, by] = P(...f.trail[j]);
         ctx.strokeStyle = `rgba(${col},${vis * 0.28 * j / f.trail.length})`; ctx.lineWidth = 1.2 * K; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); }
       icon(x, y, s.heading, (f.s4 ? 1.1 : 0.9) * K, `rgba(${col},${Math.min(1, vis + (f.s4 ? 0.2 : 0))})`);
-      if (canHover && mx !== null && x > copyRight) { const d = Math.hypot(x - mx, y - my); if (d < best) { best = d; hover = f; } }
+      if (canHover && mx !== null && x >= copyRight && y >= copyBottom) { const d = Math.hypot(x - mx, y - my); if (d < best) { best = d; hover = f; } }
       const k = near(x, y);
       if (k > 0.5) { const lines = [f.cs, `${altText(s.alt)} · ${s.gs}`]; candidates.push({ id: i, f, k, lines, box: measure(x + 10 * K, y - 2 * K, lines), distance: Math.hypot(x - cx, y - cy) }); }
     }
-    for (const c of placeTags(candidates.filter(c => c.f !== hover), blocked, { maxTags: 8, minX: copyRight }))
-      tag(c.box, c.lines, [c.f.s4 ? '#f4cf22' : '#f2f4f5', '#8e99a2'], Math.min(1, (c.k - 0.5) * 3));
+    const shown = placeTags(candidates.filter(c => c.f !== hover), blocked, { maxTags: 8, minX: copyRight, minY: copyBottom });
+    for (const c of shown) tag(c.box, c.lines, [c.f.s4 ? '#f4cf22' : '#f2f4f5', '#8e99a2'], Math.min(1, (c.k - 0.5) * 3));
+    if (hero.dataset.tags !== String(shown.length)) hero.dataset.tags = shown.length; // observable for layout checks
 
     if (hover) { // flown in cyan, remaining plan in yellow: the app's convention
       const s = hover.s; ctx.lineWidth = 2 * K; ctx.strokeStyle = '#86bde8'; ring(hover.trail.concat([[s.lon, s.lat]])); ctx.stroke();

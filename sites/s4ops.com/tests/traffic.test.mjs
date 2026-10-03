@@ -91,3 +91,10 @@ test('great-lakes.json holds the four lakes around the hero, inside the map wind
   const prov = JSON.parse(readFileSync(new URL('../public/data/provenance.json', import.meta.url)));
   assert.match(prov.licence, /public domain/i);
 });
+
+test('narrow screens exclude tags above the copy block instead of a column', () => {
+  const box = (x, y) => ({ x, y, w: 60, h: 30 });
+  const c = [{ id: 'overCopy', box: box(100, 300), distance: 1 }, { id: 'belowCopy', box: box(100, 700), distance: 2 }];
+  assert.deepEqual(placeTags(c, [], { maxTags: 8, minX: -Infinity, minY: 650 }).map(t => t.id), ['belowCopy']);
+  assert.deepEqual(placeTags(c, [], { maxTags: 8, minX: 0 }).map(t => t.id), ['overCopy', 'belowCopy'], 'minY is optional');
+});

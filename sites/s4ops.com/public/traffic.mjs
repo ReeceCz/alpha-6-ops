@@ -108,12 +108,13 @@ export function advance(f, dtSeconds) {
 }
 
 const overlaps = (a, b) => a.x < b.x + b.w + 3 && b.x < a.x + a.w + 3 && a.y < b.y + b.h + 3 && b.y < a.y + a.h + 3;
-// Radar-style declutter: nearest first, never overlapping, never in the headline column.
-export function placeTags(candidates, blocked, { maxTags, minX }) {
+// Radar-style declutter: nearest first, never overlapping, never over the copy block
+// (left of minX on wide screens, above minY on narrow ones).
+export function placeTags(candidates, blocked, { maxTags, minX, minY = -Infinity }) {
   const placed = [...blocked], out = [];
   for (const c of [...candidates].sort((a, b) => a.distance - b.distance)) {
     if (out.length >= maxTags) break;
-    if (c.box.x < minX || placed.some(p => overlaps(c.box, p))) continue;
+    if (c.box.x < minX || c.box.y < minY || placed.some(p => overlaps(c.box, p))) continue;
     placed.push(c.box); out.push(c);
   }
   return out;

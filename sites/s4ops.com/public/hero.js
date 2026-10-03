@@ -11,10 +11,15 @@ function start() {
   const canHover = matchMedia('(hover: hover) and (pointer: fine)').matches;
   const copy = hero.querySelector('.copy'), note = hero.querySelector('.note'), $ = id => document.getElementById(id), card = $('flightCard');
   const rng = Math.random;
-  let W = 0, H = 0, K = 1, mapX = 0, FONT = '', proj = null, lakes = [], mx = null, my = null, last = performance.now(), visible = true, running = false;
+  let W = 0, H = 0, K = 1, mapX = 0, simT = 0, FONT = '', proj = null, lakes = [], mx = null, my = null, last = performance.now(), visible = true, running = false;
   const flights = [];
 
-  fetch('/data/great-lakes.json').then(r => r.ok ? r.json() : { lakes: [] }).then(d => { lakes = d.lakes ?? []; if (!running) draw(0); }).catch(() => {});
+  // Only well-formed rings are drawn, so a bad data file can never stop the animation.
+  const point = p => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]);
+  fetch('/data/great-lakes.json').then(r => r.ok ? r.json() : { lakes: [] }).then(d => {
+    lakes = (Array.isArray(d?.lakes) ? d.lakes : []).map(l => ({ rings: (Array.isArray(l?.rings) ? l.rings : []).filter(r => Array.isArray(r) && r.length >= 2 && r.every(point)) })).filter(l => l.rings.length);
+    if (!running) draw(performance.now());
+  }).catch(() => {});
 
   function size() {
     const r = hero.getBoundingClientRect(), d = Math.min(2, devicePixelRatio || 1);
@@ -35,10 +40,12 @@ function start() {
   size();
   // Setting canvas.width clears the bitmap; redraw before paint so a live resize never shows a blank hero.
   new ResizeObserver(() => { size(); draw(performance.now()); }).observe(hero);
+  (function watchDpr() { matchMedia(`(resolution: ${devicePixelRatio}dppx)`).addEventListener('change', () => { size(); draw(performance.now()); watchDpr(); }, { once: true }); })();
 
   if (canHover) {
     hero.addEventListener('pointermove', e => { const r = hero.getBoundingClientRect(); mx = e.clientX - r.left; my = e.clientY - r.top; });
     hero.addEventListener('pointerleave', () => { mx = my = null; });
+    addEventListener('scroll', () => { mx = my = null; }, { passive: true }); // the map moved under a still pointer
   }
 
   const P = (lon, lat) => proj.project(lon, lat);
@@ -59,7 +66,8 @@ function start() {
 
   function draw(now) {
     const dt = (now - last) / 1000; last = now;
-    const t = now / 1000, idle = mx === null, narrow = W < 900, hr = hero.getBoundingClientRect();
+    simT += Math.min(0.1, Math.max(0, dt));
+    const t = simT, idle = mx === null, narrow = W < 900, hr = hero.getBoundingClientRect();
     // No tags over the copy: left of its right edge on wide screens, above its last line on narrow ones.
     const copyRight = narrow ? -Infinity : copy.getBoundingClientRect().right - hr.left;
     const copyBottom = narrow ? note.getBoundingClientRect().bottom - hr.top + 8 * K : -Infinity;
@@ -102,7 +110,8 @@ function start() {
       const vis = 0.26 + 0.74 * near(x, y), col = f.s4 ? '244,207,34' : '160,172,182';
       for (let j = 1; j < f.trail.length; j++) { const [ax, ay] = P(...f.trail[j - 1]), [bx, by] = P(...f.trail[j]);
         ctx.strokeStyle = `rgba(${col},${vis * 0.28 * j / f.trail.length})`; ctx.lineWidth = 1.2 * K; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); }
-      icon(x, y, s.heading, (f.s4 ? 1.1 : 0.9) * K, `rgba(${col},${Math.min(1, vis + (f.s4 ? 0.2 : 0))})`);
+      const [nx, ny] = P(...f.path[s.segment + 1]), ang = Math.hypot(nx - x, ny - y) > 0.5 ? Math.atan2(ny - y, nx - x) : s.heading;
+      icon(x, y, ang, (f.s4 ? 1.1 : 0.9) * K, `rgba(${col},${Math.min(1, vis + (f.s4 ? 0.2 : 0))})`);
       if (canHover && mx !== null && x >= copyRight && y >= copyBottom) { const d = Math.hypot(x - mx, y - my); if (d < best) { best = d; hover = f; } }
       const k = near(x, y);
       if (k > 0.5) { const lines = [f.cs, `${altText(s.alt)} · ${s.gs}`]; candidates.push({ id: i, f, k, lines, box: measure(x + 10 * K, y - 2 * K, lines), distance: Math.hypot(x - cx, y - cy) }); }
@@ -116,7 +125,7 @@ function start() {
       ctx.strokeStyle = '#f4cf22'; ctx.setLineDash([6, 5]); ctx.beginPath(); ctx.moveTo(hover.x, hover.y);
       for (let j = s.segment + 1; j < hover.path.length; j++) { const [x, y] = P(...hover.path[j]); ctx.lineTo(x, y); } ctx.stroke(); ctx.setLineDash([]);
       ctx.lineWidth = 1.5 * K; ctx.beginPath(); ctx.arc(hover.x, hover.y, 12 * K, 0, Math.PI * 2); ctx.stroke();
-      if (!hover.over) { for (const [code, color] of [[hover.from, '#6fd59a'], [hover.to, '#f4cf22']]) { const a = AIRPORTS[code], [x, y] = P(a.lon, a.lat); tag(measure(x + 7 * K, y - 4 * K, [code]), [code], [color], 1); } }
+      if (!hover.over) { for (const [code, color] of [[hover.from, '#6fd59a'], [hover.to, '#f4cf22']]) { const a = AIRPORTS[code], [x, y] = P(a.lon, a.lat), b = measure(x + 7 * K, y - 4 * K, [code]); if (!inCopy(b)) tag(b, [code], [color], 1); } }
     }
     showCard(hover);
     $('sTracked').textContent = flights.length; $('sS4').textContent = s4Air; $('sOrd').textContent = `${ordArr} / ${ordDep}`; $('sUtc').textContent = hhmm(new Date());

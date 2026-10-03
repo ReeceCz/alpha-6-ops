@@ -19,7 +19,7 @@ html { background: var(--bg); font-size: clamp(100%, calc(0.3125vw + 12px), 137.
 body { margin: 0; background: var(--bg); color: var(--text); font: 400 1.0625rem/1.55 var(--body); -webkit-font-smoothing: antialiased; }
 a { color: inherit; }
 h1, h2, h3 { font-family: var(--display); font-weight: 700; margin: 0; }
-.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .skip { position: absolute; left: 0.75rem; top: -60px; z-index: 20; background: var(--yellow); color: var(--bg); padding: 0.625rem 0.875rem; border-radius: 0.25rem; font-weight: 700; }
 .skip:focus { top: 0.75rem; }
 :focus-visible { outline: 2px solid var(--yellow); outline-offset: 3px; }
@@ -28,7 +28,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 700; margin: 0; }
 .nav { position: absolute; z-index: 10; left: 0; right: 0; top: 0; height: 4.5rem; display: flex; align-items: center; padding: 0 clamp(1rem, 3vw, 2.5rem);
   border-bottom: 1px solid rgba(41, 49, 56, .7); background: rgba(9, 12, 15, .55); backdrop-filter: blur(0.375rem); }
 .brand { display: flex; align-items: center; gap: 0.75rem; text-decoration: none; font: 600 1.25rem/1 var(--display); letter-spacing: .06em; }
-.brand small { display: block; margin-top: 0.25rem; font: 600 0.5625rem/1 var(--body); letter-spacing: .14em; color: var(--muted); }
+.brand small { display: block; margin-top: 0.25rem; font: 600 0.6875rem/1 var(--body); letter-spacing: .14em; color: var(--muted); }
 .nav nav { margin-left: auto; display: flex; gap: clamp(0.875rem, 2vw, 1.625rem); align-items: center; font-size: 0.9375rem; }
 .nav nav a { color: var(--text-2); text-decoration: none; }
 .nav nav a:hover { color: var(--text); }
@@ -98,7 +98,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 700; margin: 0; }
 .features { grid-template-columns: repeat(3, 1fr); }
 .oooi li, .steps li, .features li { background: var(--bg); padding: 1.625rem 1.5rem 1.75rem; }
 .oooi b { font: 700 1.875rem/1 var(--display); color: var(--yellow); }
-.oooi time { display: block; margin-top: 0.375rem; font: 600 0.8125rem/1 var(--mono); color: var(--muted); }
+.oooi .t { display: block; margin-top: 0.375rem; font: 600 0.8125rem/1 var(--mono); color: var(--muted); }
 .oooi h3, .steps h3, .features h3 { margin-top: 1.125rem; font-size: 1.375rem; }
 .oooi p, .steps p, .features p { margin: 0.5rem 0 0; color: var(--text-2); font-size: 0.9375rem; }
 .steps span, .features b { font: 600 0.75rem/1 var(--mono); letter-spacing: .14em; color: var(--yellow); }

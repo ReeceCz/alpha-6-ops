@@ -19,6 +19,13 @@ served from this site, as the Content-Security-Policy in `public/_headers` requi
 `public/data/great-lakes.json` is generated from Natural Earth 1:50m lakes (public domain) by
 `python tools/build_lakes.py`. Commit the output, and don't hand-edit it. `public/data/provenance.json` records the source.
 
+## Share card and SEO files
+
+- `public/images/og-card.png` is a 1200x630 still of the hero, captured with reduced motion and the scrollbar hidden.
+  Retake it after hero changes, and keep the size and path the same (the meta tags in `index.html` point at it).
+- `public/404.html` is served with status 404 for unknown paths (`not_found_handling` in `wrangler.jsonc`).
+- `public/robots.txt` and `public/sitemap.xml` list the single public page.
+
 ## Deploy (Reece only)
 
 1. Cloudflare dashboard: the `s4ops.com` zone must be active.

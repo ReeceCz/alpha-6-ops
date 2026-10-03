@@ -136,3 +136,8 @@ h1, h2, h3 { font-family: var(--display); font-weight: 700; margin: 0; }
   .foot-grid { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { .card { transition: none; } }
+
+/* 404 */
+.notfound-page { min-height: 100vh; background: var(--bg) radial-gradient(ellipse at 70% 40%, #171c21 0%, #0b0e11 60%, var(--bg) 100%); }
+.notfound { max-width: 46rem; margin: 0 auto; padding: 12rem clamp(1.25rem, 5vw, 4rem) 6rem; }
+.notfound h1 { margin-top: 1.25rem; font-size: clamp(2.5rem, 5vw, 4.5rem); line-height: .95; }

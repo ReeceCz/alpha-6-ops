@@ -1,0 +1,14 @@
+{
+  "file": "great-lakes.json",
+  "source": "Natural Earth 1:50m lakes v5.1.2",
+  "url": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/ne_50m_lakes.geojson",
+  "licence": "Public domain (Natural Earth terms of use)",
+  "window": [
+    -97.5,
+    36.5,
+    -74.5,
+    50.5
+  ],
+  "generated": "2026-10-02",
+  "generator": "tools/build_lakes.py"
+}

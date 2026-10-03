@@ -77,3 +77,17 @@ test('tags are nearest-first, never overlap, respect the limit and the copy colu
   const many = Array.from({ length: 20 }, (_, i) => ({ id: i, box: box(400 + i * 70, 100), distance: i }));
   assert.equal(placeTags(many, [], { maxTags: 8, minX: 0 }).length, 8);
 });
+
+import { readFileSync } from 'node:fs';
+test('great-lakes.json holds the four lakes around the hero, inside the map window', () => {
+  const data = JSON.parse(readFileSync(new URL('../public/data/great-lakes.json', import.meta.url)));
+  const names = data.lakes.map(l => l.name);
+  for (const n of ['Lake Superior', 'Lake Michigan', 'Lake Huron', 'Lake Erie']) assert.ok(names.includes(n), n);
+  for (const lake of data.lakes) for (const ring of lake.rings) {
+    assert.ok(ring.length >= 4);
+    assert.deepEqual(ring[0], ring.at(-1), 'closed ring');
+    for (const [lon, lat] of ring) assert.ok(lon > -98 && lon < -74 && lat > 36 && lat < 51);
+  }
+  const prov = JSON.parse(readFileSync(new URL('../public/data/provenance.json', import.meta.url)));
+  assert.match(prov.licence, /public domain/i);
+});

@@ -10,6 +10,8 @@ work/
 *.log
 *.dmp
 data/
+# The landing site ships its generated map data (sites/s4ops.com/tools/build_lakes.py).
+!sites/s4ops.com/public/data/
 simconnect-sdk-path.txt
 src/Alpha6Ops.Desktop/alpha6-identity.json
 outputs/Alpha6OPS-Desktop/

@@ -381,6 +381,7 @@ if (created.IsSuccessStatusCode)
         Check(!chrome.Contains("Weather briefings") && !chrome.Contains("Shared dispatch board") && !chrome.Contains("in testing") && !chrome.Contains("Create an account")
             && chrome.Contains("Create your invited account") && chrome.Contains("invite-only"),
             "Levels makes only the claims s4ops.com makes and reflects invite-only accounts");
+        Check(chrome.Contains("Cloud logbook sync across PCs (coming soon)"), "Levels marks unbuilt Premium features as coming soon");
         Check(chrome.Contains("s4-tile.svg") && !chrome.Contains("s4-lockup") && !chrome.Contains("topbar-plus") && chrome.Contains("content=\"dark\""),
             "Shared header uses the S4 tile, no lockup or stray plus, and declares a dark-only colour scheme");
         Check(Regex.IsMatch(chrome, @"<a class=""brand"" href=""/""><img [^>]*alt=""""[^>]*/><span>SIERRA 4<small>AIRLINE OPERATIONS</small></span></a>"),

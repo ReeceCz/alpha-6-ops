@@ -13,7 +13,7 @@ public class LevelsModel : PageModel
         new("FREE", "Personal", "Flying as a Pilot", "Everything a solo pilot needs, free.",
             ["Personal logbook and flight tracking", "Dispatch with SimBrief import", "Live tracking with a predicted gate arrival", "Join any number of airlines", "Found one Community airline"], false),
         new("PREM", "Personal", "Premium pilot", "More history, more tools, sooner.",
-            ["Everything in Flying as a Pilot", "Cloud logbook sync across PCs", "Extended flight history", "Early access to new flight tools", "Priority support"], true),
+            ["Everything in Flying as a Pilot", "Cloud logbook sync across PCs (coming soon)", "Extended flight history", "Early access to new flight tools", "Priority support"], true),
         new("COMM", "Airline", "Community airline", "Run a crew of friends at no cost.",
             ["Crew roster and roles", "Invitation codes", "Shared schedule and fleet", "One per owner"], false),
         new("PRO", "Airline", "Pro airline", "For operators running a serious schedule.",

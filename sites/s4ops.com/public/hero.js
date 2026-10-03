@@ -11,13 +11,16 @@ function start() {
   const canHover = matchMedia('(hover: hover) and (pointer: fine)').matches;
   const copy = hero.querySelector('.copy'), $ = id => document.getElementById(id), card = $('flightCard');
   const rng = Math.random;
-  let W = 0, H = 0, proj = null, lakes = [], mx = null, my = null, last = performance.now(), visible = true, running = false;
+  let W = 0, H = 0, K = 1, FONT = '', proj = null, lakes = [], mx = null, my = null, last = performance.now(), visible = true, running = false;
   const flights = [];
 
   fetch('/data/great-lakes.json').then(r => r.ok ? r.json() : { lakes: [] }).then(d => { lakes = d.lakes ?? []; if (!running) draw(0); }).catch(() => {});
 
   function size() {
     const r = hero.getBoundingClientRect(), d = Math.min(2, devicePixelRatio || 1);
+    // K follows the page's fluid base size, so labels and icons grow with the rest of the page on large screens.
+    K = (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16) / 16;
+    FONT = `600 ${11 * K}px "Bahnschrift SemiCondensed", "Barlow Semi Condensed", "Segoe UI", sans-serif`;
     W = r.width; H = r.height; canvas.width = Math.round(W * d); canvas.height = Math.round(H * d); ctx.setTransform(d, 0, 0, d, 0, 0);
     const narrow = W < 900;
     proj = createProjection({ lon0: -87.6, lat0: 42.6, scale: Math.max(W, H * 1.6) * (narrow ? 3.2 : 4.1), cx: W * (narrow ? 0.5 : 0.66), cy: H * (narrow ? 0.62 : 0.5) });
@@ -40,12 +43,11 @@ function start() {
     ctx.moveTo(7, 0); ctx.lineTo(1.5, -1.2); ctx.lineTo(-1, -6.5); ctx.lineTo(-2.6, -6.5); ctx.lineTo(-1.6, -1.2); ctx.lineTo(-5, -1.1); ctx.lineTo(-6.6, -3.2); ctx.lineTo(-7.6, -3.2); ctx.lineTo(-6.8, 0);
     ctx.lineTo(-7.6, 3.2); ctx.lineTo(-6.6, 3.2); ctx.lineTo(-5, 1.1); ctx.lineTo(-1.6, 1.2); ctx.lineTo(-2.6, 6.5); ctx.lineTo(-1, 6.5); ctx.lineTo(1.5, 1.2); ctx.closePath(); ctx.fill(); ctx.restore();
   }
-  const FONT = '600 11px "Bahnschrift SemiCondensed", "Barlow Semi Condensed", "Segoe UI", sans-serif';
-  function measure(x, y, lines) { ctx.font = FONT; const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + 10, h = lines.length * 13 + 5; return { x, y: y - h + 4, w, h }; }
+  function measure(x, y, lines) { ctx.font = FONT; const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + 10 * K, h = (lines.length * 13 + 5) * K; return { x, y: y - h + 4 * K, w, h }; }
   function tag(box, lines, colors, alpha) {
     ctx.font = FONT; ctx.globalAlpha = alpha; ctx.fillStyle = 'rgba(16,20,24,.88)'; ctx.fillRect(box.x, box.y, box.w, box.h);
     ctx.strokeStyle = '#293138'; ctx.lineWidth = 1; ctx.strokeRect(box.x + .5, box.y + .5, box.w - 1, box.h - 1);
-    lines.forEach((l, i) => { ctx.fillStyle = colors[i]; ctx.fillText(l, box.x + 5, box.y + 12 + i * 13); }); ctx.globalAlpha = 1;
+    lines.forEach((l, i) => { ctx.fillStyle = colors[i]; ctx.fillText(l, box.x + 5 * K, box.y + (12 + i * 13) * K); }); ctx.globalAlpha = 1;
   }
   const altText = a => a >= 18000 ? 'FL' + Math.round(a / 100) : Math.round(a / 100) * 100 + ' FT';
   const hhmm = d => String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0') + 'Z';
@@ -74,12 +76,12 @@ function start() {
     for (const [code, a] of Object.entries(AIRPORTS)) {
       const [x, y] = P(a.lon, a.lat), k = near(x, y), hub = a.weight >= 3, pinned = code === 'KORD' || code === 'KMKE';
       ctx.fillStyle = '#101418'; ctx.strokeStyle = hub ? 'rgba(242,244,245,.75)' : 'rgba(187,194,200,.45)'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(x, y, hub ? 4 : 3, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      if ((k > 0.08 || pinned) && x + 7 > copyRight) { const b = measure(x + 7, y - 4, [code]); blocked.push(b); tag(b, [code], ['#f4cf22'], Math.max(pinned ? 0.7 : 0, k)); }
+      ctx.beginPath(); ctx.arc(x, y, (hub ? 4 : 3) * K, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      if ((k > 0.08 || pinned) && x + 7 * K > copyRight) { const b = measure(x + 7 * K, y - 4 * K, [code]); blocked.push(b); tag(b, [code], ['#f4cf22'], Math.max(pinned ? 0.7 : 0, k)); }
     }
 
     // Traffic
-    let hover = null, best = 22, s4Air = 0, ordArr = 0, ordDep = 0; const candidates = [];
+    let hover = null, best = 22 * K, s4Air = 0, ordArr = 0, ordDep = 0; const candidates = [];
     for (let i = 0; i < flights.length; i++) {
       let f = flights[i];
       if (!reduce && dt > 0 && advance(f, dt)) { f = flights[i] = makeFlight(rng, { anywhere: false }); }
@@ -89,21 +91,21 @@ function start() {
       if (f.trailT > 0.5) { f.trailT = 0; f.trail.push([s.lon, s.lat]); if (f.trail.length > 40) f.trail.shift(); }
       const vis = 0.26 + 0.74 * near(x, y), col = f.s4 ? '244,207,34' : '160,172,182';
       for (let j = 1; j < f.trail.length; j++) { const [ax, ay] = P(...f.trail[j - 1]), [bx, by] = P(...f.trail[j]);
-        ctx.strokeStyle = `rgba(${col},${vis * 0.28 * j / f.trail.length})`; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); }
-      icon(x, y, s.heading, f.s4 ? 1.1 : 0.9, `rgba(${col},${Math.min(1, vis + (f.s4 ? 0.2 : 0))})`);
+        ctx.strokeStyle = `rgba(${col},${vis * 0.28 * j / f.trail.length})`; ctx.lineWidth = 1.2 * K; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); }
+      icon(x, y, s.heading, (f.s4 ? 1.1 : 0.9) * K, `rgba(${col},${Math.min(1, vis + (f.s4 ? 0.2 : 0))})`);
       if (canHover && mx !== null && x > copyRight) { const d = Math.hypot(x - mx, y - my); if (d < best) { best = d; hover = f; } }
       const k = near(x, y);
-      if (k > 0.5) { const lines = [f.cs, `${altText(s.alt)} · ${s.gs}`]; candidates.push({ id: i, f, k, lines, box: measure(x + 10, y - 2, lines), distance: Math.hypot(x - cx, y - cy) }); }
+      if (k > 0.5) { const lines = [f.cs, `${altText(s.alt)} · ${s.gs}`]; candidates.push({ id: i, f, k, lines, box: measure(x + 10 * K, y - 2 * K, lines), distance: Math.hypot(x - cx, y - cy) }); }
     }
     for (const c of placeTags(candidates.filter(c => c.f !== hover), blocked, { maxTags: 8, minX: copyRight }))
       tag(c.box, c.lines, [c.f.s4 ? '#f4cf22' : '#f2f4f5', '#8e99a2'], Math.min(1, (c.k - 0.5) * 3));
 
     if (hover) { // flown in cyan, remaining plan in yellow: the app's convention
-      const s = hover.s; ctx.lineWidth = 2; ctx.strokeStyle = '#86bde8'; ring(hover.trail.concat([[s.lon, s.lat]])); ctx.stroke();
+      const s = hover.s; ctx.lineWidth = 2 * K; ctx.strokeStyle = '#86bde8'; ring(hover.trail.concat([[s.lon, s.lat]])); ctx.stroke();
       ctx.strokeStyle = '#f4cf22'; ctx.setLineDash([6, 5]); ctx.beginPath(); ctx.moveTo(hover.x, hover.y);
       for (let j = s.segment + 1; j < hover.path.length; j++) { const [x, y] = P(...hover.path[j]); ctx.lineTo(x, y); } ctx.stroke(); ctx.setLineDash([]);
-      ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(hover.x, hover.y, 12, 0, Math.PI * 2); ctx.stroke();
-      if (!hover.over) { for (const [code, color] of [[hover.from, '#6fd59a'], [hover.to, '#f4cf22']]) { const a = AIRPORTS[code], [x, y] = P(a.lon, a.lat); tag(measure(x + 7, y - 4, [code]), [code], [color], 1); } }
+      ctx.lineWidth = 1.5 * K; ctx.beginPath(); ctx.arc(hover.x, hover.y, 12 * K, 0, Math.PI * 2); ctx.stroke();
+      if (!hover.over) { for (const [code, color] of [[hover.from, '#6fd59a'], [hover.to, '#f4cf22']]) { const a = AIRPORTS[code], [x, y] = P(a.lon, a.lat); tag(measure(x + 7 * K, y - 4 * K, [code]), [code], [color], 1); } }
     }
     showCard(hover);
     $('sTracked').textContent = flights.length; $('sS4').textContent = s4Air; $('sOrd').textContent = `${ordArr} / ${ordDep}`; $('sUtc').textContent = hhmm(new Date());

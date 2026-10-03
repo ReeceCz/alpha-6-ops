@@ -42,10 +42,10 @@ using (var client = setup.CreateClient(new() { BaseAddress = new("https://localh
     Check(release.StatusCode == HttpStatusCode.NotFound && (await release.Content.ReadAsStringAsync()).Contains("release_unavailable"), "Release descriptor answers 404 without a published installer, even unconfigured");
     Check(landing.Headers.Contains("Content-Security-Policy"), "Security headers present");
     var landingHtml = await landing.Content.ReadAsStringAsync();
-    Check(landingHtml.Contains("How it works") && landingHtml.Contains("Every phase recorded automatically") && landingHtml.Contains("/Levels") && !landingHtml.Contains("/auth/signup"),
-        "Landing explains the product and never offers sign-up while unconfigured");
-    Check(!landingHtml.Contains("<script") && !Regex.IsMatch(landingHtml, @"\sstyle=""") && landingHtml.Contains("Demonstration data"),
-        "Landing is script-free, has no inline styles the CSP would block, and labels its sample board as a demonstration");
+    Check(landingHtml.Contains("Your S4 OPS account") && landingHtml.Contains("https://s4ops.com/") && !landingHtml.Contains("/auth/signup")
+        && !landingHtml.Contains("How it works") && !landingHtml.Contains("Demonstration data") && !landingHtml.Contains("home.css"),
+        "Unconfigured entrance points to s4ops.com, carries no marketing and never offers sign-up");
+    Check(!landingHtml.Contains("<script") && !Regex.IsMatch(landingHtml, @"\sstyle="""), "Entrance is script-free with no inline styles the CSP would block");
     var pricing = await client.GetAsync("/Levels");
     var pricingHtml = await pricing.Content.ReadAsStringAsync();
     Check(pricing.IsSuccessStatusCode && new[] { "Flying as a Pilot", "Premium pilot", "Community airline", "Pro airline", "Link", "Pricing announced" }.All(pricingHtml.Contains) && !pricingHtml.Contains("$") && !pricingHtml.Contains("<script"),
@@ -174,6 +174,13 @@ var ticket = new AuthenticationTicket(new ClaimsPrincipal(identity), new Authent
 browser.DefaultRequestHeaders.Add("Cookie", "__Host-Alpha6.Session=" + cookieOptions.TicketDataFormat.Protect(ticket));
 Check((await browser.GetAsync("/api/v1/me/bootstrap")).StatusCode == HttpStatusCode.Unauthorized, "Website cookie cannot authenticate the desktop API");
 var accountPage = await browser.GetAsync("/Account");
+var signedInHome = await browser.GetAsync("/");
+Check(signedInHome.StatusCode == HttpStatusCode.Redirect && signedInHome.Headers.Location?.OriginalString == "/Account", "Signed-in home goes straight to the account");
+var entrance = await anonymous.GetStringAsync("/");
+Check(entrance.Contains("/auth/login") && entrance.Contains("/auth/signup") && entrance.Contains("https://s4ops.com/") && entrance.Contains("invite-only")
+    && !entrance.Contains("Every phase recorded") && !entrance.Contains("home.css"), "Signed-out home is a short entrance: sign in, invited sign-up, s4ops.com, no marketing");
+foreach (var gone in new[] { "/css/home.css", "/images/pilot.jpg", "/images/hero/kmke-plan.svg" })
+    Check((await anonymous.GetAsync(gone)).StatusCode == HttpStatusCode.NotFound, $"Retired asset {gone} is gone");
 Check(accountPage.IsSuccessStatusCode, "Authenticated portal workspace renders");
 var accountHtml = await accountPage.Content.ReadAsStringAsync();
 Check(accountHtml.Contains("__RequestVerificationToken"), "Portal mutation forms contain antiforgery token");

@@ -1,15 +1,23 @@
 @page
-@{ ViewData["Title"] = "You fly the airplane. We'll run the airline."; ViewData["BodyClass"] = "home"; }
-@section Head {
-    <link rel="preload" href="~/fonts/barlow-semi-condensed-700.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="~/css/home.css" asp-append-version="true" />
-}
-@* The landing page tells one story, top to bottom: what it is, proof, the phases, how, who for, the app, trust, and go. *@
-<partial name="~/Pages/Home/_Hero.cshtml" />
-<partial name="~/Pages/Home/_OpsBoard.cshtml" />
-<partial name="~/Pages/Home/_Phases.cshtml" />
-<partial name="~/Pages/Home/_HowItWorks.cshtml" />
-<partial name="~/Pages/Home/_Audiences.cshtml" />
-<partial name="~/Pages/Home/_Desktop.cshtml" />
-<partial name="~/Pages/Home/_Security.cshtml" />
-<partial name="~/Pages/Home/_FinalCta.cshtml" />
+@model Alpha6Ops.Server.Pages.IndexModel
+@inject ServerSettings Settings
+@{ ViewData["Title"] = "Your S4 OPS account"; ViewData["BodyClass"] = "entrance-page"; }
+@* An entrance, not a brochure: the product story is on s4ops.com. Signed-in visitors never see this (IndexModel redirects). *@
+<section class="entrance" aria-labelledby="entrance-title">
+    <div class="entrance-card">
+        <img src="/images/brand/s4-tile.svg" alt="" width="56" height="56" />
+        <p class="eyebrow">S4 OPS</p>
+        <h1 id="entrance-title">Your S4 OPS account</h1>
+        <p class="lead">Sign in to manage your pilot profile, your logbook and the airlines you fly for.</p>
+        @if (Settings.IsConfigured) {
+            <div class="entrance-actions">
+                <a class="button" href="/auth/login">Sign in</a>
+                <a class="button secondary" href="/auth/signup">Create your invited account</a>
+            </div>
+            <p class="entrance-note">S4 OPS is invite-only while we test with a small group of pilots. Create your account with the email address you were invited with, or <a href="mailto:@Legal.Contact?subject=S4%20OPS%20invitation">ask us for an invitation</a>.</p>
+        } else {
+            <p class="notice" role="status">Account registration is not available on this installation yet.</p>
+        }
+        <p class="entrance-more">What is S4 OPS? <a href="https://s4ops.com/">See s4ops.com</a>.</p>
+    </div>
+</section>

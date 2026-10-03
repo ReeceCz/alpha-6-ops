@@ -464,3 +464,11 @@ td { font-variant-numeric: tabular-nums; }
   .facts { grid-template-columns: 1fr; gap: 0; }
   .facts dd { margin-bottom: var(--space-2); }
 }
+
+/* Entrance (home): one centred card on charcoal */
+.entrance { min-height: calc(100vh - 12rem); display: grid; place-items: center; padding: var(--space-8) var(--gutter); }
+.entrance-card { width: min(100%, 36rem); text-align: left; }
+.entrance-card img { display: block; margin-bottom: var(--space-5); }
+.entrance-card h1 { font: 700 var(--size-display)/1 var(--display); margin: var(--space-2) 0 var(--space-4); }
+.entrance-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-6); }
+.entrance-note, .entrance-more { margin-top: var(--space-5); color: var(--muted); font-size: var(--size-s); }

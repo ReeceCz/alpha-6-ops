@@ -34,8 +34,8 @@ Top to bottom. All copy follows the fact-checked claims already in the portal (`
 7. **Footer:** S4 OPS by Sierra 4, Privacy and Terms (linked to the portal), and "Not affiliated with Microsoft or Asobo Studio".
 
 Links: Sign in goes to `https://app.s4ops.com/auth/login`. Create account goes to `https://app.s4ops.com/auth/signup`.
-Download goes to `https://app.s4ops.com/Download`. The request-invitation link uses the contact address once Reece
-provides it; until then it points at the portal Download page.
+Download goes to `https://app.s4ops.com/Download`. The request-invitation link points at the portal home
+(`https://app.s4ops.com/`), which carries the invitation request to the contact address.
 
 **Theme:** dark only (charcoal). Tokens come from `SierraDesignTokens.xaml`: background `#090C0F`, surfaces
 `#101418`/`#151A1F`/`#20272D`, divider `#293138`, text `#F2F4F5`/`#BBC2C8`/`#8E99A2`, yellow `#F4CF22` for brand

@@ -378,6 +378,9 @@ if (created.IsSuccessStatusCode)
             Check(legalPage.IsSuccessStatusCode && legalHtml.Contains("Sierra 4") && !legalHtml.Contains("<script"), $"{legal} renders anonymously without scripts");
         }
         var chrome = await anonymous.GetStringAsync("/Levels");
+        Check(!chrome.Contains("Weather briefings") && !chrome.Contains("Shared dispatch board") && !chrome.Contains("in testing") && !chrome.Contains("Create an account")
+            && chrome.Contains("Create your invited account") && chrome.Contains("invite-only"),
+            "Levels makes only the claims s4ops.com makes and reflects invite-only accounts");
         Check(chrome.Contains("s4-tile.svg") && !chrome.Contains("s4-lockup") && !chrome.Contains("topbar-plus") && chrome.Contains("content=\"dark\""),
             "Shared header uses the S4 tile, no lockup or stray plus, and declares a dark-only colour scheme");
         var css = await anonymous.GetStringAsync("/css/site.css");

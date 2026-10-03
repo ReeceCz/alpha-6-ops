@@ -29,13 +29,13 @@
     <article class="card pay-card">
         <h2>Start in three steps</h2>
         <ol class="steps-list">
-            <li><strong>Create your account.</strong> Email and password, a passkey, or your Microsoft or Google sign-in. Verify your email from the message we send.</li>
+            <li><strong>Create your invited account.</strong> S4 OPS is invite-only while we test with a small group of pilots, so use the email address you were invited with. Email and password, a passkey, or your Microsoft or Google sign-in. Verify your email from the message we send.</li>
             <li><strong>Download S4 OPS for Windows.</strong> Sign in once; the app remembers you and works offline for your next flights.</li>
             <li><strong>Fly.</strong> Log flights on your own, join a crew with an invitation code, or found your own airline.</li>
         </ol>
         <div class="actions">
             @if (Model.SignedIn) { <a class="button" href="/Account/Plan">Choose your level</a> }
-            else if (Settings.IsConfigured) { <a class="button" href="/auth/signup">Create an account</a><a class="button secondary" href="/auth/login">Sign in</a> }
+            else if (Settings.IsConfigured) { <a class="button" href="/auth/signup">Create your invited account</a><a class="button secondary" href="/auth/login">Sign in</a> }
             else { <a class="button" href="/Download">Download</a> }
             <a href="/Download">Download for Windows</a>
         </div>
@@ -48,6 +48,6 @@
         <dt>Do I need a paid level to fly for an airline?</dt><dd>No. Airline membership is free at every personal level. Only the owner's choice of airline level affects the airline.</dd>
         <dt>What happens to my logbook if I stop paying?</dt><dd>Nothing is deleted. Your flights stay in your logbook; the level returns to Flying as a Pilot and premium features pause.</dd>
         <dt>Can one account own more than one airline?</dt><dd>One Community airline per owner. Pro airlines don't count toward that limit.</dd>
-        <dt>Which simulator does this support?</dt><dd>Microsoft Flight Simulator 2024 on Windows. Live SimConnect tracking is in testing; replay works today.</dd>
+        <dt>Which simulator does this support?</dt><dd>Microsoft Flight Simulator 2024 on Windows. S4 OPS tracks your flight live over SimConnect; block-in is automatic on the Fenix A320 family and a one-click confirmation on other aircraft.</dd>
     </dl>
 </section>

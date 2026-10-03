@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>S4 OPS · You fly the airplane. We'll run the airline.</title>
+  <meta name="description" content="S4 OPS is a Windows desktop app for Microsoft Flight Simulator 2024 that times every flight from off block to block in, tracks it live, and keeps your pilot logbook." />
+  <meta name="theme-color" content="#090C0F" />
+  <meta property="og:title" content="S4 OPS · Airline operations for MSFS 2024" />
+  <meta property="og:description" content="You fly the airplane. We'll run the airline." />
+  <meta property="og:image" content="https://s4ops.com/images/s4-tile-512.png" />
+  <link rel="icon" href="/images/s4-tile.svg" type="image/svg+xml" />
+  <link rel="preload" href="/fonts/barlow-semi-condensed-700.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="/styles.css" />
+  <script type="module" src="/hero.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="nav">
+    <a class="brand" href="/" aria-label="Sierra 4 home"><img src="/images/s4-tile.svg" alt="" width="34" height="34" /><span>SIERRA 4<small>AIRLINE OPERATIONS</small></span></a>
+    <nav aria-label="Main"><a href="#how">How it works</a><a href="#start">Download</a><a href="https://app.s4ops.com/Support">Help</a><a class="signin" href="https://app.s4ops.com/auth/login">Sign in</a></nav>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="hero" aria-labelledby="hero-title">
+      <canvas id="heroCanvas" aria-hidden="true"></canvas>
+      <div class="scrim" aria-hidden="true"></div>
+      <div class="copy">
+        <p class="eyebrow">Airline operations for MSFS 2024</p>
+        <h1 id="hero-title">You fly the airplane.<br /><span>We'll run the airline.</span></h1>
+        <p class="lead">S4 OPS times every flight from off block to block in, tracks it live on the map, and keeps your pilot logbook.</p>
+        <div class="actions"><a class="btn primary" href="https://app.s4ops.com/auth/signup">Create your invited account <span aria-hidden="true">→</span></a><a class="btn secondary" href="https://app.s4ops.com/Download">Download for Windows</a></div>
+        <p class="note">Invite-only while we test with a small group of pilots. <a href="https://app.s4ops.com/">Ask for an invitation</a> or <a href="https://app.s4ops.com/auth/login">sign in</a>.</p>
+      </div>
+      <dl class="stats" aria-hidden="true">
+        <div><dt>Tracked</dt><dd id="sTracked">0</dd></div>
+        <div class="y"><dt>Sierra 4 airborne</dt><dd id="sS4">0</dd></div>
+        <div><dt>KORD arr / dep</dt><dd id="sOrd">0 / 0</dd></div>
+        <div><dt>UTC</dt><dd id="sUtc">--:--Z</dd></div>
+      </dl>
+      <div class="card" id="flightCard" aria-hidden="true">
+        <div class="card-head"><span class="cs" id="kCs"></span><span class="route" id="kRoute"></span></div>
+        <div class="type" id="kType"></div>
+        <dl>
+          <div><dt>Current phase</dt><dd class="y" id="kPhase"></dd></div><div><dt>Altitude</dt><dd id="kAlt"></dd></div>
+          <div><dt>Ground speed</dt><dd id="kGs"></dd></div><div><dt>Distance remaining</dt><dd id="kDist"></dd></div>
+          <div><dt>Actual out</dt><dd id="kOut"></dd></div><div><dt>Est. in</dt><dd id="kIn"></dd></div>
+        </dl>
+        <div class="prog"><b id="kBar"></b><i id="kArrow"></i></div>
+      </div>
+      <p class="legend">Yellow: Sierra 4 fleet · Grey: other traffic · Cyan: flown · Simulated data</p>
+      <p class="readout" id="readout" aria-hidden="true"></p>
+    </section>
+
+    <section class="band phases" aria-labelledby="phases-title">
+      <div class="wrap">
+        <p class="index"><span>01</span> Flight phases</p>
+        <h2 id="phases-title">Every phase recorded from the simulator.</h2>
+        <p class="sub">S4 OPS records the four times airlines report for every flight, then works out block and flight time from them. A paused or slewed sim never triggers a phase change.</p>
+        <ol class="oooi" aria-label="Sample flight S4601, Milwaukee to Chicago O'Hare">
+          <li><b>OUT</b><time>1802Z</time><h3>Off block</h3><p>Parking brake released and the aircraft moving on the ground.</p></li>
+          <li><b>OFF</b><time>1814Z</time><h3>Takeoff</h3><p>The wheels leave the runway.</p></li>
+          <li><b>ON</b><time>1901Z</time><h3>Landing</h3><p>The wheels are back on the ground.</p></li>
+          <li><b>IN</b><time>1909Z</time><h3>Block in</h3><p>Parked at the gate with the brake set. Fenix A320-family aircraft confirm it from the engine shutdown; on other aircraft you confirm it with one click.</p></li>
+        </ol>
+        <p class="fine">Sample flight S4601, KMKE to KORD: block time 1 h 07 min, flight time 47 min.</p>
+      </div>
+    </section>
+
+    <section class="band how" id="how" aria-labelledby="how-title">
+      <div class="wrap">
+        <p class="index"><span>02</span> How it works</p>
+        <h2 id="how-title">Fly normally. S4 OPS keeps the record.</h2>
+        <ol class="steps">
+          <li><span>WPT 01</span><h3>Install and sign in</h3><p>Install S4 OPS for Windows and sign in once with your account. It remembers you.</p></li>
+          <li><span>WPT 02</span><h3>Plan the flight</h3><p>Import your SimBrief plan in Dispatch, or enter the flight yourself, then accept the flight.</p></li>
+          <li><span>WPT 03</span><h3>Connect and fly</h3><p>Connect to Microsoft Flight Simulator 2024 at the gate and fly the way you always do. OUT, OFF and ON are recorded as they happen.</p></li>
+          <li><span>WPT 04</span><h3>Block in and file</h3><p>Confirm block in at the gate, review the flight and submit your PIREP. Block and flight time are worked out for you.</p></li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="band tracks" aria-labelledby="tracks-title">
+      <div class="wrap">
+        <p class="index"><span>03</span> What it tracks</p>
+        <h2 id="tracks-title">The flight you actually flew.</h2>
+        <ul class="features">
+          <li><b>TRK</b><h3>Live tracking</h3><p>Phase, route progress and a predicted gate arrival as you fly, with a live map of your route.</p></li>
+          <li><b>CRZ</b><h3>Cruise and descent</h3><p>Your actual cruise level, any step climbs and the top of descent, taken from what the aircraft did rather than the flight plan.</p></li>
+          <li><b>ETA</b><h3>Gate arrival</h3><p>On time within five minutes of the schedule, otherwise minutes early or late.</p></li>
+          <li><b>REC</b><h3>Recovery</h3><p>If the sim or the app restarts mid-flight, S4 OPS picks the same flight back up instead of starting a new one.</p></li>
+          <li><b>LOG</b><h3>Logbook</h3><p>Every tracked flight in the app's pilot logbook with its four times, route and aircraft.</p></li>
+          <li><b>DSP</b><h3>Dispatch</h3><p>Import a SimBrief plan, review the release and accept it. Your SimBrief username follows your account.</p></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="band audiences" aria-labelledby="aud-title">
+      <div class="wrap">
+        <p class="index"><span>04</span> Pilots and airlines</p>
+        <h2 id="aud-title" class="visually-hidden">For pilots and for airlines</h2>
+        <div class="split">
+          <article><p class="for">For pilots</p><h3>Your flight. Your logbook.</h3><p>Everything you need on the flight deck, in your own space, whether or not you fly for an airline. Bring an existing logbook into your account from a CSV file.</p></article>
+          <article><p class="for">For airlines</p><h3>Run the airline together.</h3><p>Found an airline or join one with an invitation. Pilots, dispatchers and administrators work from the same schedule, fleet and crew list, and every administrative change asks for a fresh security check.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="band start" id="start" aria-labelledby="start-title">
+      <div class="wrap start-grid">
+        <div>
+          <p class="index"><span>05</span> Get started</p>
+          <h2 id="start-title">Ready for your next rotation?</h2>
+          <p class="sub">S4 OPS runs on the PC with Microsoft Flight Simulator 2024: 64-bit Windows 10 (1809 or later) or Windows 11. This test release is not code-signed yet, so Windows will ask you to confirm before it runs; the download page shows the checksum to check first.</p>
+          <div class="actions"><a class="btn primary" href="https://app.s4ops.com/Download">Download for Windows <span aria-hidden="true">→</span></a><a class="btn secondary" href="https://app.s4ops.com/auth/signup">Create your invited account</a></div>
+        </div>
+        <ul class="facts"><li><b>Windows desktop app</b>Installs for your Windows user, no administrator rights needed.</li><li><b>Works offline</b>Sign in once, then fly without a connection.</li><li><b>Your data</b>Download everything we hold, or delete your account, from your profile at any time.</li></ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap foot-grid">
+      <p><b>S4 OPS</b> by Sierra 4. Airline operations for Microsoft Flight Simulator 2024.</p>
+      <nav aria-label="Legal"><a href="https://app.s4ops.com/Privacy">Privacy</a><a href="https://app.s4ops.com/Terms">Terms</a><a href="https://app.s4ops.com/Support">Help</a></nav>
+      <p class="fine">Not affiliated with Microsoft or Asobo Studio. Map traffic is simulated.</p>
+    </div>
+  </footer>
+</body>
+</html>

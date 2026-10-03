@@ -1,0 +1,6 @@
+// Static assets only, no Worker code. Deploy is Reece's step: npx wrangler deploy
+{
+  "name": "s4ops-landing",
+  "compatibility_date": "2026-09-01",
+  "assets": { "directory": "./public" }
+}

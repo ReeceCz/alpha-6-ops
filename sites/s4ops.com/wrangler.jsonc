@@ -1,6 +1,8 @@
 // Static assets only, no Worker code. Deploy is Reece's step: npx wrangler deploy
 {
   "name": "s4ops-landing",
+  // The s4ops.com zone lives in this Cloudflare account (Dan's; Reece is a member).
+  "account_id": "353cb6e5f558e454f58462a5662b6991",
   "compatibility_date": "2026-09-01",
   "assets": { "directory": "./public", "not_found_handling": "404-page" },
   // Cloudflare creates the DNS records and certificates for these on deploy (the hostnames must not already have records).

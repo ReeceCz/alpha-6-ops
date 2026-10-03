@@ -35,13 +35,15 @@ h1, h2, h3 { font-family: var(--display); font-weight: 700; margin: 0; }
 .nav .signin { border: 1px solid var(--yellow); color: var(--yellow) !important; padding: 0.5625rem 1rem; border-radius: 0.25rem; font-weight: 600; }
 
 /* Hero */
-.hero { position: relative; display: flex; align-items: center; min-height: max(40rem, 100vh); overflow: hidden; background: var(--bg); }
+/* --edge is the sections' content edge (centred .wrap, max(84rem, 70%)), so the hero text shares the page's left margin. */
+.hero { --edge: max(clamp(1.25rem, 5vw, 4rem), calc((100% - max(84rem, 70%)) / 2 + clamp(1.25rem, 5vw, 4rem)));
+  position: relative; display: flex; align-items: center; min-height: max(40rem, 100vh); overflow: hidden; background: var(--bg); }
 .hero canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; }
 .hero.no-canvas { background: radial-gradient(ellipse at 66% 50%, #171c21 0%, #11151a 60%, #0b0e11 100%); }
 .scrim { position: absolute; inset: 0; pointer-events: none;
   background: linear-gradient(90deg, rgba(9,12,15,.94) 0%, rgba(9,12,15,.82) 30%, rgba(9,12,15,.25) 52%, rgba(9,12,15,0) 66%),
               linear-gradient(180deg, rgba(9,12,15,.85) 0%, rgba(9,12,15,0) 14%, rgba(9,12,15,0) 80%, var(--bg) 100%); }
-.copy { position: relative; z-index: 2; width: 100%; max-width: clamp(38.75rem, 44vw, 72rem); padding: 6.5rem clamp(1.25rem, 5vw, 6rem) 5rem; pointer-events: none; }
+.copy { position: relative; z-index: 2; flex: 0 1 clamp(38rem, 36vw, 60rem); min-width: 0; margin-left: var(--edge); padding: 6.5rem clamp(1.25rem, 3vw, 3rem) 5rem 0; pointer-events: none; }
 .copy a { pointer-events: auto; }
 .eyebrow { margin: 0; display: flex; align-items: center; gap: 0.875rem; font: 600 0.75rem/1 var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--yellow); }
 .eyebrow::before { content: ""; width: 2.125rem; height: 2px; background: var(--yellow); }
@@ -78,11 +80,11 @@ h1, h2, h3 { font-family: var(--display); font-weight: 700; margin: 0; }
 .prog { position: relative; margin-top: 1rem; height: 3px; background: var(--line-2); }
 .prog b { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--yellow); }
 .prog i { position: absolute; top: -6px; left: 0; border-left: 0.625rem solid var(--yellow); border-top: 0.4375rem solid transparent; border-bottom: 0.4375rem solid transparent; margin-left: -5px; }
-.legend { position: absolute; z-index: 2; left: clamp(1.25rem, 5vw, 4rem); bottom: 1rem; margin: 0; font: 600 0.625rem/1 var(--body); letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
+.legend { position: absolute; z-index: 2; left: var(--edge); bottom: 1rem; margin: 0; font: 600 0.625rem/1 var(--body); letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
 .readout { position: absolute; z-index: 2; right: 1.5rem; bottom: 1.125rem; margin: 0; font: 0.6875rem/1 var(--mono); color: var(--muted); }
 
 /* Sections */
-.wrap { max-width: 84rem; margin: 0 auto; padding: 0 clamp(1.25rem, 5vw, 4rem); }
+.wrap { max-width: max(84rem, 70%); margin: 0 auto; padding: 0 clamp(1.25rem, 5vw, 4rem); }
 .band { padding: clamp(4.5rem, 10vw, 7.5rem) 0; border-top: 1px solid var(--line); }
 .band:nth-of-type(odd) { background: var(--s1); }
 .index { margin: 0 0 0.875rem; font: 600 0.75rem/1 var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }

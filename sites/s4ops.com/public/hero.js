@@ -11,7 +11,7 @@ function start() {
   const canHover = matchMedia('(hover: hover) and (pointer: fine)').matches;
   const copy = hero.querySelector('.copy'), note = hero.querySelector('.note'), $ = id => document.getElementById(id), card = $('flightCard');
   const rng = Math.random;
-  let W = 0, H = 0, K = 1, FONT = '', proj = null, lakes = [], mx = null, my = null, last = performance.now(), visible = true, running = false;
+  let W = 0, H = 0, K = 1, mapX = 0, FONT = '', proj = null, lakes = [], mx = null, my = null, last = performance.now(), visible = true, running = false;
   const flights = [];
 
   fetch('/data/great-lakes.json').then(r => r.ok ? r.json() : { lakes: [] }).then(d => { lakes = d.lakes ?? []; if (!running) draw(0); }).catch(() => {});
@@ -23,7 +23,11 @@ function start() {
     FONT = `600 ${11 * K}px "Bahnschrift SemiCondensed", "Barlow Semi Condensed", "Segoe UI", sans-serif`;
     W = r.width; H = r.height; canvas.width = Math.round(W * d); canvas.height = Math.round(H * d); ctx.setTransform(d, 0, 0, d, 0, 0);
     const narrow = W < 900;
-    proj = createProjection({ lon0: -87.6, lat0: 42.6, scale: Math.max(W, H * 1.6) * (narrow ? 3.2 : 4.1), cx: W * (narrow ? 0.5 : 0.66), cy: H * (narrow ? 0.62 : 0.5) });
+    // On wide screens the map centre moves right by however far the (inset) copy extends past 44% of the width,
+    // so Chicago and Milwaukee stay clear of the headline.
+    const copyEdge = copy.getBoundingClientRect().right - r.left;
+    mapX = narrow ? W * 0.5 : W * 0.66 + Math.max(0, copyEdge - W * 0.44);
+    proj = createProjection({ lon0: -87.6, lat0: 42.6, scale: Math.max(W, H * 1.6) * (narrow ? 3.2 : 4.1), cx: mapX, cy: H * (narrow ? 0.62 : 0.5) });
     const target = narrow ? 46 : 74;
     while (flights.length < target) flights.push(makeFlight(rng, { anywhere: true }));
     flights.length = target;
@@ -61,7 +65,7 @@ function start() {
     const copyBottom = narrow ? note.getBoundingClientRect().bottom - hr.top + 8 * K : -Infinity;
     const inCopy = b => b.x < copyRight || b.y < copyBottom;
     const freeMid = narrow ? (Math.min(copyBottom, H) + H) / 2 / H : 0.52;
-    const cx = idle ? W * (narrow ? 0.5 + 0.18 * Math.cos(t * 0.17) : 0.7 + 0.12 * Math.cos(t * 0.17)) : mx;
+    const cx = idle ? (narrow ? W * (0.5 + 0.18 * Math.cos(t * 0.17)) : Math.min(W * 0.9, mapX + W * (0.04 + 0.12 * Math.cos(t * 0.17)))) : mx;
     const cy = idle ? H * (narrow ? freeMid + 0.06 * Math.sin(t * 0.23) : 0.52 + 0.16 * Math.sin(t * 0.23)) : my;
     const R = Math.min(W, H) * 0.34, near = (x, y) => Math.max(0, 1 - Math.hypot(x - cx, y - cy) / R);
 

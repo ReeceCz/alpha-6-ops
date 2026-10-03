@@ -2,5 +2,10 @@
 {
   "name": "s4ops-landing",
   "compatibility_date": "2026-09-01",
-  "assets": { "directory": "./public", "not_found_handling": "404-page" }
+  "assets": { "directory": "./public", "not_found_handling": "404-page" },
+  // Cloudflare creates the DNS records and certificates for these on deploy (the hostnames must not already have records).
+  "routes": [
+    { "pattern": "s4ops.com", "custom_domain": true },
+    { "pattern": "www.s4ops.com", "custom_domain": true }
+  ]
 }

@@ -383,6 +383,8 @@ if (created.IsSuccessStatusCode)
             "Levels makes only the claims s4ops.com makes and reflects invite-only accounts");
         Check(chrome.Contains("s4-tile.svg") && !chrome.Contains("s4-lockup") && !chrome.Contains("topbar-plus") && chrome.Contains("content=\"dark\""),
             "Shared header uses the S4 tile, no lockup or stray plus, and declares a dark-only colour scheme");
+        Check(Regex.IsMatch(chrome, @"<a class=""brand"" href=""/""><img [^>]*alt=""""[^>]*/><span>SIERRA 4<small>AIRLINE OPERATIONS</small></span></a>"),
+            "Header brand link is named by its visible text (WCAG 2.5.3 label in name)");
         var css = await anonymous.GetStringAsync("/css/site.css");
         Check(!css.Contains("prefers-color-scheme: light") && css.Contains("--surface: #090c0f") && css.Contains("Bahnschrift SemiCondensed") && css.Contains("calc(0.3125vw + 12px)"),
             "Portal styles are charcoal-only, use the Sierra display face and the fluid base size");

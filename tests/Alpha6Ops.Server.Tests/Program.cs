@@ -46,6 +46,16 @@ using (var client = setup.CreateClient(new() { BaseAddress = new("https://localh
         && !landingHtml.Contains("How it works") && !landingHtml.Contains("Demonstration data") && !landingHtml.Contains("home.css"),
         "Unconfigured entrance points to s4ops.com, carries no marketing and never offers sign-up");
     Check(!landingHtml.Contains("<script") && !Regex.IsMatch(landingHtml, @"\sstyle="""), "Entrance is script-free with no inline styles the CSP would block");
+    Check(landingHtml.Contains("Account registration is not available"), "Unconfigured entrance explains that registration is unavailable");
+    var leftoverCookie = setup.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(CookieAuthenticationDefaults.AuthenticationScheme);
+    using (var leftover = setup.CreateClient(new() { BaseAddress = new("https://localhost"), AllowAutoRedirect = false }))
+    {
+        var leftoverTicket = new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "leftover")], CookieAuthenticationDefaults.AuthenticationScheme)),
+            new AuthenticationProperties { ExpiresUtc = DateTimeOffset.UtcNow.AddHours(1) }, CookieAuthenticationDefaults.AuthenticationScheme);
+        leftover.DefaultRequestHeaders.Add("Cookie", "__Host-Alpha6.Session=" + leftoverCookie.TicketDataFormat.Protect(leftoverTicket));
+        var leftoverHome = await leftover.GetAsync("/");
+        Check(leftoverHome.StatusCode == HttpStatusCode.OK, "A leftover session on an unconfigured server sees the entrance, not a redirect into an unavailable account area");
+    }
     var pricing = await client.GetAsync("/Levels");
     var pricingHtml = await pricing.Content.ReadAsStringAsync();
     Check(pricing.IsSuccessStatusCode && new[] { "Flying as a Pilot", "Premium pilot", "Community airline", "Pro airline", "Link", "Pricing announced" }.All(pricingHtml.Contains) && !pricingHtml.Contains("$") && !pricingHtml.Contains("<script"),
@@ -179,7 +189,13 @@ Check(signedInHome.StatusCode == HttpStatusCode.Redirect && signedInHome.Headers
 var entrance = await anonymous.GetStringAsync("/");
 Check(entrance.Contains("/auth/login") && entrance.Contains("/auth/signup") && entrance.Contains("https://s4ops.com/") && entrance.Contains("invite-only")
     && !entrance.Contains("Every phase recorded") && !entrance.Contains("home.css"), "Signed-out home is a short entrance: sign in, invited sign-up, s4ops.com, no marketing");
-foreach (var gone in new[] { "/css/home.css", "/images/pilot.jpg", "/images/hero/kmke-plan.svg" })
+var retired = new[] { "/css/home.css", "/images/hero/kmke-plan.svg", "/images/flight-deck.png", "/images/globe.jpg", "/images/pilot.jpg", "/images/routes.jpg", "/images/runway.jpg" };
+foreach (var anonymousPage in new[] { "/", "/Levels", "/Download", "/Support", "/Privacy", "/Terms", "/SignedOut", "/AuthError" })
+{
+    var pageHtml = await anonymous.GetStringAsync(anonymousPage);
+    Check(!retired.Any(pageHtml.Contains) && !pageHtml.Contains("s4-lockup"), $"{anonymousPage} references no retired asset");
+}
+foreach (var gone in retired)
     Check((await anonymous.GetAsync(gone)).StatusCode == HttpStatusCode.NotFound, $"Retired asset {gone} is gone");
 Check(accountPage.IsSuccessStatusCode, "Authenticated portal workspace renders");
 var accountHtml = await accountPage.Content.ReadAsStringAsync();
@@ -389,6 +405,10 @@ if (created.IsSuccessStatusCode)
         var css = await anonymous.GetStringAsync("/css/site.css");
         Check(!css.Contains("prefers-color-scheme: light") && css.Contains("--surface: #090c0f") && css.Contains("Bahnschrift SemiCondensed") && css.Contains("calc(0.3125vw + 12px)"),
             "Portal styles are charcoal-only, use the Sierra display face and the fluid base size");
+        Check(css.Contains(".brand small { display: block; margin-top: 0.25rem; font: 600 0.6875rem") && css.Contains(".footer-row nav { display: flex; flex-wrap: wrap;")
+            && Regex.Matches(css, @"(?m)^\.site-footer \{").Count == 1 && Regex.Matches(css, @"(?m)^\.site-nav \{").Count == 1
+            && css.Contains(".entrance { min-height: calc(100vh - 12rem); display: grid; place-items: center; padding: var(--space-8) 0; }"),
+            "Brand subtitle is readable, footer links wrap, header and footer rules are defined once, and the entrance uses the page gutter once");
         var dataExport = await browser.GetAsync("/Account/Profile?handler=Export");
         using (var zip = new System.IO.Compression.ZipArchive(await dataExport.Content.ReadAsStreamAsync()))
             Check(dataExport.Content.Headers.ContentType?.MediaType == "application/zip" && zip.Entries.Any(e => e.FullName == "logbook.json")

@@ -67,6 +67,8 @@ using (var client = setup.CreateClient(new() { BaseAddress = new("https://localh
         Check(!html.Contains("[CONTACT") && !html.Contains("[STATE") && !html.Contains("mailto:"), $"{page} shows no contact placeholder or mailto without a configured contact");
     }
     Check((await client.GetStringAsync("/Terms")).Contains("governed by the laws of Wisconsin, United States"), "Terms name Wisconsin by default");
+    var unconfiguredReleases = await client.GetAsync("/Releases");
+    Check(unconfiguredReleases.IsSuccessStatusCode && (await unconfiguredReleases.Content.ReadAsStringAsync()).Contains("No release notes yet"), "Releases renders without an account store");
     var help = await client.GetStringAsync("/Support");
     Check(help.Contains("id=\"invitations\"") && help.Contains("invite-only"), "Help explains how invitations work");
     var privacy = await client.GetStringAsync("/Privacy");
@@ -503,7 +505,8 @@ using (var inviteOnly = new ServerFactory(connection, admission: null, invitedEm
     Check((await invitedPilot.GetAsync("/api/v1/me/bootstrap")).StatusCode == HttpStatusCode.OK, "An invited, verified email creates an account");
 }
 // Problem reports: pilots send them from the portal; allowlisted staff with a fresh MFA read them.
-using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staff:Emails"] = $"staff-{run}@example.test" }))
+using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staff:Emails"] = $"staff-{run}@example.test",
+    ["Release:Version"] = "7.7.7", ["Release:DownloadUrl"] = "https://example.test/Sierra4-Setup-7.7.7.exe", ["Release:Sha256"] = new string('a', 64) }))
 {
     using var reporterBrowser = feedbackHost.Browser($"reporter-{run}");
     using var staffBrowser = feedbackHost.Browser($"staff-{run}");
@@ -574,6 +577,25 @@ using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staf
         await File.WriteAllTextAsync(Path.Combine(testerSnapshots, "privacy.html"), await anon.GetStringAsync("/Privacy"));
         await File.WriteAllTextAsync(Path.Combine(testerSnapshots, "terms.html"), await anon.GetStringAsync("/Terms"));
     }
+    // Release notes: staff write them, everyone reads them on Releases and Download, and pilots on an older desktop are told.
+    Check((await reporterBrowser.GetAsync("/Staff/Releases")).StatusCode == HttpStatusCode.NotFound, "Release notes editing is 404 for pilots");
+    var releasesPage = await staffBrowser.GetAsync("/Staff/Releases");
+    var releasesHtml = await releasesPage.Content.ReadAsStringAsync();
+    Check(releasesPage.IsSuccessStatusCode && releasesHtml.Contains("Write release notes") && !Regex.IsMatch(releasesHtml, @"\sstyle="""), "Staff open the release notes editor");
+    var savedNotes = await SubmitAsync(staffBrowser, releasesPage, releasesHtml, "/Staff/Releases?handler=Save",
+        new() { ["Version"] = "7.7.7", ["Title"] = "Block-in you can trust", ["Notes"] = "- Engine shutdown confirms block in\n- <script>alert(1)</script> is shown as text" });
+    Check(savedNotes.StatusCode == HttpStatusCode.Redirect, "Staff publish release notes");
+    var history = await anon.GetStringAsync("/Releases");
+    Check(history.Contains("Block-in you can trust") && history.Contains("&lt;script&gt;") && !history.Contains("<script>alert"), "Releases lists the notes as plain text");
+    var downloadNotes = await anon.GetStringAsync("/Download");
+    Check(downloadNotes.Contains("What's new in 7.7.7") && downloadNotes.Contains("Engine shutdown confirms block in") && downloadNotes.Contains("href=\"/Releases\""), "Download shows the current release's notes");
+    using (var oldDesktop = feedbackHost.Client($"reporter-{run}"))
+    {
+        oldDesktop.DefaultRequestHeaders.UserAgent.ParseAdd("Alpha6OPS/0.1.0");
+        await oldDesktop.GetAsync("/api/v1/me/bootstrap");
+    }
+    Check((await reporterBrowser.GetStringAsync("/Account")).Contains("Update available"), "A pilot on an older desktop is told an update is available");
+    Check(!(await staffBrowser.GetStringAsync("/Account")).Contains("Update available"), "Pilots who haven't used the desktop aren't nagged");
     var testersPageAgain = await staffBrowser.GetAsync("/Staff/Testers");
     var removed = await SubmitAsync(staffBrowser, testersPageAgain, await testersPageAgain.Content.ReadAsStringAsync(), "/Staff/Testers?handler=Remove", new() { ["email"] = newTester.ToLowerInvariant() });
     Check(removed.StatusCode == HttpStatusCode.Redirect && !(await staffBrowser.GetStringAsync("/Staff/Testers")).Contains(newTester.ToLowerInvariant()), "Staff remove a tester invitation");

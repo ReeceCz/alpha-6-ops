@@ -31,6 +31,10 @@ public sealed partial class AccountsService
                 versions.OrderByDescending(v => ParseVersion(v.Version)).ToArray());
         }, ct);
 
+    /// <summary>Throws not_found for non-staff and mfa_required without a recent MFA; for staff pages that read public data.</summary>
+    public Task<bool> EnsureStaffAsync(ActorIdentity actor, StaffAccess staff, CancellationToken ct = default) =>
+        Execute(actor, (_, now) => { RequireStaff(actor, staff, now); return Task.FromResult(true); }, ct);
+
     /// <summary>Orders x.y.z versions numerically; anything unparseable (including "") sorts last.</summary>
     public static Version ParseVersion(string value) => Version.TryParse(value, out var parsed) ? parsed : new Version(0, 0);
 }

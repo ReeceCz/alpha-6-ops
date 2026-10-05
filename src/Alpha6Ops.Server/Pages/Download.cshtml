@@ -1,6 +1,12 @@
 @page
 @inject Microsoft.Extensions.Options.IOptions<ReleaseSettings> Release
-@{ ViewData["Title"] = "Download"; var release = Release.Value; }
+@using Microsoft.Extensions.DependencyInjection
+@{
+    ViewData["Title"] = "Download"; var release = Release.Value;
+    // Notes for the published version, when staff have written them (unconfigured installations have no account store).
+    var accounts = HttpContext.RequestServices.GetService<Alpha6Ops.Accounts.AccountsService>();
+    var notes = release.Available && accounts is not null ? await accounts.GetReleaseNoteAsync(release.Version, HttpContext.RequestAborted) : null;
+}
 @* Every requirement and step here matches the shipped desktop build; see docs/desktop.md and the 7.26B known limitations. *@
 <div class="page-heading"><div class="eyebrow">Windows desktop app</div><h1>Bring OPS aboard.</h1><p class="lead">Install S4 OPS on the PC that runs Microsoft Flight Simulator 2024, then sign in with your S4 OPS account.</p></div>
 <section class="card">
@@ -9,6 +15,8 @@
     <a class="button" href="@release.DownloadUrl" rel="noopener noreferrer">Download for Windows</a>
     <h3>SHA-256 checksum</h3><code class="break">@release.Sha256</code>
     <p class="muted">To check the file before you run it, open PowerShell in your Downloads folder and run <code>Get-FileHash .\@System.IO.Path.GetFileName(new Uri(release.DownloadUrl).AbsolutePath)</code>. The hash it prints must match the one above.</p>
+    @if (notes is not null) { <h3>What's new in @notes.Version</h3><p><strong>@notes.Title</strong></p><p class="prewrap">@notes.Notes</p> }
+    <p><a href="/Releases">Release history</a></p>
 } else {
     <h2>The download is being prepared.</h2><p>A verified release has not been published here yet. Your account will work with the desktop app when it is available.</p><a href="/">Return home</a>
 }

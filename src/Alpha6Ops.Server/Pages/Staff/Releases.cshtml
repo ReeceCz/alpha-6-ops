@@ -1,0 +1,32 @@
+@page "/Staff/Releases"
+@model Alpha6Ops.Server.Pages.Staff.ReleasesModel
+@{ ViewData["Title"] = "Release notes"; }
+<div class="page-heading"><div class="eyebrow">Staff</div><h1>Release notes</h1><partial name="_StaffNav" model='@("releases")' />
+<p class="lead">Notes appear on <a href="/Releases">Release notes</a>, and on Download for the published version@(Model.CurrentRelease is { } cur ? $" ({cur})" : "").</p></div>
+<partial name="_AccountError" model="Model" />
+@if (Model.ErrorCode is null or "invalid_release") {
+<section class="card">
+    <h2>@(Model.Editing ? $"Edit {Model.Version}" : "Write release notes")</h2>
+    <form method="post" asp-page-handler="Save" class="stack">
+        <div class="grid two">
+            <div class="stack"><label for="Version">Version</label><input id="Version" name="Version" required maxlength="32" placeholder="0.23.0" value="@Model.Version" class="mono" /></div>
+            <div class="stack"><label for="Title">Title</label><input id="Title" name="Title" required maxlength="120" placeholder="What this release is about" value="@Model.Title" /></div>
+        </div>
+        <div class="stack"><label for="Notes">What's new</label><textarea id="Notes" name="Notes" rows="8" required maxlength="8000" placeholder="One change per line. Plain text: line breaks are kept.">@Model.NotesText</textarea>
+        <small>Saving a version that already has notes replaces them.</small></div>
+        <div class="actions"><button class="button" type="submit">Save notes</button>@if (Model.Editing) { <a class="button secondary" href="/Staff/Releases">New version</a> }</div>
+    </form>
+</section>
+@if (Model.Published.Length > 0) {
+<section class="card">
+    <h2>Published</h2>
+    <ul class="report-list">
+    @foreach (var n in Model.Published) {
+        <li class="row"><div><strong class="mono">@n.Version</strong> · @n.Title<span class="muted block">@n.Author · updated @n.UpdatedAt.ToString("yyyy-MM-dd")</span></div>
+            <div class="actions"><a href="/Staff/Releases?version=@n.Version">Edit</a>
+            <form method="post" asp-page-handler="Delete"><input type="hidden" name="Version" value="@n.Version" /><button class="text-button" type="submit">Delete</button></form></div></li>
+    }
+    </ul>
+</section>
+}
+}

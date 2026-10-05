@@ -26,7 +26,12 @@ var personalSelected = account.LastWorkspace.AirlineId is null;
         <div class="panel-head"><span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 5.5 11 4.4v7.1H3zM12 4.2 21 3v8.5h-9zM3 12.5h8v7.1L3 18.5zM12 12.5h9V21l-9-1.2z"/></svg></span><div class="eyebrow">Desktop app for Windows</div></div>
         <h2>S4 OPS for the flight deck</h2>
         @if (account.Profile is { LastSeenAt: { } seen } desktop) { <p>Last signed in @seen.ToString("u")@(desktop.LastSeenVersion.Length > 0 ? $" from v{desktop.LastSeenVersion}" : "").</p> } else { <p>The desktop app has not signed in with this account yet.</p> }
-        @if (release.Available) { <p>Current release: v@(release.Version)@(account.Profile?.LastSeenVersion == release.Version ? " · you are up to date" : "").</p> } else { <p>A verified public release has not been published yet.</p> }
+        @if (release.Available) {
+            var desktopVersion = account.Profile?.LastSeenVersion ?? "";
+            if (desktopVersion.Length > 0 && Alpha6Ops.Accounts.AccountsService.ParseVersion(desktopVersion) < Alpha6Ops.Accounts.AccountsService.ParseVersion(release.Version)) {
+                <p class="notice" role="status"><strong>Update available.</strong> Your desktop app is v@(desktopVersion); v@(release.Version) is out. <a href="/Releases#v@(release.Version)">What's new</a> · <a href="/Download">Download</a></p>
+            } else { <p>Current release: v@(release.Version)@(desktopVersion == release.Version ? " · you are up to date" : "").</p> }
+        } else { <p>A verified public release has not been published yet.</p> }
         <div class="actions"><a class="button" href="/Download"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3"/></svg>Download</a><span class="muted">Sign in with this account after installing.</span></div>
     </article>
 </section>

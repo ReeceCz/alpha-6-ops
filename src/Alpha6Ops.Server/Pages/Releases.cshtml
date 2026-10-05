@@ -1,0 +1,17 @@
+@page
+@using Microsoft.Extensions.DependencyInjection
+@{
+    ViewData["Title"] = "Release notes";
+    // Unconfigured installations have no account store, and so no notes.
+    var accounts = HttpContext.RequestServices.GetService<Alpha6Ops.Accounts.AccountsService>();
+    var notes = accounts is null ? [] : await accounts.ListReleaseNotesAsync(HttpContext.RequestAborted);
+}
+<div class="page-heading"><div class="eyebrow">Windows desktop app</div><h1>Release notes.</h1><p class="lead">What changed in each version of the S4 OPS desktop app. <a href="/Download">Download the latest</a>.</p></div>
+@if (notes.Length == 0) { <section class="card"><p class="muted">No release notes yet.</p></section> }
+@foreach (var n in notes) {
+<article class="card release" id="v@(n.Version)">
+    <div class="eyebrow mono">v@(n.Version) · @n.PublishedAt.ToString("d MMMM yyyy")</div>
+    <h2>@n.Title</h2>
+    <p class="prewrap">@n.Notes</p>
+</article>
+}

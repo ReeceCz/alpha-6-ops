@@ -78,8 +78,9 @@ builder.Services.AddSingleton(settings);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.Configure<ReleaseSettings>(builder.Configuration.GetSection("Release"));
 builder.Services.Configure<LegalSettings>(builder.Configuration.GetSection("Legal"));
+builder.Services.AddSingleton(StaffAccess.FromEmails(builder.Configuration["Staff:Emails"]));
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 32 * 1024);
-builder.Services.AddRazorPages(o => o.Conventions.AuthorizeFolder("/Account"));
+builder.Services.AddRazorPages(o => o.Conventions.AuthorizeFolder("/Account").AuthorizeFolder("/Staff"));
 builder.Services.AddAntiforgery(o =>
 {
     o.Cookie.Name = "__Host-Alpha6.Antiforgery";

@@ -1,0 +1,24 @@
+@page "/Staff/Feedback/{id:guid}"
+@model Alpha6Ops.Server.Pages.Staff.ReportModel
+@{ ViewData["Title"] = "Problem report"; }
+<div class="page-heading"><a href="/Staff/Feedback">← Problem reports</a><div class="eyebrow">Staff</div><h1>Problem report</h1></div>
+<partial name="_AccountError" model="Model" />
+@if (Model.Report is { } r) {
+<section class="card">
+    <dl class="facts">
+        <dt>Kind</dt><dd>@Alpha6Ops.Server.Pages.Account.FeedbackModel.Label(r.Report.Category)</dd>
+        <dt>Pilot</dt><dd>@r.ReporterName · <span class="break">@r.ReporterEmail</span>@if (r.ReporterCallsign.Length > 0) { <span class="mono"> · @r.ReporterCallsign</span> }</dd>
+        <dt>Received</dt><dd class="mono">@r.Report.CreatedAt.ToString("u")</dd>
+        <dt>Flight</dt><dd class="mono">@(r.Report.FlightNumber.Length > 0 ? r.Report.FlightNumber : "—")@(r.Report.FlownOn is { } d ? $" · {d:yyyy-MM-dd}" : "")</dd>
+        <dt>Desktop version</dt><dd class="mono">@(r.Report.AppVersion.Length > 0 ? r.Report.AppVersion : "—")</dd>
+        <dt>Status</dt><dd>@(r.Report.Status == Alpha6Ops.Accounts.FeedbackStatus.Handled ? $"Handled {r.Report.HandledAt:u}" : "New")</dd>
+    </dl>
+    <h2>What happened</h2>
+    <p class="prewrap">@r.Report.Message</p>
+    @if (r.Report.AttachmentName is { } name) { <p><a class="button secondary" href="/Staff/Feedback/@r.Report.Id?handler=Attachment">Download @name (@((r.AttachmentBytes ?? 0) / 1024 + 1) KB)</a></p> }
+    <form method="post" asp-page-handler="Status" asp-route-id="@r.Report.Id">
+        <input type="hidden" name="status" value="@(r.Report.Status == Alpha6Ops.Accounts.FeedbackStatus.Handled ? "New" : "Handled")" />
+        <button class="button" type="submit">@(r.Report.Status == Alpha6Ops.Accounts.FeedbackStatus.Handled ? "Reopen" : "Mark handled")</button>
+    </form>
+</section>
+}

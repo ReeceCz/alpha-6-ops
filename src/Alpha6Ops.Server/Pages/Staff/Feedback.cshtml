@@ -1,0 +1,19 @@
+@page "/Staff/Feedback"
+@model Alpha6Ops.Server.Pages.Staff.FeedbackInboxModel
+@{ ViewData["Title"] = "Problem reports"; }
+<div class="page-heading"><div class="eyebrow">Staff</div><h1>Problem reports</h1>
+<nav class="tabs" aria-label="Filter"><a href="?show=new" aria-current="@(Model.Show == "new" ? "page" : null)">New</a><a href="?show=handled" aria-current="@(Model.Show == "handled" ? "page" : null)">Handled</a><a href="?show=all" aria-current="@(Model.Show == "all" ? "page" : null)">All</a></nav></div>
+<partial name="_AccountError" model="Model" />
+@if (Model.ErrorMessage is null) {
+<section class="card">
+@if (Model.Reports.Length == 0) { <p class="muted">No reports here.</p> } else {
+    <ul class="report-list">
+    @foreach (var r in Model.Reports) {
+        <li><a href="/Staff/Feedback/@r.Report.Id"><strong>@Alpha6Ops.Server.Pages.Account.FeedbackModel.Label(r.Report.Category)</strong></a>@if (r.Report.FlightNumber.Length > 0) { <span class="mono"> · @r.Report.FlightNumber</span> }@if (r.AttachmentBytes is not null) { <span class="badge">file</span> }
+        <span class="muted block">@r.Report.CreatedAt.ToString("yyyy-MM-dd HH:mm")Z · @r.ReporterName · <span class="break">@r.ReporterEmail</span></span>
+        <p>@(r.Report.Message.Length > 160 ? r.Report.Message[..160] + "…" : r.Report.Message)</p></li>
+    }
+    </ul>
+}
+</section>
+}

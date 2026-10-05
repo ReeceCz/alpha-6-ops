@@ -38,6 +38,7 @@ terminates TLS itself.
 | `DataProtection__CertificateBase64` / `DataProtection__CertificatePassword` | Output of `scripts/new-keyring-certificate.ps1` |
 | `Release__DownloadUrl` / `Release__Version` / `Release__Sha256` | Optional; enables `/Download` and the desktop Updates dialog once an installer is published |
 | `Legal__Contact` | Optional public contact email shown on Privacy, Terms, Help and Download. Until it is a valid address those pages say "the Sierra 4 team member who invited you" |
+| `Staff__Emails` | Optional. Semicolon-separated emails (verified at Auth0) that may read problem reports at `/Staff/Feedback`, after a fresh MFA. Empty means the staff pages answer 404 |
 | `Legal__Jurisdiction` | Optional; defaults to `Wisconsin, United States` (governing law in the Terms) |
 
 Local development keeps using `dotnet user-secrets` and the 55439 PostgreSQL cluster; nothing above applies there.

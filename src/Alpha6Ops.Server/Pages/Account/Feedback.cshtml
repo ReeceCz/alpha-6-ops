@@ -1,0 +1,36 @@
+@page
+@model Alpha6Ops.Server.Pages.Account.FeedbackModel
+@{ ViewData["Title"] = "Report a problem"; }
+<div class="page-heading"><a href="/Account">← Your workspaces</a><div class="eyebrow">Testing</div><h1>Report a problem.</h1>
+<p class="lead">Tell us what happened. Reports go straight to the Sierra 4 team, tied to your account so we can follow up.</p></div>
+@if (Model.Sent) { <p class="notice" role="status">Thanks, your report was sent.</p> }
+<partial name="_AccountError" model="Model" />
+<section class="card">
+    <form method="post" enctype="multipart/form-data" class="stack">
+        <fieldset class="stack"><legend>What kind of problem?</legend>
+        @foreach (var c in Alpha6Ops.Server.Pages.Account.FeedbackModel.Categories) {
+            <label class="check"><input type="radio" name="Category" value="@c.Value" checked="@(Model.Category == c.Value)" /> <span><strong>@c.Label</strong>@if (c.Hint.Length > 0) { <small class="block">@c.Hint</small> }</span></label>
+        }
+        </fieldset>
+        <div class="stack"><label asp-for="Message">What happened?</label><textarea asp-for="Message" rows="6" maxlength="4000" required minlength="10" placeholder="What you did, what you expected, and what happened instead."></textarea></div>
+        <div class="grid two">
+            <div class="stack"><label asp-for="FlightNumber">Flight number (optional)</label><input asp-for="FlightNumber" maxlength="10" class="upper" placeholder="S4601" /></div>
+            <div class="stack"><label asp-for="FlownOn">Date flown (optional)</label><input asp-for="FlownOn" type="date" /></div>
+        </div>
+        <div class="stack"><label asp-for="Attachment">Attachment (optional)</label><input asp-for="Attachment" type="file" accept=".png,.jpg,.jpeg,.zip,.json" />
+        <small>One screenshot (PNG or JPEG) or the desktop's test log (Settings → Export test log), up to 5 MB.</small></div>
+        <div class="actions"><button class="button" type="submit">Send report</button></div>
+    </form>
+</section>
+@if (Model.Reports.Length > 0) {
+<section class="card">
+    <h2>Your reports</h2>
+    <ul class="report-list">
+    @foreach (var r in Model.Reports) {
+        <li><span class="badge @(r.Status == Alpha6Ops.Accounts.FeedbackStatus.Handled ? "ok" : "")">@(r.Status == Alpha6Ops.Accounts.FeedbackStatus.Handled ? "Handled" : "Received")</span>
+        <strong>@Alpha6Ops.Server.Pages.Account.FeedbackModel.Label(r.Category)</strong>@if (r.FlightNumber.Length > 0) { <span class="mono"> · @r.FlightNumber</span> }
+        <span class="muted"> · @r.CreatedAt.ToString("u")</span><p>@r.Message</p></li>
+    }
+    </ul>
+</section>
+}

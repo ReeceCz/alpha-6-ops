@@ -71,6 +71,8 @@ using (var client = setup.CreateClient(new() { BaseAddress = new("https://localh
     Check(help.Contains("id=\"invitations\"") && help.Contains("invite-only"), "Help explains how invitations work");
     var privacy = await client.GetStringAsync("/Privacy");
     Check(privacy.Contains("Cloudflare Web Analytics") && privacy.Contains("no cookies"), "Privacy discloses cookieless page-view counts on s4ops.com");
+    Check(help.Contains("href=\"/Account/Feedback\"") && (await client.GetStringAsync("/Download")).Contains("href=\"/Account/Feedback\"") && privacy.Contains("Problem reports"),
+        "Help and Download point at Report a problem, and Privacy lists problem reports");
 }
 using (var contactSetup = new ServerFactory(null, settings: new() { ["Legal:Contact"] = "help@s4ops.example", ["Legal:Jurisdiction"] = "Ruritania" }))
 using (var contactClient = contactSetup.CreateClient(new() { BaseAddress = new("https://localhost"), AllowAutoRedirect = false }))
@@ -225,7 +227,7 @@ Check((await browser.PostAsync("/Account?handler=Logout", new FormUrlEncodedCont
 var csp = accountPage.Headers.GetValues("Content-Security-Policy").Single();
 Check(Regex.IsMatch(csp, @"form-action 'self' " + Regex.Escape(ServerFactory.Issuer.TrimEnd('/')) + "(;|$)") && csp.Contains("script-src 'none'"), "CSP lets the sign-out form redirect to the identity provider and nowhere else");
 Check((await browser.PostAsync("/Account/Create", new FormUrlEncodedContent(new Dictionary<string, string> { ["Name"] = "Forged" }))).StatusCode == HttpStatusCode.BadRequest, "Airline creation without CSRF token is rejected");
-Check(accountHtml.Contains("/Account/Profile") && accountHtml.Contains("/Account/Plan") && accountHtml.Contains("/Download"), "Workspace page links profile, account level and download");
+Check(accountHtml.Contains("/Account/Profile") && accountHtml.Contains("/Account/Plan") && accountHtml.Contains("/Download") && accountHtml.Contains("/Account/Feedback"), "Workspace page links profile, account level, download and Report a problem");
 Check(accountHtml.Contains("from v0.16.0"), "Workspace page reports the last desktop version seen");
 var profilePage = await browser.GetAsync("/Account/Profile");
 var profileHtml = await profilePage.Content.ReadAsStringAsync();
@@ -500,6 +502,71 @@ using (var inviteOnly = new ServerFactory(connection, admission: null, invitedEm
     using var invitedPilot = inviteOnly.Client("invited-" + inviteSuffix);
     Check((await invitedPilot.GetAsync("/api/v1/me/bootstrap")).StatusCode == HttpStatusCode.OK, "An invited, verified email creates an account");
 }
+// Problem reports: pilots send them from the portal; allowlisted staff with a fresh MFA read them.
+using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staff:Emails"] = $"staff-{run}@example.test" }))
+{
+    using var reporterBrowser = feedbackHost.Browser($"reporter-{run}");
+    using var staffBrowser = feedbackHost.Browser($"staff-{run}");
+    using var staffNoMfa = feedbackHost.Browser($"staff-{run}", mfa: false);
+    using var anon = feedbackHost.CreateClient(new() { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
+    // Anonymous requests are challenged; here the challenge can't reach the fake identity provider, so assert no form is served.
+    var anonForm = await anon.GetAsync("/Account/Feedback");
+    Check(!anonForm.IsSuccessStatusCode && !(await anonForm.Content.ReadAsStringAsync()).Contains("Send report"), "The report form needs sign-in");
+    var anonStaff = await anon.GetAsync("/Staff/Feedback");
+    Check(!anonStaff.IsSuccessStatusCode && !(await anonStaff.Content.ReadAsStringAsync()).Contains("Problem reports"), "The staff inbox needs sign-in");
+    var formPage = await reporterBrowser.GetAsync("/Account/Feedback");
+    var formHtml = await formPage.Content.ReadAsStringAsync();
+    Check(formPage.IsSuccessStatusCode && formHtml.Contains("enctype=\"multipart/form-data\"") && !Regex.IsMatch(formHtml, @"\sstyle=""") && !formHtml.Contains("<script"), "The report form renders without scripts or inline styles");
+    Check((await reporterBrowser.PostAsync("/Account/Feedback", new FormUrlEncodedContent(new Dictionary<string, string> { ["Message"] = "forged report text" }))).StatusCode == HttpStatusCode.BadRequest, "Report without CSRF token is rejected");
+    var fields = new Dictionary<string, string> { ["Category"] = "Bug", ["Message"] = "The map froze after takeoff from KMKE.", ["FlightNumber"] = "s4 601", ["FlownOn"] = "" };
+    var sentWithFile = await PostMultipartAsync(reporterBrowser, formPage, formHtml, "/Account/Feedback", fields, ("Attachment", Png(4, 4), "frozen map.png"));
+    Check(sentWithFile.StatusCode == HttpStatusCode.Redirect, "A report with a screenshot is accepted");
+    var sentEmptyFile = await PostMultipartAsync(reporterBrowser, formPage, formHtml, "/Account/Feedback", fields, ("Attachment", [], ""));
+    Check(sentEmptyFile.StatusCode == HttpStatusCode.Redirect, "An empty file input sends the report without an attachment");
+    var lying = await PostMultipartAsync(reporterBrowser, formPage, formHtml, "/Account/Feedback", fields, ("Attachment", "<html>hi</html>"u8.ToArray(), "evil.png"));
+    Check(lying.StatusCode == HttpStatusCode.BadRequest && (await lying.Content.ReadAsStringAsync()).Contains("PNG or JPEG"), "A file that isn't what its name says is refused with a readable message");
+    var mine = await reporterBrowser.GetStringAsync("/Account/Feedback");
+    Check(mine.Contains("The map froze after takeoff") && mine.Contains("S4601"), "Pilots see their own reports");
+    Check((await reporterBrowser.GetAsync("/Staff/Feedback")).StatusCode == HttpStatusCode.NotFound, "Staff inbox is 404 for pilots");
+    using (var noStaffHost = new ServerFactory(connection))
+    using (var noStaffBrowser = noStaffHost.Browser($"staff-{run}"))
+        Check((await noStaffBrowser.GetAsync("/Staff/Feedback")).StatusCode == HttpStatusCode.NotFound, "Staff inbox is 404 when no staff are configured");
+    var noMfaInbox = await staffNoMfa.GetAsync("/Staff/Feedback");
+    Check(noMfaInbox.StatusCode == HttpStatusCode.Forbidden && (await noMfaInbox.Content.ReadAsStringAsync()).Contains("/auth/step-up"), "Staff without a fresh MFA are sent to a security check");
+    var inboxHtml = await staffBrowser.GetStringAsync("/Staff/Feedback");
+    var reportId = Regex.Match(inboxHtml, @"<li><a href=""/Staff/Feedback/([0-9a-f-]{36})"">(?:(?!</li>).)*badge"">file<", RegexOptions.Singleline).Groups[1].Value;
+    Check(inboxHtml.Contains($"reporter-{run}") && reportId.Length == 36, "Staff see the new reports");
+    var reportPage = await staffBrowser.GetAsync($"/Staff/Feedback/{reportId}");
+    var reportHtml = await reportPage.Content.ReadAsStringAsync();
+    var download = await staffBrowser.GetAsync($"/Staff/Feedback/{reportId}?handler=Attachment");
+    Check(download.Content.Headers.ContentDisposition?.DispositionType == "attachment" && download.Headers.TryGetValues("X-Content-Type-Options", out var sniff) && sniff.Contains("nosniff"), "Attachments download, never render inline");
+    if (Environment.GetEnvironmentVariable("S4OPS_PORTAL_SNAPSHOT_DIR") is { Length: > 0 } feedbackSnapshots)
+    {
+        Directory.CreateDirectory(feedbackSnapshots);
+        await File.WriteAllTextAsync(Path.Combine(feedbackSnapshots, "feedback.html"), await reporterBrowser.GetStringAsync("/Account/Feedback?sent=true"));
+        await File.WriteAllTextAsync(Path.Combine(feedbackSnapshots, "staff-inbox.html"), inboxHtml);
+        await File.WriteAllTextAsync(Path.Combine(feedbackSnapshots, "staff-report.html"), reportHtml);
+    }
+    var markHandled = await SubmitAsync(staffBrowser, reportPage, reportHtml, $"/Staff/Feedback/{reportId}?handler=Status", new() { ["status"] = "Handled" });
+    Check(markHandled.StatusCode == HttpStatusCode.Redirect && !(await staffBrowser.GetStringAsync("/Staff/Feedback")).Contains(reportId), "Handled reports leave the New list");
+}
+static async Task<HttpResponseMessage> PostMultipartAsync(HttpClient client, HttpResponseMessage page, string html, string path, Dictionary<string, string> fields, (string Field, byte[] Bytes, string FileName)? file)
+{
+    var token = Regex.Match(html, "name=\"__RequestVerificationToken\" type=\"hidden\" value=\"([^\"]+)\"").Groups[1].Value;
+    var antiforgery = page.Headers.TryGetValues("Set-Cookie", out var cookies) ? cookies.Select(c => c.Split(';')[0]).FirstOrDefault(c => c.StartsWith(".AspNetCore.Antiforgery", StringComparison.Ordinal)) : null;
+    var content = new MultipartFormDataContent { { new StringContent(token), "__RequestVerificationToken" } };
+    foreach (var (key, value) in fields) content.Add(new StringContent(value), key);
+    if (file is { } f)
+    {
+        var part = new ByteArrayContent(f.Bytes); part.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        // Set by hand: MultipartFormDataContent refuses the empty filename a browser sends for an empty file input.
+        part.Headers.ContentDisposition = new ContentDispositionHeaderValue("form-data") { Name = $"\"{f.Field}\"", FileName = $"\"{f.FileName}\"" };
+        content.Add(part);
+    }
+    using var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = content };
+    request.Headers.Add("Cookie", string.Join("; ", client.DefaultRequestHeaders.GetValues("Cookie").Append(antiforgery ?? "")));
+    return await client.SendAsync(request);
+}
 Console.WriteLine($"Server integration tests complete: {failures} failures.");
 return failures == 0 ? 0 : 1;
 
@@ -547,6 +614,18 @@ sealed class ServerFactory(string? connection, string environment = "Development
         [TrustedActor.Prefix + "mfa"] = true,
         [TrustedActor.Prefix + "mfa_at"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
     };
+    // A signed-in website session for `subject`, as the cookie the portal issues after login.
+    public HttpClient Browser(string subject, bool mfa = true)
+    {
+        var claims = Claims(subject);
+        if (!mfa) { claims[TrustedActor.Prefix + "mfa"] = false; claims.Remove(TrustedActor.Prefix + "mfa_at"); }
+        var options = Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(CookieAuthenticationDefaults.AuthenticationScheme);
+        var ticket = new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims.Select(p => new Claim(p.Key, p.Value.ToString()!)), CookieAuthenticationDefaults.AuthenticationScheme)),
+            new AuthenticationProperties { ExpiresUtc = DateTimeOffset.UtcNow.AddHours(1) }, CookieAuthenticationDefaults.AuthenticationScheme);
+        var client = CreateClient(new() { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
+        client.DefaultRequestHeaders.Add("Cookie", "__Host-Alpha6.Session=" + options.TicketDataFormat.Protect(ticket));
+        return client;
+    }
     public HttpClient Client(string subject, string? variant = null)
     {
         var claims = Claims(subject);

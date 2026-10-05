@@ -43,7 +43,12 @@ public sealed partial class AccountsService(AccountsDbContext db, TimeProvider? 
         var displayName = AccountRules.Text(actor.DisplayName, 150, "Display name");
         if (user is null)
         {
-            if (admission.Admits(actor.Email, actor.EmailVerified) is { } refused) throw refused;
+            if (admission.Admits(actor.Email, actor.EmailVerified) is { } refused)
+            {
+                // Not on the configured list: a tester invited from the staff page is admitted the same way, verified email only.
+                if (refused.Code != "invite_required" || !await IsInvitedTester(email, ct)) throw refused;
+                if (!actor.EmailVerified) throw new IdentityException("invite_email_unverified", "Verify your email address using the link we sent you, then sign in again.", 403);
+            }
             user = new UserAccount { Id = Guid.NewGuid(), Issuer = issuer, Subject = subject, DisplayName = displayName,
                 Email = email, EmailVerified = actor.EmailVerified, CreatedAt = now };
             db.Users.Add(user);

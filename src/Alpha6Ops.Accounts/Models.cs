@@ -197,3 +197,12 @@ public sealed class FeedbackAttachment
     public byte[] Bytes { get; set; } = [];
     public string Sha256 { get; set; } = "";
 }
+
+/// <summary>A tester invited from the staff page. Admitted like an email in Accounts__InvitedEmails.</summary>
+public sealed class TesterInvite
+{
+    public string Email { get; set; } = "";
+    public string Note { get; set; } = "";
+    public Guid InvitedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}

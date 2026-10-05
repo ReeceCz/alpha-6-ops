@@ -18,6 +18,7 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
     public DbSet<Feedback> Feedback => Set<Feedback>();
     public DbSet<FeedbackAttachment> FeedbackAttachments => Set<FeedbackAttachment>();
+    public DbSet<TesterInvite> TesterInvites => Set<TesterInvite>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -116,5 +117,9 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
         attachment.Property(x => x.FileName).HasMaxLength(120); attachment.Property(x => x.ContentType).HasMaxLength(40);
         attachment.Property(x => x.Sha256).HasMaxLength(64);
         attachment.HasOne<Feedback>().WithOne().HasForeignKey<FeedbackAttachment>(x => x.FeedbackId).OnDelete(DeleteBehavior.Cascade);
+
+        var tester = model.Entity<TesterInvite>(); tester.ToTable("tester_invite"); tester.HasKey(x => x.Email);
+        tester.Property(x => x.Email).HasMaxLength(254); tester.Property(x => x.Note).HasMaxLength(200);
+        tester.HasOne<UserAccount>().WithMany().HasForeignKey(x => x.InvitedByUserId).OnDelete(DeleteBehavior.Restrict);
     }
 }

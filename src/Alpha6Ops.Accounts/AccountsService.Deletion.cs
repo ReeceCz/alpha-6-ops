@@ -100,6 +100,7 @@ public sealed partial class AccountsService
         var email = user.Email;
         await db.Flights.Where(x => x.UserId == id).ExecuteDeleteAsync(ct);
         await db.Feedback.Where(x => x.UserId == id).ExecuteDeleteAsync(ct); // attachments cascade
+        if (email.Length > 0) await db.TesterInvites.Where(x => x.Email == email).ExecuteDeleteAsync(ct);
         await db.Profiles.Where(x => x.UserId == id).ExecuteDeleteAsync(ct);
         await db.Media.Where(x => x.Kind == MediaKinds.Avatar && x.OwnerId == id).ExecuteDeleteAsync(ct);
         // Personal history goes; airline history stays and now points at the anonymous tombstone.

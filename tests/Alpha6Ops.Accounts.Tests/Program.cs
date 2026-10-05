@@ -181,7 +181,7 @@ await using (var db = Context())
     await db.Database.ExecuteSqlAsync($"""DELETE FROM "__EFMigrationsHistory" WHERE "MigrationId" = '202610040001_LowercaseEmails'""");
     await db.Database.MigrateAsync();
     await db.Database.MigrateAsync();
-    Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 9, "migrations are repeatable");
+    Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 10, "migrations are repeatable");
     Check((await db.Users.SingleAsync(x => x.Id == legacyUser)).Email == "legacy.pilot@example.com", "existing emails are lower-cased by the migration");
 }
 var prefix = Guid.NewGuid().ToString("N")[..10];
@@ -482,6 +482,7 @@ var leaverId = (await Run(s => s.BootstrapAsync(leaver with { EmailVerified = tr
 var leaverInvite = await Run(s => s.InviteAsync(founder, founderVa.Id, new(leaver.Email, [AirlineRole.Pilot])));
 await Run(s => s.AcceptInvitationAsync(leaver with { EmailVerified = true }, leaverInvite.Token));
 await Run(s => s.ImportLogbookAsync(leaver, new(string.Join(Environment.NewLine, "date,flight,origin,destination", "2026-09-02 18:20,S4601,KMKE,KORD", ""))));
+await Run(s => s.AddTesterInviteAsync(staffer, staffList, leaver.Email, "leaving soon"));
 var leaverReport = await Run(s => s.SubmitFeedbackAsync(leaver, new(FeedbackCategory.Bug, "Logbook import skipped a row.", null, null), new FeedbackFile("shot.png", [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1])));
 var export = await Run(s => s.ExportAsync(leaver));
 Check(string.Equals(export.Data.Account.Email, leaver.Email, StringComparison.OrdinalIgnoreCase) && export.Data.Logbook.Single().FlightNumber == "S4601" && export.Data.Airlines.Single() is { Name: "Founder Air", Roles: ["Pilot"] }
@@ -508,6 +509,7 @@ await using (var db = Context())
     Check(!await db.AuditEvents.AnyAsync(x => x.ActorUserId == leaverId && x.AirlineId == null && x.Action != "account.deleted")
         && await db.AuditEvents.AnyAsync(x => x.ActorUserId == leaverId && x.AirlineId == founderVa.Id), "personal history is erased; airline history keeps the tombstone");
     Check((await db.Invitations.SingleAsync(x => x.Id == leaverInvite.Invitation.Id)).Email == "", "accepted invitations drop the email address");
+    Check(!await db.TesterInvites.AnyAsync(x => x.Email == leaver.Email.ToLowerInvariant()), "erasing an account removes its tester invitation");
     Check(!await db.Feedback.AnyAsync(x => x.UserId == leaverId) && !await db.FeedbackAttachments.AnyAsync(x => x.FeedbackId == leaverReport.Id), "erasing an account removes its reports and attachments");
 }
 Check((await Run(s => s.ListMembersAsync(founder, founderVa.Id))).All(x => !string.Equals(x.Email, leaver.Email, StringComparison.OrdinalIgnoreCase)), "the airline roster no longer shows the erased pilot");
@@ -531,6 +533,23 @@ await using (var db = Context())
     Check(!await db.Users.AnyAsync(x => x.Subject == stranger.Subject || x.Subject == tester.Subject), "a refused sign-in creates no account");
 Check((await RunAdmitting(testerList, s => s.BootstrapAsync(tester with { EmailVerified = true }))).Account.DisplayName == "Tester", "an invited, verified email creates an account");
 Check((await RunAdmitting(testerList, s => s.BootstrapAsync(actor))).Account.Id == ownerBootstrap.Account.Id, "an existing account is never locked out by the invite list");
+// Testers invited from the staff page are admitted alongside the configured list.
+var closedList = AccountAdmission.InviteOnly("");
+var invitedTester = actor with { Subject = prefix + "-db-tester", DisplayName = "Db Tester", Email = prefix + "-DB-Tester@example.com", EmailVerified = false, HasMfa = false };
+await RejectAsync(() => RunAdmitting(closedList, s => s.BootstrapAsync(invitedTester with { EmailVerified = true })), "invite_required");
+await RejectAsync(() => Run(s => s.AddTesterInviteAsync(reporter, staffList, invitedTester.Email, "")), "not_found");
+await RejectAsync(() => Run(s => s.AddTesterInviteAsync(staffer, staffList, "not an email", "")), "invalid_email");
+var invite = await Run(s => s.AddTesterInviteAsync(staffer, staffList, " " + invitedTester.Email + " ", "  Dan's flying buddy  "));
+var addedEmail = invitedTester.Email.ToLowerInvariant();
+Check(invite is { Note: "Dan's flying buddy", HasAccount: false } && invite.Email == addedEmail, "staff invite a tester by email, stored lower-case with a note");
+Check((await Run(s => s.AddTesterInviteAsync(staffer, staffList, invitedTester.Email.ToUpperInvariant(), "again"))).Note == "again", "inviting the same email again updates the note");
+await RejectAsync(() => RunAdmitting(closedList, s => s.BootstrapAsync(invitedTester)), "invite_email_unverified");
+Check((await RunAdmitting(closedList, s => s.BootstrapAsync(invitedTester with { EmailVerified = true }))).Account.DisplayName == "Db Tester", "an email invited from the staff page creates an account once verified");
+Check((await Run(s => s.ListTesterInvitesAsync(staffer, staffList))).Single(x => x.Email == addedEmail).HasAccount, "the tester list shows who has created their account");
+await Run(s => s.RemoveTesterInviteAsync(staffer, staffList, addedEmail));
+Check((await Run(s => s.ListTesterInvitesAsync(staffer, staffList))).All(x => x.Email != addedEmail), "staff remove an invitation");
+var lateTester = actor with { Subject = prefix + "-late-tester", Email = prefix + "-late@example.com" };
+await RejectAsync(() => RunAdmitting(closedList, s => s.BootstrapAsync(lateTester)), "invite_required");
 Console.WriteLine($"{passed} account checks passed, including real PostgreSQL integration.");
 Console.WriteLine($"Disposable test schema retained for inspection: {schemaName}");
 

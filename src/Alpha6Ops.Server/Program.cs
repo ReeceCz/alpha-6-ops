@@ -77,6 +77,7 @@ if (publicHosts.Length > 0)
 builder.Services.AddSingleton(settings);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.Configure<ReleaseSettings>(builder.Configuration.GetSection("Release"));
+builder.Services.Configure<LegalSettings>(builder.Configuration.GetSection("Legal"));
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 32 * 1024);
 builder.Services.AddRazorPages(o => o.Conventions.AuthorizeFolder("/Account"));
 builder.Services.AddAntiforgery(o =>

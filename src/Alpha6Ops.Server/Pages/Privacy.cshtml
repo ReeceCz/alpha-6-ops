@@ -2,7 +2,7 @@
 @{ ViewData["Title"] = "Privacy"; }
 <div class="page-heading legal-heading"><div class="eyebrow">Privacy</div><h1>What we keep, and why.</h1><p class="muted">Last updated @Legal.Updated</p></div>
 <article class="legal">
-    <p>@Legal.OperatorDescription This page explains what S4 OPS stores about you, where it is kept, and how to get a copy or have it deleted. Questions go to <strong>@Legal.Contact</strong>.</p>
+    <p>@Legal.OperatorDescription This page explains what S4 OPS stores about you, where it is kept, and how to get a copy or have it deleted. Questions go to <partial name="_Contact" model='@("S4 OPS privacy")' />.</p>
 
     <h2>What we store</h2>
     <dl class="legal-list">
@@ -13,7 +13,8 @@
         <dt>Activity</dt><dd>A record of account and airline actions (for example "role changed" or "route added"), with who did it and when, so airline administrators can see what changed.</dd>
         <dt>Desktop app</dt><dd>The app version you last signed in with and when, so we know which versions are still in use.</dd>
     </dl>
-    <p>We do not store your IP address, use advertising or tracking cookies, or run analytics. The only cookies are the ones that keep you signed in and protect forms from forgery.</p>
+    <p>We do not store your IP address, use advertising or tracking cookies, or run analytics on your account. The only cookies are the ones that keep you signed in and protect forms from forgery.</p>
+    <p>The public page at s4ops.com counts visits with Cloudflare Web Analytics, which sets no cookies and does not identify you. It tells us how many people visit, from which countries and which browsers.</p>
     <p>The desktop app also keeps your flights and settings on your own PC. That copy stays under your control and is not covered by deletion here.</p>
 
     <h2>Who handles it</h2>
@@ -21,7 +22,7 @@
         <dt>Auth0 (Okta)</dt><dd>Sign-in, passwords, passkeys and multi-factor authentication.</dd>
         <dt>Render</dt><dd>Runs the S4 OPS server, in the United States (Ohio).</dd>
         <dt>Neon</dt><dd>Hosts the database.</dd>
-        <dt>Cloudflare</dt><dd>Domain and network protection, once the service moves to s4ops.com.</dd>
+        <dt>Cloudflare</dt><dd>Serves s4ops.com, counts its page views without cookies, and provides domain and network protection.</dd>
     </dl>
     <p>We don't sell your data or share it with anyone else. Members of an airline you join can see your display name, roles and what you do in that airline.</p>
 

@@ -1,0 +1,4 @@
+@model string
+@inject Microsoft.Extensions.Options.IOptions<LegalSettings> LegalOptions
+@* Inline contact for a sentence such as "Questions go to …". Model is the mailto subject. *@
+@if (LegalOptions.Value.HasContact) {<a href="mailto:@LegalOptions.Value.Contact?subject=@Uri.EscapeDataString(Model)">@LegalOptions.Value.Contact</a>} else {<text>the Sierra 4 team member who invited you</text>}

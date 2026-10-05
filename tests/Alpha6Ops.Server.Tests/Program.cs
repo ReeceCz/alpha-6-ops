@@ -60,7 +60,28 @@ using (var client = setup.CreateClient(new() { BaseAddress = new("https://localh
     var pricingHtml = await pricing.Content.ReadAsStringAsync();
     Check(pricing.IsSuccessStatusCode && new[] { "Flying as a Pilot", "Premium pilot", "Community airline", "Pro airline", "Link", "Pricing announced" }.All(pricingHtml.Contains) && !pricingHtml.Contains("$") && !pricingHtml.Contains("<script"),
         "Levels page lists every level anonymously, names Link, shows no prices and stays script-free");
+    // No contact address configured: nothing shows a placeholder or a broken mailto, and Help explains invitations.
+    foreach (var page in new[] { "/", "/Privacy", "/Terms", "/Support", "/Download" })
+    {
+        var html = await client.GetStringAsync(page);
+        Check(!html.Contains("[CONTACT") && !html.Contains("[STATE") && !html.Contains("mailto:"), $"{page} shows no contact placeholder or mailto without a configured contact");
+    }
+    Check((await client.GetStringAsync("/Terms")).Contains("governed by the laws of Wisconsin, United States"), "Terms name Wisconsin by default");
+    var help = await client.GetStringAsync("/Support");
+    Check(help.Contains("id=\"invitations\"") && help.Contains("invite-only"), "Help explains how invitations work");
+    var privacy = await client.GetStringAsync("/Privacy");
+    Check(privacy.Contains("Cloudflare Web Analytics") && privacy.Contains("no cookies"), "Privacy discloses cookieless page-view counts on s4ops.com");
 }
+using (var contactSetup = new ServerFactory(null, settings: new() { ["Legal:Contact"] = "help@s4ops.example", ["Legal:Jurisdiction"] = "Ruritania" }))
+using (var contactClient = contactSetup.CreateClient(new() { BaseAddress = new("https://localhost"), AllowAutoRedirect = false }))
+{
+    foreach (var page in new[] { "/Privacy", "/Terms", "/Support" })
+        Check((await contactClient.GetStringAsync(page)).Contains("mailto:help@s4ops.example"), $"{page} links the configured contact address");
+    Check((await contactClient.GetStringAsync("/Terms")).Contains("governed by the laws of Ruritania"), "Terms use the configured jurisdiction");
+}
+using (var badContact = new ServerFactory(null, settings: new() { ["Legal:Contact"] = "[CONTACT EMAIL]" }))
+using (var badClient = badContact.CreateClient(new() { BaseAddress = new("https://localhost"), AllowAutoRedirect = false }))
+    Check(!(await badClient.GetStringAsync("/Privacy")).Contains("mailto:"), "A malformed contact setting is treated as no contact");
 var connection = Environment.GetEnvironmentVariable("ALPHA6_SERVER_TEST_DATABASE");
 if (string.IsNullOrWhiteSpace(connection))
 {
@@ -478,7 +499,7 @@ using (var inviteOnly = new ServerFactory(connection, admission: null, invitedEm
 Console.WriteLine($"Server integration tests complete: {failures} failures.");
 return failures == 0 ? 0 : 1;
 
-sealed class ServerFactory(string? connection, string environment = "Development", string? certificateBase64 = null, string? admission = "Open", string? invitedEmails = null) : WebApplicationFactory<ServerSettings>
+sealed class ServerFactory(string? connection, string environment = "Development", string? certificateBase64 = null, string? admission = "Open", string? invitedEmails = null, Dictionary<string, string>? settings = null) : WebApplicationFactory<ServerSettings>
 {
     private readonly RSA key = RSA.Create(2048);
     internal const string Issuer = "https://identity.example.test/";
@@ -501,6 +522,7 @@ sealed class ServerFactory(string? connection, string environment = "Development
         builder.UseSetting("Hosting:BehindProxy", certificateBase64 is null ? "" : "true");
         if (certificateBase64 is not null) builder.UseSetting("Hosting:PublicHosts", "alpha6ops.example.test");
         builder.UseSetting("Hosting:TrustCloudflare", certificateBase64 is null ? "" : "true");
+        foreach (var (key, value) in settings ?? []) builder.UseSetting(key, value);
         builder.ConfigureServices(services =>
         {
             if (certificateBase64 is null) services.AddDataProtection().UseEphemeralDataProtectionProvider();

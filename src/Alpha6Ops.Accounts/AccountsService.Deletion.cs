@@ -30,7 +30,7 @@ public sealed partial class AccountsService
         var flights = await db.Flights.AsNoTracking().Where(x => x.UserId == user.Id).OrderBy(x => x.DepartureUtc).ToListAsync(ct);
         var activity = await db.AuditEvents.AsNoTracking().Where(x => x.ActorUserId == user.Id).OrderBy(x => x.CreatedAt).ToListAsync(ct);
         var avatar = await db.Media.AsNoTracking().SingleOrDefaultAsync(x => x.Kind == MediaKinds.Avatar && x.OwnerId == user.Id, ct);
-        var feedback = (await Reports(db.Feedback.Where(x => x.UserId == user.Id), ct)).Select(x => x.Report).ToArray();
+        var feedback = (await Reports(db.Feedback.Where(x => x.UserId == user.Id), ct, staffView: false)).Select(x => x.Report).ToArray();
         var data = new AccountExport(now,
             new(user.Id, user.DisplayName, user.Email, user.EmailVerified, user.Status.ToString(), user.Plan.ToString(), user.CreatedAt, user.DeletionRequestedAt),
             profile is null ? null : new(profile.Callsign, profile.HomeBaseIcao, profile.SimBriefUsername, profile.WeightUnit, profile.AltitudeUnit,

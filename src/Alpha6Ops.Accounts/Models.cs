@@ -187,6 +187,18 @@ public sealed class Feedback
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? HandledAt { get; set; }
     public Guid? HandledByUserId { get; set; }
+    public DateTimeOffset? LastReplyAt { get; set; }
+    public DateTimeOffset? PilotReadAt { get; set; }
+}
+
+/// <summary>A staff reply to a problem report. Pilots see it signed by the team.</summary>
+public sealed class FeedbackReply
+{
+    public Guid Id { get; set; }
+    public Guid FeedbackId { get; set; }
+    public Guid AuthorUserId { get; set; }
+    public string Body { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; }
 }
 
 public sealed class FeedbackAttachment

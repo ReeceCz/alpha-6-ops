@@ -193,7 +193,7 @@ await using (var db = Context())
     await db.Database.ExecuteSqlAsync($"""DELETE FROM "__EFMigrationsHistory" WHERE "MigrationId" = '202610040001_LowercaseEmails'""");
     await db.Database.MigrateAsync();
     await db.Database.MigrateAsync();
-    Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 12, "migrations are repeatable");
+    Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 13, "migrations are repeatable");
     Check((await db.Users.SingleAsync(x => x.Id == legacyUser)).Email == "legacy.pilot@example.com", "existing emails are lower-cased by the migration");
 }
 var prefix = Guid.NewGuid().ToString("N")[..10];
@@ -479,6 +479,20 @@ Check(handled.Report is { Status: FeedbackStatus.Handled, HandledAt: not null },
 Check((await Run(s => s.SetFeedbackStatusAsync(staffer, staffList, sent.Id, FeedbackStatus.New))).Report is { Status: FeedbackStatus.New, HandledAt: null }, "and can reopen it");
 await RejectAsync(() => Run(s => s.GetFeedbackAsync(staffer, staffList, Guid.NewGuid())), "not_found");
 Check((await Run(s => s.ExportAsync(reporter))).Data.Feedback.Length == 5, "the data export includes the pilot's reports");
+// Replies: staff answer a report; the pilot reads it signed by the team and it counts as unread until they look.
+await RejectAsync(() => Run(s => s.ReplyToFeedbackAsync(reporter, staffList, sent.Id, "Not staff.", false)), "not_found");
+await RejectAsync(() => Run(s => s.ReplyToFeedbackAsync(staffer, staffList, sent.Id, "  ", false)), "invalid_reply");
+Check(await Run(s => s.UnreadFeedbackRepliesAsync(reporter)) == 0, "no replies, nothing unread");
+var replied = await Run(s => s.ReplyToFeedbackAsync(staffer, staffList, sent.Id, "  Thanks! Fixed in the next build.  ", true));
+Check(replied.Report is { Status: FeedbackStatus.Handled } && replied.Report.Replies.Single() is { Body: "Thanks! Fixed in the next build.", Author: "Staffer" }, "staff reply, optionally marking the report handled, and see who replied");
+Check(await Run(s => s.UnreadFeedbackRepliesAsync(reporter)) == 1, "a new reply is unread for the pilot");
+var pilotView = (await Run(s => s.ListMyFeedbackAsync(reporter))).Single(x => x.Id == sent.Id);
+Check(pilotView.Replies.Single() is { Author: "Sierra 4 team", Body: "Thanks! Fixed in the next build." }, "the pilot sees the reply signed by the team");
+await Run(s => s.MarkMyFeedbackReadAsync(reporter));
+Check(await Run(s => s.UnreadFeedbackRepliesAsync(reporter)) == 0, "reading the reports clears unread replies");
+await Run(s => s.ReplyToFeedbackAsync(staffer, staffList, sent.Id, "One more thing.", false));
+Check(await Run(s => s.UnreadFeedbackRepliesAsync(reporter)) == 1 && (await Run(s => s.GetFeedbackAsync(staffer, staffList, sent.Id))).Report.Replies.Length == 2, "a later reply is unread again");
+Check((await Run(s => s.ExportAsync(reporter))).Data.Feedback.Single(x => x.Id == sent.Id).Replies.Length == 2, "the data export includes replies");
 // Getting started: what a new tester has done so far, from what's stored.
 var starter = actor with { Subject = prefix + "-starter", DisplayName = "Starter", Email = prefix + "-starter@example.com", HasMfa = false };
 await Run(s => s.BootstrapAsync(starter));

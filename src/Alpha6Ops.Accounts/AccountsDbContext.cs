@@ -21,6 +21,7 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
     public DbSet<TesterInvite> TesterInvites => Set<TesterInvite>();
     public DbSet<ReleaseNote> ReleaseNotes => Set<ReleaseNote>();
     public DbSet<InviteRequest> InviteRequests => Set<InviteRequest>();
+    public DbSet<FeedbackReply> FeedbackReplies => Set<FeedbackReply>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -132,5 +133,10 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
         var request = model.Entity<InviteRequest>(); request.ToTable("invite_request"); request.HasKey(x => x.Id);
         request.HasIndex(x => x.Email).IsUnique();
         request.Property(x => x.Email).HasMaxLength(254); request.Property(x => x.Name).HasMaxLength(100); request.Property(x => x.Note).HasMaxLength(1000);
+
+        var reply = model.Entity<FeedbackReply>(); reply.ToTable("feedback_reply"); reply.HasKey(x => x.Id);
+        reply.Property(x => x.Body).HasMaxLength(2000); reply.HasIndex(x => new { x.FeedbackId, x.CreatedAt });
+        reply.HasOne<Feedback>().WithMany().HasForeignKey(x => x.FeedbackId).OnDelete(DeleteBehavior.Cascade);
+        reply.HasOne<UserAccount>().WithMany().HasForeignKey(x => x.AuthorUserId).OnDelete(DeleteBehavior.Restrict);
     }
 }

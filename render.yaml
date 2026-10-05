@@ -47,3 +47,9 @@ services:
         sync: false
       - key: Release__Sha256
         sync: false
+      # Staff who may read problem reports and invite testers (/Staff/Feedback, /Staff/Testers), semicolon separated.
+      - key: Staff__Emails
+        sync: false
+      # Public contact email for Privacy, Terms, Help and Download. Until set, pages name "the team member who invited you".
+      - key: Legal__Contact
+        sync: false

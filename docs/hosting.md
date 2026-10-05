@@ -37,6 +37,8 @@ terminates TLS itself.
 | `ConnectionStrings__Accounts` | Neon pooled connection string, e.g. `Host=ep-….neon.tech;Port=5432;Username=…;Password=…;Database=alpha6_accounts;SSL Mode=Require;Channel Binding=Require` |
 | `DataProtection__CertificateBase64` / `DataProtection__CertificatePassword` | Output of `scripts/new-keyring-certificate.ps1` |
 | `Release__DownloadUrl` / `Release__Version` / `Release__Sha256` | Optional; enables `/Download` and the desktop Updates dialog once an installer is published |
+| `Legal__Contact` | Optional public contact email shown on Privacy, Terms, Help and Download. Until it is a valid address those pages say "the Sierra 4 team member who invited you" |
+| `Legal__Jurisdiction` | Optional; defaults to `Wisconsin, United States` (governing law in the Terms) |
 
 Local development keeps using `dotnet user-secrets` and the 55439 PostgreSQL cluster; nothing above applies there.
 
@@ -97,6 +99,27 @@ placeholder records for the apex and `www`: an `A` record to `192.0.2.1`, orange
 
 The desktop keeps using the Render address until its `ApiBaseUrl`/`PortalUrl` point at `https://app.s4ops.com`.
 Both names reach the same service.
+
+## Publishing a test release (GitHub Releases, free)
+
+The fork `ReeceCz/alpha-6-ops` is public, so release downloads need no sign-in and cost nothing.
+
+1. Build and hash, dry run: `powershell -File scripts/publish-release.ps1`. It runs `packaging/build-desktop.ps1`
+   and prints the installer's SHA-256. Add `-SkipBuild` to hash the installer already in `outputs/`.
+2. Push the commit you built from to the fork, then run it again with `-Upload`. That creates the public
+   pre-release `desktop-v<version>` (tag on the current commit) with the installer attached.
+3. Copy the three `Release__*` values it prints into the Render service's Environment and save.
+4. Check: `powershell -File scripts/check-live.ps1` reports the release version and downloads the installer URL.
+
+The version comes from `<Version>` in `src/Alpha6Ops.Desktop/Alpha6Ops.Desktop.csproj`; `packaging/build-desktop.ps1`
+names its output after the same version (hard-coded there, so bump both together, with Dan).
+
+## Checking the live sites
+
+`powershell -File scripts/check-live.ps1` checks every link on s4ops.com, its security headers and 404 page, the
+portal's `/healthz`, whether it is served through Cloudflare, and the published release. It exits 1 if anything
+fails. Use `-App https://alpha6ops.onrender.com` to check the Render origin directly. Run it after any DNS,
+Cloudflare, Render or release change.
 
 ## Account deletion
 

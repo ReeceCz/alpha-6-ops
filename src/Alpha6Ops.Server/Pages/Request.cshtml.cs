@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 namespace Alpha6Ops.Server.Pages;
 
 // Public invitation request form. The answer is the same whether or not the email is already known.
-public class RequestModel(IServiceProvider services, IOptions<TurnstileSettings> turnstile, InviteRequestLimiter limiter, ITurnstileVerifier verifier) : PageModel
+public class RequestModel(IServiceProvider services, IOptions<TurnstileSettings> turnstile, InviteRequestLimiter limiter, ITurnstileVerifier verifier, Mailer mailer) : PageModel
 {
     [BindProperty] public string? Email { get; set; }
     [BindProperty] public string? Name { get; set; }
@@ -39,7 +39,7 @@ public class RequestModel(IServiceProvider services, IOptions<TurnstileSettings>
             return Error("Please complete the security check and send the request again.", 400);
         try
         {
-            await accounts.SubmitInviteRequestAsync(new(Email, Name, Note), ct);
+            if (await accounts.SubmitInviteRequestAsync(new(Email, Name, Note), ct)) mailer.NewRequest((Email ?? "").Trim().ToLowerInvariant());
             return RedirectToPage(new { sent = true });
         }
         catch (IdentityException ex) { return Error(ex.Message, ex.StatusCode); }

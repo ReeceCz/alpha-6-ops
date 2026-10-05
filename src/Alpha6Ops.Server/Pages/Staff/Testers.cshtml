@@ -34,7 +34,8 @@
 </section>
 <section class="card">
     <h2>Message to send</h2>
-    <p class="muted">S4 OPS doesn't email invitations yet. After inviting someone, send them this.</p>
+    @if (Model.EmailOn) { <p class="muted">Invitation emails are on: new testers get this automatically. Use it if they can't find the email.</p> }
+    else { <p class="muted">Invitation emails are off (no Resend key). After inviting someone, send them this.</p> }
     @{ var site = $"{Request.Scheme}://{Request.Host}"; }
     <textarea class="mono" rows="7" readonly aria-label="Message to send a new tester">You're invited to test S4 OPS, airline operations for Microsoft Flight Simulator 2024.
 

@@ -134,7 +134,7 @@ Not pushed. Dan's handoff doc: `docs/SIERRA4-PROJECT-CONTINUITY.md`.
 
 **2026-10-04/05 session (branch `feat/launch-prep`, worktree `C:\Dev\_scratch\s4-merge`, not pushed).** Reece's manual
 steps, in order, are in **`docs/s4-migration/LAUNCH-CHECKLIST.md`**. Suites: core 194, desktop identity 102, accounts
-273, server 202, landing 14, all green; both solutions 0 warnings.
+282, server 225, landing 15, all green; both solutions 0 warnings.
 - [x] s4ops.com is live on Cloudflare (Worker `s4ops-landing`). `app.s4ops.com` has **no DNS record yet**, so every
       account link on it is dead until checklist step 3.
 - [x] Landing: HSTS, phone menu, CSP allows Cloudflare Web Analytics, "Ask for an invitation" → `/Support#invitations`.
@@ -158,6 +158,12 @@ steps, in order, are in **`docs/s4-migration/LAUNCH-CHECKLIST.md`**. Suites: cor
       Invite or Decline on `/Staff/Testers`. Unanswered requests are deleted after 90 days by the hourly job.
 - [x] Getting-started card on `/Account` and "Your flying" insights on `/Account/Logbook` (CSS-only 12-month chart).
 - [x] Fixed: web visits stamped `LastSeenAt` as if the desktop had signed in. Only the API (desktop) bootstrap stamps it now.
+- [x] Tester guide `/Guide` (public; the first-flight steps are a shared partial with Download). The sign-in copy no
+      longer promises passkeys or social login (Auth0 notes say WebAuthn isn't on this plan).
+- [x] Replies on problem reports (migration `202610050003_FeedbackReplies`): staff reply, pilots see "Sierra 4 team",
+      and the account page shows an unread notice.
+- [x] Email via Resend (`Email__ResendApiKey`; off and only logged without it): tester invited, reply to your
+      report, new report to staff, new request to staff. Background outbox, links only. Privacy names Resend.
 - [x] Fixed copy: the logbook claimed desktop flights arrive automatically. They don't yet (the desktop never calls
       `POST /me/flights`); this is the top item for Dan.
 - Deferred minors: an unknown non-numeric feedback category binds to the default; the staff inbox shows the newest

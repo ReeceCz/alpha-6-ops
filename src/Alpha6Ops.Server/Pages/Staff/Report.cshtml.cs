@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Alpha6Ops.Server.Pages.Staff;
 
-public class ReportModel(AccountsService accounts, ServerSettings settings, StaffAccess staff) : StaffPage(accounts, settings, staff)
+public class ReportModel(AccountsService accounts, ServerSettings settings, StaffAccess staff, Mailer mailer) : StaffPage(accounts, settings, staff)
 {
     public StaffFeedbackView? Report { get; private set; }
 
@@ -30,7 +30,12 @@ public class ReportModel(AccountsService accounts, ServerSettings settings, Staf
     public async Task<IActionResult> OnPostReplyAsync(Guid id, string? body, bool markHandled, CancellationToken ct)
     {
         if (!Staff.IsConfigured) return NotFound();
-        try { await Accounts.ReplyToFeedbackAsync(Actor, Staff, id, body, markHandled, ct); return Redirect($"/Staff/Feedback/{id}"); }
+        try
+        {
+            var view = await Accounts.ReplyToFeedbackAsync(Actor, Staff, id, body, markHandled, ct);
+            if (view.ReporterEmail.Length > 0) mailer.ReportReplied(view.ReporterEmail);
+            return Redirect($"/Staff/Feedback/{id}");
+        }
         catch (IdentityException ex)
         {
             if (ex.Code == "invalid_reply") Report = await Accounts.GetFeedbackAsync(Actor, Staff, id, ct);

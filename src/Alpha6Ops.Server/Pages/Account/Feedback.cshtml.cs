@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Alpha6Ops.Server.Pages.Account;
 
 [RequestSizeLimit(5_600_000), RequestFormLimits(MultipartBodyLengthLimit = 5_600_000)]
-public class FeedbackModel(AccountsService accounts, ServerSettings settings) : AccountPage(accounts, settings)
+public class FeedbackModel(AccountsService accounts, ServerSettings settings, Mailer mailer) : AccountPage(accounts, settings)
 {
     [BindProperty] public FeedbackCategory Category { get; set; } = FeedbackCategory.FlightRecording;
     [BindProperty] public string? Message { get; set; }
@@ -47,7 +47,8 @@ public class FeedbackModel(AccountsService accounts, ServerSettings settings) : 
                 await Attachment.CopyToAsync(buffer, ct);
                 file = new(Attachment.FileName, buffer.ToArray());
             }
-            await Accounts.SubmitFeedbackAsync(Actor, new(Category, Message, FlightNumber, FlownOn), file, ct);
+            var report = await Accounts.SubmitFeedbackAsync(Actor, new(Category, Message, FlightNumber, FlownOn), file, ct);
+            mailer.NewReport(Actor.DisplayName, Label(report.Category), report.Id);
             return RedirectToPage(new { sent = true });
         }
         catch (IdentityException ex)

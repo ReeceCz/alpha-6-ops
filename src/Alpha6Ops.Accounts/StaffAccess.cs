@@ -13,6 +13,7 @@ public sealed class StaffAccess
 
     public static StaffAccess None { get; } = new([]);
     public bool IsConfigured => emails.Count > 0;
+    public IReadOnlyCollection<string> Emails => emails;
 
     /// <summary>Semicolon- or comma-separated emails. Empty or missing means no staff.</summary>
     public static StaffAccess FromEmails(string? list) => new(new HashSet<string>(

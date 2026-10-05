@@ -9,7 +9,8 @@ certificate. The order puts that wait in the middle so the other steps happen du
 
 ## 0. Have ready
 
-- [ ] Logins: GitHub (fork `ReeceCz/alpha-6-ops`), Render, Cloudflare (the `s4ops.com` account), Auth0 dev tenant.
+- [ ] Logins: GitHub (fork `ReeceCz/alpha-6-ops`), Render, Cloudflare (the `s4ops.com` account), Auth0 dev tenant,
+      and a free Resend account (resend.com) if you want emails on from day one.
 - [ ] The sign-in emails for you and Dan (for `Staff__Emails`).
 - [ ] A decision on the public contact email: create `support@s4ops.com` in step 6 (recommended, free), or leave it
       empty for now.
@@ -75,6 +76,15 @@ Fork → Settings → Secrets and variables → Actions → Variables → `ALPHA
       requests per address per hour): Turnstile → Add widget → hostname `app.s4ops.com`, Managed mode → copy the
       site key and secret key for step 9.
 
+- [ ] **Emails (Resend, free: 3,000 a month, 100 a day):**
+  1. Resend → Domains → Add `s4ops.com`.
+  2. Add the DNS records Resend shows in Cloudflare DNS, all **DNS only**. Usually that's an MX and an SPF TXT on a
+     `send` subdomain, and a DKIM TXT on `resend._domainkey`.
+  3. Click Verify.
+  4. API Keys → create one with **Sending access** for `s4ops.com`, and copy it for step 9.
+
+  Without a key nothing breaks: emails are only logged, and `/Staff/Testers` keeps the copy-paste message.
+
 ## 7. Deploy the landing (2 min)
 
 ```
@@ -102,6 +112,7 @@ Render → `alpha6ops` → Environment. Every save restarts the service, so ente
 | `Hosting__TrustCloudflare` | `true` (same) |
 | `Legal__Contact` | `support@s4ops.com`, if you created it in step 6; otherwise leave it out |
 | `Turnstile__SiteKey` / `Turnstile__SecretKey` | only if you created them in step 6 |
+| `Email__ResendApiKey` | only if you set up Resend in step 6 |
 
 ## 10. Check everything (5 min)
 
@@ -112,6 +123,8 @@ Render → `alpha6ops` → Environment. Every save restarts the service, so ente
       Release notes.
 - [ ] `https://s4ops.com` on your phone: the **Menu** button opens; "Ask for an invitation" opens `/Request`.
 - [ ] Privacy and Terms show your contact email (if set) and Wisconsin.
+- [ ] Emails on? Invite a second address of yours at `/Staff/Testers`. The invitation email should arrive from
+      `noreply@s4ops.com`, and replies to it should go to `Legal__Contact`. Check the spam folder the first time.
 
 ## 11. First installer (10 min, with Dan's go-ahead on the version)
 
@@ -127,9 +140,11 @@ powershell -File scripts/publish-release.ps1 -SkipBuild -Upload
 
 ## 12. Invite testers (1 min each, repeatable)
 
-- Requests from `/Request` appear at the top of `/Staff/Testers` with **Invite** / **Decline**.
+- Requests from `/Request` appear at the top of `/Staff/Testers` with **Invite** / **Decline**, and staff get an
+  email for each new request once emails are on.
 - To invite someone directly, add their email on the same page.
-- Then tell them:
+- With emails on, the tester receives the invitation automatically. Otherwise send them the message shown on the
+  page:
 
 > Go to s4ops.com → "Create your invited account" with that email → verify it → download S4 OPS for Windows → sign in.
 > Something wrong? Use "Report a problem" in your account.

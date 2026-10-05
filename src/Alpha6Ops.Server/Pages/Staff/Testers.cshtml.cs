@@ -4,10 +4,11 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Alpha6Ops.Server.Pages.Staff;
 
-public class TestersModel(AccountsService accounts, ServerSettings settings, StaffAccess staff) : StaffPage(accounts, settings, staff)
+public class TestersModel(AccountsService accounts, ServerSettings settings, StaffAccess staff, Mailer mailer, Microsoft.Extensions.Options.IOptions<EmailSettings> email) : StaffPage(accounts, settings, staff)
 {
     public TesterInviteView[] Invites { get; private set; } = [];
     public InviteRequestView[] Requests { get; private set; } = [];
+    public bool EmailOn => email.Value.Enabled;
     [BindProperty] public string? Email { get; set; }
     [BindProperty] public string? Note { get; set; }
 
@@ -21,7 +22,14 @@ public class TestersModel(AccountsService accounts, ServerSettings settings, Sta
     public async Task<IActionResult> OnPostAddAsync(CancellationToken ct)
     {
         if (!Staff.IsConfigured) return NotFound();
-        try { await Accounts.AddTesterInviteAsync(Actor, Staff, Email ?? "", Note, ct); return RedirectToPage(); }
+        try
+        {
+            var address = AccountRules.Email(Email ?? "");
+            var existed = (await Accounts.ListTesterInvitesAsync(Actor, Staff, ct)).Any(x => x.Email == address);
+            var invite = await Accounts.AddTesterInviteAsync(Actor, Staff, address, Note, ct);
+            if (!existed && !invite.HasAccount) mailer.TesterInvited(invite.Email);
+            return RedirectToPage();
+        }
         catch (IdentityException ex) { return await Reload(ex, ct); }
     }
 
@@ -35,7 +43,12 @@ public class TestersModel(AccountsService accounts, ServerSettings settings, Sta
     public async Task<IActionResult> OnPostApproveAsync(Guid id, CancellationToken ct)
     {
         if (!Staff.IsConfigured) return NotFound();
-        try { await Accounts.ApproveInviteRequestAsync(Actor, Staff, id, ct); return RedirectToPage(); }
+        try
+        {
+            var invite = await Accounts.ApproveInviteRequestAsync(Actor, Staff, id, ct);
+            if (!invite.HasAccount) mailer.TesterInvited(invite.Email);
+            return RedirectToPage();
+        }
         catch (IdentityException ex) { return await Reload(ex, ct); }
     }
 

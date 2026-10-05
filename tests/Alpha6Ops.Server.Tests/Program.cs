@@ -514,8 +514,11 @@ using (var inviteOnly = new ServerFactory(connection, admission: null, invitedEm
     Check((await invitedPilot.GetAsync("/api/v1/me/bootstrap")).StatusCode == HttpStatusCode.OK, "An invited, verified email creates an account");
 }
 // Problem reports: pilots send them from the portal; allowlisted staff with a fresh MFA read them.
+var feedbackMail = new RecordingEmailSender();
 using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staff:Emails"] = $"staff-{run}@example.test",
-    ["Release:Version"] = "7.7.7", ["Release:DownloadUrl"] = "https://example.test/Sierra4-Setup-7.7.7.exe", ["Release:Sha256"] = new string('a', 64) }))
+    ["Release:Version"] = "7.7.7", ["Release:DownloadUrl"] = "https://example.test/Sierra4-Setup-7.7.7.exe", ["Release:Sha256"] = new string('a', 64),
+    ["Email:BaseUrl"] = "https://app.example.test", ["Legal:Contact"] = "support@s4ops.example" },
+    extraServices: s => s.AddSingleton<IEmailSender>(feedbackMail)))
 {
     using var reporterBrowser = feedbackHost.Browser($"reporter-{run}");
     using var staffBrowser = feedbackHost.Browser($"staff-{run}");
@@ -552,6 +555,8 @@ using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staf
     var fields = new Dictionary<string, string> { ["Category"] = "Bug", ["Message"] = "The map froze after takeoff from KMKE.", ["FlightNumber"] = "s4 601", ["FlownOn"] = "" };
     var sentWithFile = await PostMultipartAsync(reporterBrowser, formPage, formHtml, "/Account/Feedback", fields, ("Attachment", Png(4, 4), "frozen map.png"));
     Check(sentWithFile.StatusCode == HttpStatusCode.Redirect, "A report with a screenshot is accepted");
+    Check(await WaitForAsync(() => feedbackMail.Sent.Any(m => m.Subject.StartsWith("New problem report") && m.To.SequenceEqual([$"staff-{run}@example.test"])
+        && m.Text.Contains("https://app.example.test/Staff/Feedback/") && m.ReplyTo == "support@s4ops.example")), "Staff are emailed about a new report, with a link and the contact as reply-to");
     var sentEmptyFile = await PostMultipartAsync(reporterBrowser, formPage, formHtml, "/Account/Feedback", fields, ("Attachment", [], ""));
     Check(sentEmptyFile.StatusCode == HttpStatusCode.Redirect, "An empty file input sends the report without an attachment");
     var lying = await PostMultipartAsync(reporterBrowser, formPage, formHtml, "/Account/Feedback", fields, ("Attachment", "<html>hi</html>"u8.ToArray(), "evil.png"));
@@ -585,6 +590,8 @@ using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staf
     var replyPost = await SubmitAsync(staffBrowser, reportPage, reportHtml, $"/Staff/Feedback/{reportId}?handler=Reply", new() { ["body"] = "Thanks, we can see the freeze in your log.", ["markHandled"] = "false" });
     Check(replyPost.StatusCode == HttpStatusCode.Redirect && (await staffBrowser.GetStringAsync($"/Staff/Feedback/{reportId}")).Contains("Thanks, we can see the freeze"), "Staff post a reply");
     Check((await reporterBrowser.GetStringAsync("/Account")).Contains("reply to your problem report"), "The pilot's account page says a reply is waiting");
+    Check(await WaitForAsync(() => feedbackMail.Sent.Any(m => m.To.SequenceEqual([$"reporter-{run}@example.test"]) && m.Subject.Contains("replied")
+        && m.Text.Contains("https://app.example.test/Account/Feedback") && !m.Text.Contains("freeze") && !m.Html.Contains("freeze"))), "The pilot is emailed a link to the reply, not the reply itself");
     var withReply = await reporterBrowser.GetStringAsync("/Account/Feedback");
     Check(withReply.Contains("Thanks, we can see the freeze in your log.") && withReply.Contains("Sierra 4 team") && !withReply.Contains($"staff-{run}"), "The pilot reads the reply, signed by the team");
     Check(!(await reporterBrowser.GetStringAsync("/Account")).Contains("reply to your problem report"), "Reading the reports clears the notice");
@@ -609,6 +616,12 @@ using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staf
     var afterInvite = await staffBrowser.GetStringAsync("/Staff/Testers");
     Check(invited.StatusCode == HttpStatusCode.Redirect && afterInvite.Contains(newTester.ToLowerInvariant()) && afterInvite.Contains("Met at the fly-in"), "Staff invite a tester");
     Check(afterInvite.Contains("Message to send") && afterInvite.Contains("https://localhost/Guide") && afterInvite.Contains("https://localhost/auth/signup"), "Staff get a ready-to-send message with the sign-up and guide links");
+    Check(await WaitForAsync(() => feedbackMail.Sent.Any(m => m.To.SequenceEqual([newTester.ToLowerInvariant()]) && m.Subject.Contains("invited")
+        && m.Text.Contains("https://app.example.test/auth/signup") && m.Text.Contains("https://app.example.test/Guide"))), "An invited tester is emailed the sign-up and guide links");
+    var invitesBefore = feedbackMail.Sent.Count(m => m.To.Contains(newTester.ToLowerInvariant()));
+    await SubmitAsync(staffBrowser, testersPage, testersHtml, "/Staff/Testers?handler=Add", new() { ["email"] = newTester, ["note"] = "Note edited" });
+    await Task.Delay(300);
+    Check(feedbackMail.Sent.Count(m => m.To.Contains(newTester.ToLowerInvariant())) == invitesBefore, "Editing an invitation's note doesn't email the tester again");
     var badInvite = await SubmitAsync(staffBrowser, testersPage, testersHtml, "/Staff/Testers?handler=Add", new() { ["email"] = "not-an-email", ["note"] = "" });
     Check(badInvite.StatusCode == HttpStatusCode.BadRequest && (await badInvite.Content.ReadAsStringAsync()).Contains("valid email"), "A bad email is refused with a readable message");
     if (Environment.GetEnvironmentVariable("S4OPS_PORTAL_SNAPSHOT_DIR") is { Length: > 0 } testerSnapshots)
@@ -641,6 +654,12 @@ using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staf
     var removed = await SubmitAsync(staffBrowser, testersPageAgain, await testersPageAgain.Content.ReadAsStringAsync(), "/Staff/Testers?handler=Remove", new() { ["email"] = newTester.ToLowerInvariant() });
     Check(removed.StatusCode == HttpStatusCode.Redirect && !(await staffBrowser.GetStringAsync("/Staff/Testers")).Contains(newTester.ToLowerInvariant()), "Staff remove a tester invitation");
 }
+// Emails go out from a background service, so wait briefly for them.
+static async Task<bool> WaitForAsync(Func<bool> condition)
+{
+    for (var i = 0; i < 50; i++) { if (condition()) return true; await Task.Delay(100); }
+    return condition();
+}
 static async Task<HttpResponseMessage> PostMultipartAsync(HttpClient client, HttpResponseMessage page, string html, string path, Dictionary<string, string> fields, (string Field, byte[] Bytes, string FileName)? file)
 {
     var token = Regex.Match(html, "name=\"__RequestVerificationToken\" type=\"hidden\" value=\"([^\"]+)\"").Groups[1].Value;
@@ -659,7 +678,9 @@ static async Task<HttpResponseMessage> PostMultipartAsync(HttpClient client, Htt
     return await client.SendAsync(request);
 }
 // Invitation requests: a public form with a honeypot and a per-address limit; staff invite or decline from Testers.
-using (var requestHost = new ServerFactory(connection, settings: new() { ["Staff:Emails"] = $"staff-{run}@example.test" }))
+var requestMail = new RecordingEmailSender();
+using (var requestHost = new ServerFactory(connection, settings: new() { ["Staff:Emails"] = $"staff-{run}@example.test" },
+    extraServices: s => s.AddSingleton<IEmailSender>(requestMail)))
 {
     using var visitor = requestHost.CreateClient(new() { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
     visitor.DefaultRequestHeaders.Add("Cookie", "s4-test=1");
@@ -671,6 +692,8 @@ using (var requestHost = new ServerFactory(connection, settings: new() { ["Staff
     var requester = $"asker-{run}@example.test";
     var asked = await SubmitAsync(visitor, form, formHtml, "/Request", new() { ["Email"] = requester, ["Name"] = "Sam", ["Note"] = "Fenix A320", ["website"] = "" });
     Check(asked.StatusCode == HttpStatusCode.Redirect && asked.Headers.Location!.OriginalString.Contains("sent=true", StringComparison.OrdinalIgnoreCase), "A visitor asks for an invitation");
+    Check(await WaitForAsync(() => requestMail.Sent.Any(m => m.Subject == "New invitation request" && m.Text.Contains(requester) && m.Text.Contains("https://app.s4ops.com/Staff/Testers"))),
+        "Staff are emailed about a new request (links default to app.s4ops.com)");
     var bot = $"bot-{run}@example.test";
     var botPost = await SubmitAsync(visitor, form, formHtml, "/Request", new() { ["Email"] = bot, ["Name"] = "", ["Note"] = "", ["website"] = "https://spam.example" });
     Check(botPost.StatusCode == HttpStatusCode.Redirect, "A filled honeypot looks like success to the bot");
@@ -688,10 +711,14 @@ using (var requestHost = new ServerFactory(connection, settings: new() { ["Staff
         await File.WriteAllTextAsync(Path.Combine(requestSnapshots, "staff-testers-requests.html"), testersWithRequestsHtml);
         await File.WriteAllTextAsync(Path.Combine(requestSnapshots, "staff-overview.html"), await requestStaff.GetStringAsync("/Staff"));
     }
-    var requestId = Regex.Match(testersWithRequestsHtml, @"name=""id"" value=""([0-9a-f-]{36})""").Groups[1].Value;
+    // The shared test database keeps earlier runs' requests, so pick this run's request by its email.
+    var requestId = Regex.Match(testersWithRequestsHtml, Regex.Escape(requester) + @"</strong>(?:(?!</li>).)*?name=""id"" value=""([0-9a-f-]{36})""", RegexOptions.Singleline).Groups[1].Value;
+    Check(requestId.Length == 36, "This run's request is listed with its own Invite button");
     var approvedRequest = await SubmitAsync(requestStaff, testersWithRequests, testersWithRequestsHtml, "/Staff/Testers?handler=Approve", new() { ["id"] = requestId });
     var afterApprove = await requestStaff.GetStringAsync("/Staff/Testers");
     Check(approvedRequest.StatusCode == HttpStatusCode.Redirect && afterApprove.Contains(requester) && afterApprove.Contains("Requested: Sam") && !afterApprove.Contains($"value=\"{requestId}\""), "Inviting a request moves it to the invited list");
+    Check(await WaitForAsync(() => requestMail.Sent.Any(m => m.To.SequenceEqual([requester]) && m.Subject.Contains("invited"))), "Inviting a request emails the requester");
+    Check(!requestMail.Sent.Any(m => m.To.Contains(bot)), "Nobody is emailed about the bot's request");
     Check((await requestStaff.GetStringAsync("/Staff")).Contains("pending request"), "The overview shows pending requests");
 }
 using (var turnstileHost = new ServerFactory(connection, settings: new() { ["Turnstile:SiteKey"] = "site-key-test", ["Turnstile:SecretKey"] = "secret-test" },
@@ -710,8 +737,39 @@ using (var turnstileHost = new ServerFactory(connection, settings: new() { ["Tur
     Check(withToken.StatusCode == HttpStatusCode.Redirect, "With a Turnstile pass the request is accepted");
     Check((await visitor.GetAsync("/Download")).Headers.GetValues("Content-Security-Policy").Single().Contains("script-src 'none'"), "Other pages keep the script-free policy");
 }
+// Resend: the HTTP request the sender makes, captured without the network.
+{
+    var handler = new CapturingHandler();
+    var sender = new ResendEmailSender(new HttpClient(handler), Options.Create(new EmailSettings { ResendApiKey = "re_test_key" }),
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<ResendEmailSender>.Instance);
+    await sender.SendAsync(new EmailMessage(["pilot@example.test"], "Subject <b>", "Plain text", "<p>Html</p>", "S4 OPS <noreply@s4ops.com>", "support@s4ops.example"), CancellationToken.None);
+    var body = handler.Body ?? "";
+    Check(handler.Request?.RequestUri?.ToString() == "https://api.resend.com/emails" && handler.Request.Method == HttpMethod.Post
+        && handler.Request.Headers.Authorization?.ToString() == "Bearer re_test_key", "Resend is called with the API key");
+    Check(body.Contains("\"from\":\"S4 OPS \\u003Cnoreply@s4ops.com\\u003E\"") && body.Contains("\"to\":[\"pilot@example.test\"]") && body.Contains("\"reply_to\":\"support@s4ops.example\"")
+        && body.Contains("\"text\":\"Plain text\""), "The Resend request carries from, to, reply-to and both bodies");
+    Check(!new EmailSettings().Enabled && new EmailSettings { ResendApiKey = "re_x" }.Enabled, "Email is off until a Resend key is set");
+}
 Console.WriteLine($"Server integration tests complete: {failures} failures.");
 return failures == 0 ? 0 : 1;
+
+sealed class RecordingEmailSender : IEmailSender
+{
+    public System.Collections.Concurrent.ConcurrentQueue<EmailMessage> Sent { get; } = new();
+    public Task SendAsync(EmailMessage message, CancellationToken ct) { Sent.Enqueue(message); return Task.CompletedTask; }
+}
+
+sealed class CapturingHandler : HttpMessageHandler
+{
+    public HttpRequestMessage? Request { get; private set; }
+    public string? Body { get; private set; }
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+    {
+        Request = request;
+        Body = request.Content is null ? null : await request.Content.ReadAsStringAsync(ct);
+        return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"id\":\"test\"}") };
+    }
+}
 
 sealed class FakeTurnstile : ITurnstileVerifier
 {

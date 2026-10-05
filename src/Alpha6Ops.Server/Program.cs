@@ -82,6 +82,14 @@ builder.Services.AddSingleton(StaffAccess.FromEmails(builder.Configuration["Staf
 builder.Services.Configure<TurnstileSettings>(builder.Configuration.GetSection("Turnstile"));
 builder.Services.AddHttpClient<ITurnstileVerifier, CloudflareTurnstileVerifier>(c => c.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddSingleton<InviteRequestLimiter>();
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Email"));
+builder.Services.AddSingleton<EmailOutbox>();
+builder.Services.AddSingleton<Mailer>();
+builder.Services.AddHostedService<EmailDispatcher>();
+if (!string.IsNullOrWhiteSpace(builder.Configuration["Email:ResendApiKey"]))
+    builder.Services.AddHttpClient<IEmailSender, ResendEmailSender>(c => c.Timeout = TimeSpan.FromSeconds(15));
+else
+    builder.Services.AddSingleton<IEmailSender, LogEmailSender>();
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 32 * 1024);
 builder.Services.AddRazorPages(o => o.Conventions.AuthorizeFolder("/Account").AuthorizeFolder("/Staff"));
 builder.Services.AddAntiforgery(o =>

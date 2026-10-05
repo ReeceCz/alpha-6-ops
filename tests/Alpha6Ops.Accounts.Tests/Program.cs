@@ -180,7 +180,7 @@ await using (var db = Context())
     await db.Database.ExecuteSqlAsync($"""DELETE FROM "__EFMigrationsHistory" WHERE "MigrationId" = '202610040001_LowercaseEmails'""");
     await db.Database.MigrateAsync();
     await db.Database.MigrateAsync();
-    Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 8, "migrations are repeatable");
+    Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 9, "migrations are repeatable");
     Check((await db.Users.SingleAsync(x => x.Id == legacyUser)).Email == "legacy.pilot@example.com", "existing emails are lower-cased by the migration");
 }
 var prefix = Guid.NewGuid().ToString("N")[..10];

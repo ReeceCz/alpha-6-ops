@@ -16,6 +16,8 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
     public DbSet<PilotFlight> Flights => Set<PilotFlight>();
     public DbSet<MediaBlob> Media => Set<MediaBlob>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
+    public DbSet<Feedback> Feedback => Set<Feedback>();
+    public DbSet<FeedbackAttachment> FeedbackAttachments => Set<FeedbackAttachment>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -103,5 +105,16 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
         audit.HasIndex(x => new { x.AirlineId, x.CreatedAt });
         audit.HasOne<UserAccount>().WithMany().HasForeignKey(x => x.ActorUserId).OnDelete(DeleteBehavior.Restrict);
         audit.HasOne<VirtualAirline>().WithMany().HasForeignKey(x => x.AirlineId).OnDelete(DeleteBehavior.Restrict);
+
+        var feedback = model.Entity<Feedback>(); feedback.ToTable("feedback"); feedback.HasKey(x => x.Id);
+        feedback.Property(x => x.Message).HasMaxLength(4000); feedback.Property(x => x.FlightNumber).HasMaxLength(10);
+        feedback.Property(x => x.AppVersion).HasMaxLength(40);
+        feedback.HasIndex(x => new { x.UserId, x.CreatedAt }); feedback.HasIndex(x => new { x.Status, x.CreatedAt });
+        feedback.HasOne<UserAccount>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+        feedback.HasOne<UserAccount>().WithMany().HasForeignKey(x => x.HandledByUserId).OnDelete(DeleteBehavior.Restrict);
+        var attachment = model.Entity<FeedbackAttachment>(); attachment.ToTable("feedback_attachment"); attachment.HasKey(x => x.FeedbackId);
+        attachment.Property(x => x.FileName).HasMaxLength(120); attachment.Property(x => x.ContentType).HasMaxLength(40);
+        attachment.Property(x => x.Sha256).HasMaxLength(64);
+        attachment.HasOne<Feedback>().WithOne().HasForeignKey<FeedbackAttachment>(x => x.FeedbackId).OnDelete(DeleteBehavior.Cascade);
     }
 }

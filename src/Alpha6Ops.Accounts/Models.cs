@@ -173,3 +173,27 @@ public sealed class AuditEvent
     public string Details { get; set; } = "";
     public DateTimeOffset CreatedAt { get; set; }
 }
+
+public sealed class Feedback
+{
+    public Guid Id { get; set; }
+    public Guid UserId { get; set; }
+    public FeedbackCategory Category { get; set; }
+    public string Message { get; set; } = "";
+    public string FlightNumber { get; set; } = "";
+    public DateOnly? FlownOn { get; set; }
+    public string AppVersion { get; set; } = "";
+    public FeedbackStatus Status { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? HandledAt { get; set; }
+    public Guid? HandledByUserId { get; set; }
+}
+
+public sealed class FeedbackAttachment
+{
+    public Guid FeedbackId { get; set; }
+    public string FileName { get; set; } = "";
+    public string ContentType { get; set; } = "";
+    public byte[] Bytes { get; set; } = [];
+    public string Sha256 { get; set; } = "";
+}

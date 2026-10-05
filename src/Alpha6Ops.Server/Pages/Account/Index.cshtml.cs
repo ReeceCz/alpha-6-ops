@@ -6,12 +6,13 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Alpha6Ops.Server.Pages.Account;
 
-public class IndexModel(AccountsService accounts, ServerSettings settings) : AccountPage(accounts, settings)
+public class IndexModel(AccountsService accounts, ServerSettings settings, StaffAccess staff) : AccountPage(accounts, settings)
 {
     public BootstrapResponse? Account { get; private set; }
+    public bool IsStaff { get; private set; }
     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
     {
-        try { Account = await Accounts.BootstrapAsync(Actor, ct); return Page(); }
+        try { Account = await Accounts.BootstrapAsync(Actor, ct); IsStaff = staff.IsStaff(Actor); return Page(); }
         catch (IdentityException ex) { return Failure(ex); }
     }
     public async Task<IActionResult> OnPostWorkspaceAsync(Guid? airlineId, CancellationToken ct)

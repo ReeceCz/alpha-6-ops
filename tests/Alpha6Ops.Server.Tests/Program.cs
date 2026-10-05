@@ -549,6 +549,23 @@ using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staf
     }
     var markHandled = await SubmitAsync(staffBrowser, reportPage, reportHtml, $"/Staff/Feedback/{reportId}?handler=Status", new() { ["status"] = "Handled" });
     Check(markHandled.StatusCode == HttpStatusCode.Redirect && !(await staffBrowser.GetStringAsync("/Staff/Feedback")).Contains(reportId), "Handled reports leave the New list");
+    // Testers: staff invite and remove testers without a hosting configuration change.
+    Check((await reporterBrowser.GetAsync("/Staff/Testers")).StatusCode == HttpStatusCode.NotFound, "Tester invitations are 404 for pilots");
+    Check(inboxHtml.Contains("href=\"/Staff/Testers\""), "Staff pages link to each other");
+    Check((await staffBrowser.GetStringAsync("/Account")).Contains("href=\"/Staff/Feedback\"") && !(await reporterBrowser.GetStringAsync("/Account")).Contains("/Staff/"),
+        "The account page shows staff tools to staff only");
+    var testersPage = await staffBrowser.GetAsync("/Staff/Testers");
+    var testersHtml = await testersPage.Content.ReadAsStringAsync();
+    Check(testersPage.IsSuccessStatusCode && testersHtml.Contains("Invite a tester") && !Regex.IsMatch(testersHtml, @"\sstyle=""") && !testersHtml.Contains("<script"), "Staff open the tester invitations page");
+    var newTester = $"New-Tester-{run}@Example.test";
+    var invited = await SubmitAsync(staffBrowser, testersPage, testersHtml, "/Staff/Testers?handler=Add", new() { ["email"] = newTester, ["note"] = "Met at the fly-in" });
+    var afterInvite = await staffBrowser.GetStringAsync("/Staff/Testers");
+    Check(invited.StatusCode == HttpStatusCode.Redirect && afterInvite.Contains(newTester.ToLowerInvariant()) && afterInvite.Contains("Met at the fly-in"), "Staff invite a tester");
+    var badInvite = await SubmitAsync(staffBrowser, testersPage, testersHtml, "/Staff/Testers?handler=Add", new() { ["email"] = "not-an-email", ["note"] = "" });
+    Check(badInvite.StatusCode == HttpStatusCode.BadRequest && (await badInvite.Content.ReadAsStringAsync()).Contains("valid email"), "A bad email is refused with a readable message");
+    var testersPageAgain = await staffBrowser.GetAsync("/Staff/Testers");
+    var removed = await SubmitAsync(staffBrowser, testersPageAgain, await testersPageAgain.Content.ReadAsStringAsync(), "/Staff/Testers?handler=Remove", new() { ["email"] = newTester.ToLowerInvariant() });
+    Check(removed.StatusCode == HttpStatusCode.Redirect && !(await staffBrowser.GetStringAsync("/Staff/Testers")).Contains(newTester.ToLowerInvariant()), "Staff remove a tester invitation");
 }
 static async Task<HttpResponseMessage> PostMultipartAsync(HttpClient client, HttpResponseMessage page, string html, string path, Dictionary<string, string> fields, (string Field, byte[] Bytes, string FileName)? file)
 {

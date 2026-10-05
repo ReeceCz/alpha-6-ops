@@ -1,0 +1,31 @@
+@page "/Staff/Testers"
+@model Alpha6Ops.Server.Pages.Staff.TestersModel
+@{ ViewData["Title"] = "Testers"; }
+<div class="page-heading"><div class="eyebrow">Staff</div><h1>Testers</h1><partial name="_StaffNav" model='@("testers")' />
+<p class="lead">S4 OPS is invite-only. Add a tester's email here, then tell them to create their account at s4ops.com with that address.</p></div>
+<partial name="_AccountError" model="Model" />
+@if (Model.ErrorCode is null or "invalid_email" or "invalid_invite") {
+<section class="card">
+    <h2>Invite a tester</h2>
+    <form method="post" asp-page-handler="Add" class="stack">
+        <div class="grid two">
+            <div class="stack"><label for="email">Email</label><input id="email" name="email" type="email" maxlength="254" required autocomplete="off" value="@Model.Email" /></div>
+            <div class="stack"><label for="note">Note (optional)</label><input id="note" name="note" maxlength="200" value="@Model.Note" placeholder="Who they are, or who asked" /></div>
+        </div>
+        <div class="actions"><button class="button" type="submit">Invite</button></div>
+    </form>
+    <p class="muted">Emails in the server's <code>Accounts__InvitedEmails</code> setting are admitted too; they aren't listed here.</p>
+</section>
+<section class="card">
+    <h2>Invited (@Model.Invites.Length)</h2>
+    @if (Model.Invites.Length == 0) { <p class="muted">Nobody yet.</p> } else {
+    <ul class="report-list">
+    @foreach (var i in Model.Invites) {
+        <li class="row"><div><strong class="break">@i.Email</strong> <span class="badge @(i.HasAccount ? "ok" : "")">@(i.HasAccount ? "Account created" : "Not signed up yet")</span>
+            <span class="muted block">Invited by @i.InvitedBy · @i.CreatedAt.ToString("yyyy-MM-dd")@(i.Note.Length > 0 ? " · " + i.Note : "")</span></div>
+            <form method="post" asp-page-handler="Remove"><input type="hidden" name="email" value="@i.Email" /><button class="text-button" type="submit">Remove</button></form></li>
+    }
+    </ul>
+    }
+</section>
+}

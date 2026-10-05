@@ -1,8 +1,8 @@
 @page "/Staff/Feedback"
 @model Alpha6Ops.Server.Pages.Staff.FeedbackInboxModel
 @{ ViewData["Title"] = "Problem reports"; }
-<div class="page-heading"><div class="eyebrow">Staff</div><h1>Problem reports</h1>
-<nav class="tabs" aria-label="Filter"><a href="?show=new" aria-current="@(Model.Show == "new" ? "page" : null)">New</a><a href="?show=handled" aria-current="@(Model.Show == "handled" ? "page" : null)">Handled</a><a href="?show=all" aria-current="@(Model.Show == "all" ? "page" : null)">All</a></nav></div>
+<div class="page-heading"><div class="eyebrow">Staff</div><h1>Problem reports</h1><partial name="_StaffNav" model='@("feedback")' />
+<nav class="tabs filter" aria-label="Filter"><a href="?show=new" aria-current="@(Model.Show == "new" ? "page" : null)">New</a><a href="?show=handled" aria-current="@(Model.Show == "handled" ? "page" : null)">Handled</a><a href="?show=all" aria-current="@(Model.Show == "all" ? "page" : null)">All</a></nav></div>
 <partial name="_AccountError" model="Model" />
 @if (Model.ErrorMessage is null) {
 <section class="card">

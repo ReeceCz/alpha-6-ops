@@ -20,7 +20,7 @@ var personalSelected = account.LastWorkspace.AirlineId is null;
         <dt>Personal level</dt><dd>@account.PersonalEntitlement.Plan · @account.PersonalEntitlement.Status</dd>
         @if (account.Profile is { } profile) { <dt>Home base</dt><dd>@(profile.HomeBaseIcao.Length > 0 ? profile.HomeBaseIcao : "—")@(profile.Callsign.Length > 0 ? $" · {profile.Callsign}" : "")</dd> }</dl>
         @if (!account.Account.EmailVerified) { <p>Verify your email from the message S4 OPS sent you, then sign in again to join or create airlines.</p> }
-        <div class="actions"><a class="button secondary" asp-page="Profile">Pilot profile</a><a class="button secondary" asp-page="Logbook">Logbook</a><a class="button secondary" asp-page="Plan">Account level</a><a class="button secondary" asp-page="Feedback">Report a problem</a><a class="button secondary" href="/Support">Security &amp; sign-in <span class="ext" aria-hidden="true">↗</span></a></div>
+        <div class="actions"><a class="button secondary" asp-page="Profile">Pilot profile</a><a class="button secondary" asp-page="Logbook">Logbook</a><a class="button secondary" asp-page="Plan">Account level</a><a class="button secondary" asp-page="Feedback">Report a problem</a>@if (Model.IsStaff) { <a class="button secondary" href="/Staff/Feedback">Staff: reports &amp; testers</a> }<a class="button secondary" href="/Support">Security &amp; sign-in <span class="ext" aria-hidden="true">↗</span></a></div>
     </article>
     <article class="card panel">
         <div class="panel-head"><span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 5.5 11 4.4v7.1H3zM12 4.2 21 3v8.5h-9zM3 12.5h8v7.1L3 18.5zM12 12.5h9V21l-9-1.2z"/></svg></span><div class="eyebrow">Desktop app for Windows</div></div>

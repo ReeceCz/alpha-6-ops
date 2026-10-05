@@ -1,0 +1,40 @@
+using Alpha6Ops.Accounts;
+using Alpha6Ops.Identity;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Alpha6Ops.Server.Pages.Staff;
+
+public class TestersModel(AccountsService accounts, ServerSettings settings, StaffAccess staff) : StaffPage(accounts, settings, staff)
+{
+    public TesterInviteView[] Invites { get; private set; } = [];
+    [BindProperty] public string? Email { get; set; }
+    [BindProperty] public string? Note { get; set; }
+
+    public async Task<IActionResult> OnGetAsync(CancellationToken ct)
+    {
+        if (!Staff.IsConfigured) return NotFound();
+        try { Invites = await Accounts.ListTesterInvitesAsync(Actor, Staff, ct); return Page(); }
+        catch (IdentityException ex) { return StaffFailure(ex); }
+    }
+
+    public async Task<IActionResult> OnPostAddAsync(CancellationToken ct)
+    {
+        if (!Staff.IsConfigured) return NotFound();
+        try { await Accounts.AddTesterInviteAsync(Actor, Staff, Email ?? "", Note, ct); return RedirectToPage(); }
+        catch (IdentityException ex) { return await Reload(ex, ct); }
+    }
+
+    public async Task<IActionResult> OnPostRemoveAsync(CancellationToken ct)
+    {
+        if (!Staff.IsConfigured) return NotFound();
+        try { await Accounts.RemoveTesterInviteAsync(Actor, Staff, Email ?? "", ct); return RedirectToPage(); }
+        catch (IdentityException ex) { return await Reload(ex, ct); }
+    }
+
+    // Show the error with the list still on the page.
+    private async Task<IActionResult> Reload(IdentityException error, CancellationToken ct)
+    {
+        try { Invites = await Accounts.ListTesterInvitesAsync(Actor, Staff, ct); } catch (IdentityException) { }
+        return StaffFailure(error);
+    }
+}

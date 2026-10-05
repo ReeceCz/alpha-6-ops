@@ -135,7 +135,8 @@ small { font-size: var(--size-xs); }
 .report-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-4); }
 .report-list li { border-bottom: 1px solid var(--line); padding-bottom: var(--space-4); }
 .report-list p { margin: var(--space-2) 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.tabs { display: flex; gap: var(--space-4); margin-top: var(--space-3); }
+.tabs { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-top: var(--space-3); }
+.tabs.filter { font-size: var(--size-s); }
 .tabs a { color: var(--muted); text-decoration: none; }
 .tabs a[aria-current="page"] { color: var(--text); font-weight: 600; border-bottom: 2px solid var(--brand); }
 .ok { color: var(--ok); }

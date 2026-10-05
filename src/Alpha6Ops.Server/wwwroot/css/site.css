@@ -127,6 +127,7 @@ small { font-size: var(--size-xs); }
 .narrow { max-width: 45rem; }
 .nowrap { white-space: nowrap; }
 .break { overflow-wrap: anywhere; word-break: break-all; }
+.upper { text-transform: uppercase; }
 .ok { color: var(--ok); }
 
 /* Buttons */

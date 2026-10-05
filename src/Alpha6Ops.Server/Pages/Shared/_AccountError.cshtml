@@ -5,4 +5,5 @@
     else if (Model.NeedsVerification) { <a href="/auth/step-up?returnUrl=@Uri.EscapeDataString(Context.Request.Path)">Complete a fresh security check</a> }
     </div>
 }
-<div asp-validation-summary="All" role="alert" class="validation"></div>
+@* Only when there are errors: the empty summary carries an inline style the CSP blocks. *@
+@if (!ViewData.ModelState.IsValid) { <div asp-validation-summary="All" role="alert" class="validation"></div> }

@@ -9,8 +9,8 @@
 <form method="post" class="stack">
     <label asp-for="SimBriefUsername">SimBrief username</label><input asp-for="SimBriefUsername" maxlength="80" autocomplete="off" /><small>Used to fetch your OFP in Dispatch. Leave blank if you don’t use SimBrief.</small>
     <div class="grid two">
-        <div class="stack"><label asp-for="Callsign">Pilot callsign</label><input asp-for="Callsign" maxlength="20" style="text-transform:uppercase" /></div>
-        <div class="stack"><label asp-for="HomeBaseIcao">Home base (ICAO)</label><input asp-for="HomeBaseIcao" maxlength="4" style="text-transform:uppercase" /></div>
+        <div class="stack"><label asp-for="Callsign">Pilot callsign</label><input asp-for="Callsign" maxlength="20" class="upper" /></div>
+        <div class="stack"><label asp-for="HomeBaseIcao">Home base (ICAO)</label><input asp-for="HomeBaseIcao" maxlength="4" class="upper" /></div>
     </div>
     <div class="grid two">
         <div class="stack"><label asp-for="WeightUnit">Weight unit</label><select asp-for="WeightUnit"><option value="LBS">Pounds (LBS)</option><option value="KG">Kilograms (KG)</option></select></div>
@@ -21,7 +21,7 @@
         <div class="stack"><label asp-for="PreferredWorkspace">Open at sign-in</label><select asp-for="PreferredWorkspace"><option value="last_used">Last used workspace</option><option value="personal">Always my personal flight deck</option><option value="portal">Account portal — choose every time</option></select></div>
     </div>
     <label asp-for="TimeZone">Time zone</label><select asp-for="TimeZone">@foreach (var (id, name) in Alpha6Ops.Server.Pages.Account.ProfileModel.TimeZones) { <option value="@id" selected="@(id == Model.TimeZone)">@name</option> }</select>
-    <label asp-for="AvatarInitials">Avatar initials</label><input asp-for="AvatarInitials" maxlength="3" style="text-transform:uppercase" /><small>Up to 3 letters shown on your account badge when you have no picture. Blank uses your name.</small>
+    <label asp-for="AvatarInitials">Avatar initials</label><input asp-for="AvatarInitials" maxlength="3" class="upper" /><small>Up to 3 letters shown on your account badge when you have no picture. Blank uses your name.</small>
     <button class="button">Save profile</button>
 </form>
 @if (p is not null) { <p class="muted">@(p.LastSeenAt is { } seen ? $"Last desktop sign-in {seen:u}" : "The desktop app has not signed in yet.")@(p.LastSeenVersion.Length > 0 ? $" · S4 OPS v{p.LastSeenVersion}" : "")</p> }

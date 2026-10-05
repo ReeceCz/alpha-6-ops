@@ -29,12 +29,12 @@
     <form method="post" asp-page-handler="Save" class="stack">
         @if (e is not null) { <input type="hidden" name="aircraftId" value="@e.Id" /> }
         <div class="grid two">
-            <div class="stack"><label for="registration">Registration</label><input id="registration" name="registration" maxlength="10" required value="@e?.Registration" placeholder="N123A6" style="text-transform:uppercase" /></div>
-            <div class="stack"><label for="typeIcao">Type (ICAO)</label><input id="typeIcao" name="typeIcao" maxlength="4" required value="@e?.TypeIcao" placeholder="B738" style="text-transform:uppercase" /></div>
+            <div class="stack"><label for="registration">Registration</label><input id="registration" name="registration" maxlength="10" required value="@e?.Registration" placeholder="N123S4" class="upper" /></div>
+            <div class="stack"><label for="typeIcao">Type (ICAO)</label><input id="typeIcao" name="typeIcao" maxlength="4" required value="@e?.TypeIcao" placeholder="B738" class="upper" /></div>
         </div>
         <label for="name">Name (optional)</label><input id="name" name="name" maxlength="100" value="@e?.Name" placeholder="Spirit of Milwaukee" />
         <div class="grid two">
-            <div class="stack"><label for="homeBase">Home base</label><input id="homeBase" name="homeBase" maxlength="4" value="@e?.HomeBase" placeholder="KMKE" style="text-transform:uppercase" /></div>
+            <div class="stack"><label for="homeBase">Home base</label><input id="homeBase" name="homeBase" maxlength="4" value="@e?.HomeBase" placeholder="KMKE" class="upper" /></div>
             <div class="stack"><label for="status">Status</label><select id="status" name="status">@foreach (var s in AircraftStatuses.All) { <option value="@s" selected="@((e?.Status ?? AircraftStatuses.Active) == s)">@char.ToUpperInvariant(s[0])@s[1..]</option> }</select></div>
         </div>
         <label for="notes">Notes</label><textarea id="notes" name="notes" rows="2" maxlength="500">@e?.Notes</textarea>

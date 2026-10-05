@@ -9,7 +9,7 @@ to check it worked.
 
 ## 1. Ship the code (about 5 min)
 
-1. Read the branch: `git log --oneline merge/dan-7.26b..feat/launch-prep` (17 commits, all suites green).
+1. Read the branch: `git log --oneline merge/dan-7.26b..feat/launch-prep` (all suites green).
 2. Push it to the fork and move `accounts` forward. Render deploys `accounts` automatically.
    ```
    git push fork feat/launch-prep

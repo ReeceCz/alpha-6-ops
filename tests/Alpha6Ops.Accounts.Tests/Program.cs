@@ -443,6 +443,28 @@ var races = await Task.WhenAll(Enumerable.Range(0, 4).Select(async i =>
     catch (IdentityException ex) { return ex.Code; }
 }));
 Check(races.Count(x => x == "created") == 1 && races.Count(x => x == "plan_limit_reached") == 3, "concurrent creation cannot bypass Community ownership limit");
+// Problem reports: pilots send and see their own; allowlisted staff with a fresh MFA triage them.
+var reporter = actor with { Subject = prefix + "-reporter", DisplayName = "Reporter", Email = prefix + "-reporter@example.com", HasMfa = false };
+var staffer = actor with { Subject = prefix + "-staff", DisplayName = "Staffer", Email = prefix + "-staff@example.com", HasMfa = true, AuthenticatedAt = DateTimeOffset.UtcNow };
+var staffList = StaffAccess.FromEmails(staffer.Email);
+var report = new FeedbackRequest(FeedbackCategory.FlightRecording, "Block in never fired at the gate.", "S4601", null);
+var sent = await Run(s => s.SubmitFeedbackAsync(reporter, report, new FeedbackFile("log.json", "{\"ok\":true}"u8.ToArray())));
+Check(sent is { Status: FeedbackStatus.New, AttachmentName: "log.json", FlightNumber: "S4601" }, "a report with an attachment is stored as new");
+await Run(s => s.SubmitFeedbackAsync(reporter, report with { Category = FeedbackCategory.Idea }, null));
+Check((await Run(s => s.ListMyFeedbackAsync(reporter))).Length == 2 && (await Run(s => s.ListMyFeedbackAsync(staffer))).Length == 0, "pilots see only their own reports");
+for (var i = 0; i < 3; i++) await Run(s => s.SubmitFeedbackAsync(reporter, report, null));
+await RejectAsync(() => Run(s => s.SubmitFeedbackAsync(reporter, report, null)), "feedback_rate_limited");
+await RejectAsync(() => Run(s => s.ListFeedbackAsync(reporter, staffList, null)), "not_found");
+await RejectAsync(() => Run(s => s.ListFeedbackAsync(staffer with { HasMfa = false, AuthenticatedAt = null }, staffList, null)), "mfa_required");
+var inbox = await Run(s => s.ListFeedbackAsync(staffer, staffList, FeedbackStatus.New));
+Check(inbox.Any(x => x.Report.Id == sent.Id && x.ReporterEmail == reporter.Email.ToLowerInvariant() && x.AttachmentBytes == 11), "staff see new reports with the reporter and attachment size");
+var file = await Run(s => s.GetFeedbackAttachmentAsync(staffer, staffList, sent.Id));
+Check(file is { ContentType: "application/json", FileName: "log.json" } && file.Bytes.Length == 11, "staff download the attachment");
+var handled = await Run(s => s.SetFeedbackStatusAsync(staffer, staffList, sent.Id, FeedbackStatus.Handled));
+Check(handled.Report is { Status: FeedbackStatus.Handled, HandledAt: not null }, "staff mark a report handled");
+Check((await Run(s => s.SetFeedbackStatusAsync(staffer, staffList, sent.Id, FeedbackStatus.New))).Report is { Status: FeedbackStatus.New, HandledAt: null }, "and can reopen it");
+await RejectAsync(() => Run(s => s.GetFeedbackAsync(staffer, staffList, Guid.NewGuid())), "not_found");
+Check((await Run(s => s.ExportAsync(reporter))).Data.Feedback.Length == 5, "the data export includes the pilot's reports");
 // Self-service export and deletion: owners are blocked, a fresh sign-in is required, the grace period can be
 // cancelled, and the purge erases personal data while airline history keeps an anonymous tombstone.
 async Task<int> PurgeAt(DateTimeOffset at)
@@ -459,6 +481,7 @@ var leaverId = (await Run(s => s.BootstrapAsync(leaver with { EmailVerified = tr
 var leaverInvite = await Run(s => s.InviteAsync(founder, founderVa.Id, new(leaver.Email, [AirlineRole.Pilot])));
 await Run(s => s.AcceptInvitationAsync(leaver with { EmailVerified = true }, leaverInvite.Token));
 await Run(s => s.ImportLogbookAsync(leaver, new(string.Join(Environment.NewLine, "date,flight,origin,destination", "2026-09-02 18:20,S4601,KMKE,KORD", ""))));
+var leaverReport = await Run(s => s.SubmitFeedbackAsync(leaver, new(FeedbackCategory.Bug, "Logbook import skipped a row.", null, null), new FeedbackFile("shot.png", [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1])));
 var export = await Run(s => s.ExportAsync(leaver));
 Check(string.Equals(export.Data.Account.Email, leaver.Email, StringComparison.OrdinalIgnoreCase) && export.Data.Logbook.Single().FlightNumber == "S4601" && export.Data.Airlines.Single() is { Name: "Founder Air", Roles: ["Pilot"] }
     && export.Data.Activity.Any(x => x.Action == "logbook.imported") && export.Avatar is null, "export holds account, logbook, airlines and activity");
@@ -468,6 +491,7 @@ Check(requested is { Status: AccountStatus.PendingDeletion, RequestedAt: { } at 
     "deletion works without MFA or a verified email and schedules the erase after the grace period");
 await RejectAsync(() => Run(s => s.BootstrapAsync(leaver)), "account_pending_deletion");
 await RejectAsync(() => Run(s => s.ListFlightsAsync(leaver, 1, 10)), "account_pending_deletion");
+await RejectAsync(() => Run(s => s.SubmitFeedbackAsync(leaver, new(FeedbackCategory.Bug, "Sent while pending deletion.", null, null), null)), "account_pending_deletion");
 Check((await Run(s => s.ExportAsync(leaver))).Data.Account.Status == "PendingDeletion", "export stays available during the grace period");
 Check((await Run(s => s.CancelDeletionAsync(leaver))).Status == AccountStatus.Active && (await Run(s => s.BootstrapAsync(leaver))).Account.Id == leaverId, "cancelling restores the account");
 await Run(s => s.RequestDeletionAsync(leaver));
@@ -483,6 +507,7 @@ await using (var db = Context())
     Check(!await db.AuditEvents.AnyAsync(x => x.ActorUserId == leaverId && x.AirlineId == null && x.Action != "account.deleted")
         && await db.AuditEvents.AnyAsync(x => x.ActorUserId == leaverId && x.AirlineId == founderVa.Id), "personal history is erased; airline history keeps the tombstone");
     Check((await db.Invitations.SingleAsync(x => x.Id == leaverInvite.Invitation.Id)).Email == "", "accepted invitations drop the email address");
+    Check(!await db.Feedback.AnyAsync(x => x.UserId == leaverId) && !await db.FeedbackAttachments.AnyAsync(x => x.FeedbackId == leaverReport.Id), "erasing an account removes its reports and attachments");
 }
 Check((await Run(s => s.ListMembersAsync(founder, founderVa.Id))).All(x => !string.Equals(x.Email, leaver.Email, StringComparison.OrdinalIgnoreCase)), "the airline roster no longer shows the erased pilot");
 var removals = await Run(s => s.PendingIdentityRemovalsAsync());

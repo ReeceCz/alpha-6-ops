@@ -14,7 +14,7 @@ public sealed record ExportedProfile(string Callsign, string HomeBaseIcao, strin
 public sealed record ExportedMembership(Guid AirlineId, string Name, string Callsign, string Status, string[] Roles, DateTimeOffset JoinedAt);
 public sealed record ExportedActivity(string Action, Guid? AirlineId, Guid TargetId, string Details, DateTimeOffset At);
 public sealed record AccountExport(DateTimeOffset ExportedAt, ExportedAccount Account, ExportedProfile? Profile, ExportedMembership[] Airlines,
-    FlightLogEntry[] Logbook, ExportedActivity[] Activity);
+    FlightLogEntry[] Logbook, ExportedActivity[] Activity, FeedbackView[] Feedback);
 
 // Self-service export and deletion. Deletion locks the account at once, then after the grace period erases the
 // person's data and leaves an anonymised tombstone, because airlines, invitations and audit history reference it.
@@ -30,6 +30,7 @@ public sealed partial class AccountsService
         var flights = await db.Flights.AsNoTracking().Where(x => x.UserId == user.Id).OrderBy(x => x.DepartureUtc).ToListAsync(ct);
         var activity = await db.AuditEvents.AsNoTracking().Where(x => x.ActorUserId == user.Id).OrderBy(x => x.CreatedAt).ToListAsync(ct);
         var avatar = await db.Media.AsNoTracking().SingleOrDefaultAsync(x => x.Kind == MediaKinds.Avatar && x.OwnerId == user.Id, ct);
+        var feedback = (await Reports(db.Feedback.Where(x => x.UserId == user.Id), ct)).Select(x => x.Report).ToArray();
         var data = new AccountExport(now,
             new(user.Id, user.DisplayName, user.Email, user.EmailVerified, user.Status.ToString(), user.Plan.ToString(), user.CreatedAt, user.DeletionRequestedAt),
             profile is null ? null : new(profile.Callsign, profile.HomeBaseIcao, profile.SimBriefUsername, profile.WeightUnit, profile.AltitudeUnit,
@@ -37,7 +38,7 @@ public sealed partial class AccountsService
             memberships.Select(x => new ExportedMembership(x.a.Id, x.a.Name, x.a.Callsign, x.m.Status.ToString(),
                 x.m.Roles.Select(r => r.Role.ToString()).Concat(x.a.OwnerUserId == user.Id ? [nameof(AirlineRole.Owner)] : Array.Empty<string>()).ToArray(), x.m.JoinedAt)).ToArray(),
             flights.Select(FlightView).ToArray(),
-            activity.Select(x => new ExportedActivity(x.Action, x.AirlineId, x.TargetId, x.Details, x.CreatedAt)).ToArray());
+            activity.Select(x => new ExportedActivity(x.Action, x.AirlineId, x.TargetId, x.Details, x.CreatedAt)).ToArray(), feedback);
         return (data, avatar);
     }, allowPendingDeletion: true, ct);
 
@@ -98,6 +99,7 @@ public sealed partial class AccountsService
         var id = user.Id;
         var email = user.Email;
         await db.Flights.Where(x => x.UserId == id).ExecuteDeleteAsync(ct);
+        await db.Feedback.Where(x => x.UserId == id).ExecuteDeleteAsync(ct); // attachments cascade
         await db.Profiles.Where(x => x.UserId == id).ExecuteDeleteAsync(ct);
         await db.Media.Where(x => x.Kind == MediaKinds.Avatar && x.OwnerId == id).ExecuteDeleteAsync(ct);
         // Personal history goes; airline history stays and now points at the anonymous tombstone.

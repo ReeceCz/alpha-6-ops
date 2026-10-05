@@ -77,12 +77,14 @@ public class ProfileModel(AccountsService accounts, ServerSettings settings) : A
                     $"profile.json   callsign, home base, units and preferences{Environment.NewLine}" +
                     $"airlines.json  airlines you belong to and your roles{Environment.NewLine}" +
                     $"logbook.json   every flight in your logbook{Environment.NewLine}" +
-                    $"activity.json  account and airline actions you took{Environment.NewLine}"));
+                    $"activity.json  account and airline actions you took{Environment.NewLine}" +
+                    $"feedback.json  problem reports you sent (attachments are not included){Environment.NewLine}"));
                 AddJson("account.json", data.Account);
                 AddJson("profile.json", data.Profile);
                 AddJson("airlines.json", data.Airlines);
                 AddJson("logbook.json", data.Logbook);
                 AddJson("activity.json", data.Activity);
+                AddJson("feedback.json", data.Feedback);
                 if (avatar is not null)
                     Add("profile-picture" + avatar.ContentType switch { "image/png" => ".png", "image/jpeg" => ".jpg", _ => ".webp" }, avatar.Bytes);
             }

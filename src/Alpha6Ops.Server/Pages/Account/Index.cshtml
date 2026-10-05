@@ -11,6 +11,9 @@ var personalSelected = account.LastWorkspace.AirlineId is null;
     <div class="account-summary"><strong>@account.Account.DisplayName</strong><span class="mono">@account.Account.Email</span><a class="badge" asp-page="Plan">Personal @account.PersonalEntitlement.Plan</a>@if (!account.Account.EmailVerified) { <span class="badge warn">Email not verified</span> }</div>
 </div>
 
+@if (Model.UnreadReplies > 0) {
+<p class="notice" role="status">The Sierra 4 team sent a reply to your problem report@(Model.UnreadReplies > 1 ? "s" : ""). <a href="/Account/Feedback">Read it</a></p>
+}
 @if (Model.Start is { } start && !(start.ProfileSet && start.DesktopSignedIn && start.SentReport)) {
 <section class="card getting-started" aria-labelledby="start-title">
     <h2 id="start-title">Getting started</h2>

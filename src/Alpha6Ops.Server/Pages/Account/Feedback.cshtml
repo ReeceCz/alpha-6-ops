@@ -29,7 +29,8 @@
     @foreach (var r in Model.Reports) {
         <li><span class="badge @(r.Status == Alpha6Ops.Accounts.FeedbackStatus.Handled ? "ok" : "")">@(r.Status == Alpha6Ops.Accounts.FeedbackStatus.Handled ? "Handled" : "Received")</span>
         <strong>@Alpha6Ops.Server.Pages.Account.FeedbackModel.Label(r.Category)</strong>@if (r.FlightNumber.Length > 0) { <span class="mono"> · @r.FlightNumber</span> }
-        <span class="muted"> · @r.CreatedAt.ToString("u")</span><p>@r.Message</p></li>
+        <span class="muted"> · @r.CreatedAt.ToString("u")</span><p>@r.Message</p>
+        @foreach (var reply in r.Replies) { <div class="reply"><span class="muted block">@reply.Author · @reply.CreatedAt.ToString("u")</span><p>@reply.Body</p></div> }</li>
     }
     </ul>
 </section>

@@ -26,7 +26,13 @@ public class FeedbackModel(AccountsService accounts, ServerSettings settings) : 
 
     public async Task<IActionResult> OnGetAsync(bool sent, CancellationToken ct)
     {
-        try { Reports = await Accounts.ListMyFeedbackAsync(Actor, ct); Sent = sent; return Page(); }
+        try
+        {
+            Reports = await Accounts.ListMyFeedbackAsync(Actor, ct);
+            await Accounts.MarkMyFeedbackReadAsync(Actor, ct); // the replies are on screen now
+            Sent = sent;
+            return Page();
+        }
         catch (IdentityException ex) { return Failure(ex); }
     }
 

@@ -16,6 +16,17 @@
     <h2>What happened</h2>
     <p class="prewrap">@r.Report.Message</p>
     @if (r.Report.AttachmentName is { } name) { <p><a class="button secondary" href="/Staff/Feedback/@r.Report.Id?handler=Attachment">Download @name (@((r.AttachmentBytes ?? 0) / 1024 + 1) KB)</a></p> }
+    @if (r.Report.Replies.Length > 0) {
+        <h2>Replies</h2>
+        <ul class="report-list">@foreach (var reply in r.Report.Replies) { <li><span class="muted block">@reply.Author · @reply.CreatedAt.ToString("u")</span><p>@reply.Body</p></li> }</ul>
+    }
+    <h2>Reply to the pilot</h2>
+    <form method="post" asp-page-handler="Reply" asp-route-id="@r.Report.Id" class="stack">
+        <label for="body" class="visually-hidden">Reply</label>
+        <textarea id="body" name="body" rows="4" maxlength="2000" required placeholder="The pilot sees this signed by the Sierra 4 team."></textarea>
+        <label class="check"><input type="checkbox" name="markHandled" value="true" @(r.Report.Status == Alpha6Ops.Accounts.FeedbackStatus.New ? "checked" : "") /> Mark the report handled</label>
+        <div class="actions"><button class="button" type="submit">Send reply</button></div>
+    </form>
     <form method="post" asp-page-handler="Status" asp-route-id="@r.Report.Id">
         <input type="hidden" name="status" value="@(r.Report.Status == Alpha6Ops.Accounts.FeedbackStatus.Handled ? "New" : "Handled")" />
         <button class="button" type="submit">@(r.Report.Status == Alpha6Ops.Accounts.FeedbackStatus.Handled ? "Reopen" : "Mark handled")</button>

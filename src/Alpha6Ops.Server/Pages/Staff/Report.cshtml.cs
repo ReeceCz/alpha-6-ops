@@ -27,6 +27,17 @@ public class ReportModel(AccountsService accounts, ServerSettings settings, Staf
         catch (IdentityException ex) { return StaffFailure(ex); }
     }
 
+    public async Task<IActionResult> OnPostReplyAsync(Guid id, string? body, bool markHandled, CancellationToken ct)
+    {
+        if (!Staff.IsConfigured) return NotFound();
+        try { await Accounts.ReplyToFeedbackAsync(Actor, Staff, id, body, markHandled, ct); return Redirect($"/Staff/Feedback/{id}"); }
+        catch (IdentityException ex)
+        {
+            if (ex.Code == "invalid_reply") Report = await Accounts.GetFeedbackAsync(Actor, Staff, id, ct);
+            return StaffFailure(ex);
+        }
+    }
+
     public async Task<IActionResult> OnPostStatusAsync(Guid id, FeedbackStatus status, CancellationToken ct)
     {
         if (!Staff.IsConfigured) return NotFound();

@@ -580,6 +580,16 @@ using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staf
         await File.WriteAllTextAsync(Path.Combine(feedbackSnapshots, "staff-inbox.html"), inboxHtml);
         await File.WriteAllTextAsync(Path.Combine(feedbackSnapshots, "staff-report.html"), reportHtml);
     }
+    // Replies: staff answer from the report page; the pilot sees it signed by the team, with a notice until read.
+    Check(reportHtml.Contains("Reply to the pilot"), "Staff can reply from the report page");
+    var replyPost = await SubmitAsync(staffBrowser, reportPage, reportHtml, $"/Staff/Feedback/{reportId}?handler=Reply", new() { ["body"] = "Thanks, we can see the freeze in your log.", ["markHandled"] = "false" });
+    Check(replyPost.StatusCode == HttpStatusCode.Redirect && (await staffBrowser.GetStringAsync($"/Staff/Feedback/{reportId}")).Contains("Thanks, we can see the freeze"), "Staff post a reply");
+    Check((await reporterBrowser.GetStringAsync("/Account")).Contains("reply to your problem report"), "The pilot's account page says a reply is waiting");
+    var withReply = await reporterBrowser.GetStringAsync("/Account/Feedback");
+    Check(withReply.Contains("Thanks, we can see the freeze in your log.") && withReply.Contains("Sierra 4 team") && !withReply.Contains($"staff-{run}"), "The pilot reads the reply, signed by the team");
+    Check(!(await reporterBrowser.GetStringAsync("/Account")).Contains("reply to your problem report"), "Reading the reports clears the notice");
+    reportPage = await staffBrowser.GetAsync($"/Staff/Feedback/{reportId}");
+    reportHtml = await reportPage.Content.ReadAsStringAsync();
     var markHandled = await SubmitAsync(staffBrowser, reportPage, reportHtml, $"/Staff/Feedback/{reportId}?handler=Status", new() { ["status"] = "Handled" });
     Check(markHandled.StatusCode == HttpStatusCode.Redirect && !(await staffBrowser.GetStringAsync("/Staff/Feedback")).Contains(reportId), "Handled reports leave the New list");
     // Testers: staff invite and remove testers without a hosting configuration change.

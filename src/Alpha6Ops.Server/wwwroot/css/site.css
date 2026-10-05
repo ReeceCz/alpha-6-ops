@@ -141,6 +141,7 @@ small { font-size: var(--size-xs); }
 .faq dt { font-weight: 600; color: var(--text); margin-top: var(--space-4); }
 .faq dt:first-child { margin-top: 0; }
 .faq dd { margin: var(--space-1) 0 0; color: var(--text-2); }
+.reply { margin-top: var(--space-3); padding-left: var(--space-4); border-left: 2px solid var(--action); }
 .report-list p { margin: var(--space-2) 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .tabs { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-top: var(--space-3); }
 .tabs.filter { font-size: var(--size-s); }

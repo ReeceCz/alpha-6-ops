@@ -1,118 +1,140 @@
-# Tester launch checklist (Reece's manual steps)
+# Tester launch checklist (Reece's manual steps, one sitting)
 
-Everything below needs a person in a dashboard or a push. The code for all of it is done on branch
-`feat/launch-prep` (worktree `C:\Dev\_scratch\s4-merge`). Everything is free. Steps are in order; each one says how
-to check it worked.
+Everything here needs a person in a dashboard, or a push. The code is done on branch `feat/launch-prep` (worktree
+`C:\Dev\_scratch\s4-merge`, all suites green). It's all free and takes about 45 minutes, mostly waiting for one
+certificate. The order puts that wait in the middle so the other steps happen during it.
 
-`powershell -File scripts/check-live.ps1` checks the live sites. On 2026-10-04 it failed 10 checks: nine
-`app.s4ops.com` checks (the name doesn't exist) and HSTS on s4ops.com (the new landing isn't deployed yet).
+`powershell -File scripts/check-live.ps1` checks the live sites at any point. Before these steps it fails on
+`app.s4ops.com` (no DNS record) and on HSTS for s4ops.com (the new landing isn't deployed).
 
-## 1. Ship the code (about 5 min)
+## 0. Have ready
 
-1. Read the branch: `git log --oneline merge/dan-7.26b..feat/launch-prep` (all suites green).
-2. Push it to the fork and move `accounts` forward. Render deploys `accounts` automatically.
-   ```
-   git push fork feat/launch-prep
-   git push fork feat/launch-prep:accounts
-   ```
-   `feat/launch-prep` starts at `fork/accounts` (259d9cb), so the second push is a fast-forward.
-3. Render applies the five new migrations when the container starts (`entrypoint.sh` runs `--migrate-accounts`):
-   - lower-case emails
-   - feedback tables
-   - tester invitations
-   - release notes
-   - invitation requests
-4. **Check:** `https://alpha6ops.onrender.com/healthz` → `ok`, and `/Support` shows the "Invitations" and "Report a
-   problem" cards.
+- [ ] Logins: GitHub (fork `ReeceCz/alpha-6-ops`), Render, Cloudflare (the `s4ops.com` account), Auth0 dev tenant.
+- [ ] The sign-in emails for you and Dan (for `Staff__Emails`).
+- [ ] A decision on the public contact email: create `support@s4ops.com` in step 6 (recommended, free), or leave it
+      empty for now.
+- [ ] Node 22+ for `npx wrangler` (landing deploy).
 
-## 2. Render environment (about 5 min)
-
-Dashboard → service `alpha6ops` → Environment:
-
-| Key | Value | Why |
-|---|---|---|
-| `Staff__Emails` | your and Dan's sign-in emails, `;` separated | Opens `/Staff/Feedback` and `/Staff/Testers` to you two |
-| `Legal__Contact` | a public email, when you have one (see step 4) | Privacy, Terms, Help and Download link it. Leave it empty until then |
-| `Hosting__PublicHosts` | `app.s4ops.com` | Already in `render.yaml`; confirm it's set before step 3 |
-| `Hosting__TrustCloudflare` | `true` | Same |
-
-**Check:** sign in at `https://alpha6ops.onrender.com`. Your account page shows a "Staff" button. `/Staff` opens the
-overview (tester funnel, desktop versions, what needs you), with tabs for Problem reports, Testers and Release notes.
-The staff pages ask for a fresh MFA check the first time.
-
-## 3. `app.s4ops.com` (about 15 min, mostly waiting)
-
-Follow "Custom domain through Cloudflare" in `docs/hosting.md`, steps 1–8. In short:
-
-1. **Render** → Custom Domains → add `app.s4ops.com`.
-2. **Cloudflare** → DNS → `CNAME app → alpha6ops.onrender.com`, **DNS only** (grey cloud).
-3. Wait for Render's certificate.
-4. **Cloudflare** → SSL/TLS **Full (strict)**, then switch the record to **Proxied**, then turn on **Always Use
-   HTTPS**.
-5. **Auth0** → Portal application. Add:
-   - `https://app.s4ops.com/signin-oidc` to Allowed Callback URLs
-   - `https://app.s4ops.com/signout-callback-oidc` to Allowed Logout URLs
-   - `https://app.s4ops.com` to Allowed Web Origins
-6. **GitHub** → fork → Settings → Variables → set `ALPHA6_HEALTH_URL` to `https://app.s4ops.com/healthz`, so keep-warm
-   goes through Cloudflare.
-
-**Check:** `powershell -File scripts/check-live.ps1` shows no `app.s4ops.com` failures, and sign-in/sign-out works
-at `https://app.s4ops.com`.
-
-## 4. s4ops.com landing (about 2 min)
+## 1. Push the code (2 min)
 
 ```
-cd sites/s4ops.com
+cd C:\Dev\_scratch\s4-merge
+git log --oneline merge/dan-7.26b..feat/launch-prep
+git push fork feat/launch-prep
+git push fork feat/launch-prep:accounts
+```
+
+`feat/launch-prep` starts at `fork/accounts` (259d9cb), so the second push is a fast-forward. Render deploys
+`accounts` automatically. At start-up the container applies the five new migrations:
+- lower-case emails
+- feedback
+- tester invitations
+- release notes
+- invitation requests
+
+## 2. Render: add the custom domain (1 min)
+
+Render → service `alpha6ops` → Settings → Custom Domains → **Add** `app.s4ops.com`. Keep the page open; it shows the
+certificate status.
+
+## 3. Cloudflare: the `app` record, grey cloud (1 min)
+
+Cloudflare → `s4ops.com` → DNS → Add record:
+
+| Type | Name | Target | Proxy |
+|---|---|---|---|
+| CNAME | `app` | `alpha6ops.onrender.com` | **DNS only** (grey) |
+
+There must be no `AAAA` record for `app`. Render now starts issuing its certificate (usually a few minutes). Do
+steps 4–7 while you wait.
+
+## 4. Auth0: allow the new address (2 min)
+
+Auth0 → Applications → **Portal** application → Settings. Add, keeping the existing entries:
+
+| Field | Add |
+|---|---|
+| Allowed Callback URLs | `https://app.s4ops.com/signin-oidc` |
+| Allowed Logout URLs | `https://app.s4ops.com/signout-callback-oidc` |
+| Allowed Web Origins | `https://app.s4ops.com` |
+
+## 5. GitHub: keep-warm through the new address (1 min)
+
+Fork → Settings → Secrets and variables → Actions → Variables → `ALPHA6_HEALTH_URL` =
+`https://app.s4ops.com/healthz`.
+
+## 6. Cloudflare extras (5 min, optional but recommended)
+
+- [ ] **Contact email:** Email → Email Routing → enable → create `support@s4ops.com`, forwarded to your inbox.
+      Confirm the verification email. Use it as `Legal__Contact` in step 9.
+- [ ] **Turnstile** (only if you want it from day one; the request form already has a honeypot and a limit of 3
+      requests per address per hour): Turnstile → Add widget → hostname `app.s4ops.com`, Managed mode → copy the
+      site key and secret key for step 9.
+
+## 7. Deploy the landing (2 min)
+
+```
+cd C:\Dev\_scratch\s4-merge\sites\s4ops.com
 npx wrangler deploy
 ```
 
-This puts the HSTS header, the phone menu and the analytics-friendly CSP live. Cloudflare Web Analytics is
-already injecting its script; the new CSP lets it run.
+This puts live the HSTS header, the phone menu, the CSP that lets Cloudflare Web Analytics run, and "Ask for an
+invitation" pointing to `/Request`.
 
-**Optional, free:** to have a contact email without exposing a personal address, Cloudflare → `s4ops.com` → Email →
-Email Routing → create `support@s4ops.com`, forwarded to your inbox. Then set `Legal__Contact = support@s4ops.com`
-(step 2).
+## 8. Cloudflare: proxy the record (2 min, once Render shows the certificate as issued)
 
-**Check:** `check-live.ps1` passes every check (or only the release line says "info").
+1. SSL/TLS → Overview → **Full (strict)**.
+2. DNS → `app` record → switch to **Proxied** (orange cloud).
+3. SSL/TLS → Edge Certificates → **Always Use HTTPS** on.
 
-## 5. First installer (about 10 min)
+## 9. Render environment, in one save (3 min)
 
-Coordinate the version with Dan; `packaging/build-desktop.ps1` has it hard-coded.
+Render → `alpha6ops` → Environment. Every save restarts the service, so enter all of these and save once:
+
+| Key | Value |
+|---|---|
+| `Staff__Emails` | `you@…;dan@…` (the emails you two sign in with) |
+| `Hosting__PublicHosts` | `app.s4ops.com` (should already be there from `render.yaml`; confirm) |
+| `Hosting__TrustCloudflare` | `true` (same) |
+| `Legal__Contact` | `support@s4ops.com`, if you created it in step 6; otherwise leave it out |
+| `Turnstile__SiteKey` / `Turnstile__SecretKey` | only if you created them in step 6 |
+
+## 10. Check everything (5 min)
+
+- [ ] `powershell -File scripts/check-live.ps1` → all checks pass (the release line shows "info" until step 11).
+- [ ] At `https://app.s4ops.com`: sign in → the account page shows **Getting started** and a **Staff** button →
+      sign out works.
+- [ ] `/Staff` asks for a fresh MFA check, then shows the overview with tabs for Problem reports, Testers and
+      Release notes.
+- [ ] `https://s4ops.com` on your phone: the **Menu** button opens; "Ask for an invitation" opens `/Request`.
+- [ ] Privacy and Terms show your contact email (if set) and Wisconsin.
+
+## 11. First installer (10 min, with Dan's go-ahead on the version)
 
 ```
-powershell -File scripts/publish-release.ps1             # build + hash, dry run
+cd C:\Dev\_scratch\s4-merge
+powershell -File scripts/publish-release.ps1                 # build + hash, dry run
 powershell -File scripts/publish-release.ps1 -SkipBuild -Upload
 ```
 
-The upload creates the public pre-release `desktop-v<version>` on the fork. Paste the three `Release__*` lines it
-prints into Render's Environment.
+1. Paste the three `Release__*` lines it prints into Render → Environment (one save).
+2. Write the notes at `/Staff/Releases`: the version, a title, and one change per line.
+3. **Check:** `/Download` shows the version, the checksum and the notes, and `check-live.ps1` downloads the installer.
 
-Then write the notes at `/Staff/Releases` (version, title, one change per line). They appear on `/Download`, on
-`/Releases`, and as "Update available" on the account page of any pilot on an older desktop.
+## 12. Invite testers (1 min each, repeatable)
 
-**Check:** `/Download` shows the version, the button, the checksum and the notes, and `check-live.ps1` downloads the
-installer URL.
-
-## 6. Invite testers (1 min each, repeatable)
-
-Strangers can ask at `https://app.s4ops.com/Request`; "Ask for an invitation" on s4ops.com and the portal links there.
-Requests appear at the top of `/Staff/Testers` with **Invite** and **Decline** buttons. You can also add an email
-there directly. Either way, tell the tester:
+- Requests from `/Request` appear at the top of `/Staff/Testers` with **Invite** / **Decline**.
+- To invite someone directly, add their email on the same page.
+- Then tell them:
 
 > Go to s4ops.com → "Create your invited account" with that email → verify it → download S4 OPS for Windows → sign in.
 > Something wrong? Use "Report a problem" in your account.
 
-No Render change is needed per tester any more. `Accounts__InvitedEmails` still works alongside it.
-
-## 7. Optional: Turnstile on the request form (about 5 min, free)
-
-The form already has a honeypot and a limit of 3 requests per address per hour. If spam gets through, Cloudflare →
-Turnstile → Add widget for `app.s4ops.com` (Managed mode). Copy the keys into Render as `Turnstile__SiteKey` and
-`Turnstile__SecretKey`. The widget appears on `/Request` by itself; nothing else changes.
-
 ## Still open with Dan (not blocking testers)
 
 - Sign-off on the two protected touches in the 7.26B merge (see the merge notes).
+- The installer version bump in `packaging/build-desktop.ps1` (needed for step 11).
+- Desktop flight upload to the web logbook. The server's `POST /api/v1/me/flights` is ready; the desktop doesn't
+  call it yet. Until then the web logbook holds imports only, and the site says so.
 - "Diverted" is shown on the site, but the engine has no diversion detection yet.
-- The desktop icon swap to the S4 tile (`src/Alpha6Ops.Desktop` assets) and carrying the tokens into WPF.
-- The installer version bump in `packaging/build-desktop.ps1`.
+- The desktop icon swap to the S4 tile, and carrying the colour tokens into WPF.

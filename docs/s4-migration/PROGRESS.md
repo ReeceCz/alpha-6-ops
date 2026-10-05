@@ -134,7 +134,7 @@ Not pushed. Dan's handoff doc: `docs/SIERRA4-PROJECT-CONTINUITY.md`.
 
 **2026-10-04/05 session (branch `feat/launch-prep`, worktree `C:\Dev\_scratch\s4-merge`, not pushed).** Reece's manual
 steps, in order, are in **`docs/s4-migration/LAUNCH-CHECKLIST.md`**. Suites: core 194, desktop identity 102, accounts
-266, server 198, landing 14, all green; both solutions 0 warnings.
+273, server 202, landing 14, all green; both solutions 0 warnings.
 - [x] s4ops.com is live on Cloudflare (Worker `s4ops-landing`). `app.s4ops.com` has **no DNS record yet**, so every
       account link on it is dead until checklist step 3.
 - [x] Landing: HSTS, phone menu, CSP allows Cloudflare Web Analytics, "Ask for an invitation" → `/Support#invitations`.
@@ -156,6 +156,10 @@ steps, in order, are in **`docs/s4-migration/LAUNCH-CHECKLIST.md`**. Suites: cor
 - [x] Invitation requests (migration `202610050002_InviteRequests`): public `/Request`. The answer is the same for
       known and unknown emails. Honeypot plus 3 per address per hour, and optional Turnstile (`Turnstile__*`). Staff
       Invite or Decline on `/Staff/Testers`. Unanswered requests are deleted after 90 days by the hourly job.
+- [x] Getting-started card on `/Account` and "Your flying" insights on `/Account/Logbook` (CSS-only 12-month chart).
+- [x] Fixed: web visits stamped `LastSeenAt` as if the desktop had signed in. Only the API (desktop) bootstrap stamps it now.
+- [x] Fixed copy: the logbook claimed desktop flights arrive automatically. They don't yet (the desktop never calls
+      `POST /me/flights`); this is the top item for Dan.
 - Deferred minors: an unknown non-numeric feedback category binds to the default; the staff inbox shows the newest
   500 reports only; ZIP attachments are checked by signature only.
 - [x] s4ops.com landing site built in `sites/s4ops.com` (simulated traffic-map hero, charcoal theme). Spec

@@ -202,7 +202,8 @@ var pilot = actor with { Subject = prefix + "-pilot", DisplayName = "Pilot", Ema
 var outsider = actor with { Subject = prefix + "-outsider", Email = prefix + "-outsider@example.com" };
 var ownerBootstrap = await Run(s => s.BootstrapAsync(actor));
 Check(ownerBootstrap.PersonalEntitlement.Plan == PersonalPlan.Free && ownerBootstrap.Airlines.Length == 0, "new account is Personal Free");
-Check(ownerBootstrap.Profile is { SimBriefUsername: "", WeightUnit: "LBS", AltitudeUnit: "FT", PreferredWorkspace: "last_used", LastSeenAt: not null }, "first bootstrap provisions a default profile and stamps last seen");
+Check(ownerBootstrap.Profile is { SimBriefUsername: "", WeightUnit: "LBS", AltitudeUnit: "FT", PreferredWorkspace: "last_used", LastSeenAt: null }, "a web bootstrap provisions a default profile without claiming a desktop sign-in");
+Check((await Run(s => s.BootstrapAsync(actor, ""))).Profile is { LastSeenAt: not null }, "a desktop bootstrap stamps last seen, even without a version");
 var versioned = await Run(s => s.BootstrapAsync(actor, "Alpha6OPS/0.16.0 (Windows NT 10.0)"));
 Check(versioned.Profile!.LastSeenVersion == "0.16.0", "bootstrap records the client version");
 var savedProfile = await Run(s => s.UpdateProfileAsync(actor, new("reece74", "a6-001", "kjfk", "KG", "FT", "M", "personal", "UTC", "rc")));
@@ -478,6 +479,25 @@ Check(handled.Report is { Status: FeedbackStatus.Handled, HandledAt: not null },
 Check((await Run(s => s.SetFeedbackStatusAsync(staffer, staffList, sent.Id, FeedbackStatus.New))).Report is { Status: FeedbackStatus.New, HandledAt: null }, "and can reopen it");
 await RejectAsync(() => Run(s => s.GetFeedbackAsync(staffer, staffList, Guid.NewGuid())), "not_found");
 Check((await Run(s => s.ExportAsync(reporter))).Data.Feedback.Length == 5, "the data export includes the pilot's reports");
+// Getting started: what a new tester has done so far, from what's stored.
+var starter = actor with { Subject = prefix + "-starter", DisplayName = "Starter", Email = prefix + "-starter@example.com", HasMfa = false };
+await Run(s => s.BootstrapAsync(starter));
+Check(await Run(s => s.GettingStartedAsync(starter)) is { ProfileSet: false, DesktopSignedIn: false, HasFlights: false, SentReport: false }, "a new account has done nothing yet");
+await Run(s => s.UpdateProfileAsync(starter, new("", "", "kmke", "LBS", "FT", "FT", "last_used", "", "")));
+await Run(s => s.BootstrapAsync(starter, "Alpha6OPS/0.23.0 (Windows NT 10.0)"));
+string Day(int daysAgo) => DateTimeOffset.UtcNow.AddDays(-daysAgo).ToString("yyyy-MM-dd HH:mm");
+await Run(s => s.ImportLogbookAsync(starter, new(string.Join("\n", "Date;Flight;From;To;Aircraft;Block Time;Landing Rate",
+    $"{Day(2)};S4601;KMKE;KORD;A20N;0:55;-180", $"{Day(5)};S4602;KORD;KMKE;A20N;1:05;-120", $"{Day(10)};S4601;KMKE;KORD;A20N;0:50;-240",
+    $"{Day(40)};S4900;KMKE;KDEN;B738;2:45;-300", ""))));
+await Run(s => s.SubmitFeedbackAsync(starter, new(FeedbackCategory.Idea, "Show my landing rates on the web.", null, null), null));
+Check(await Run(s => s.GettingStartedAsync(starter)) is { ProfileSet: true, DesktopSignedIn: true, HasFlights: true, SentReport: true }, "each getting-started step is detected");
+// Logbook insights: the last 30 days, routes, landings, the longest flight and twelve months of activity.
+var insights = await Run(s => s.LogbookInsightsAsync(starter));
+Check(insights is { FlightsLast30Days: 3, BlockMinutesLast30Days: 170, AverageLandingFpm: 210, SoftestLandingFpm: 120 }, "insights total the last 30 days and the landings");
+Check(insights.TopRoutes.First() is { Origin: "KMKE", Destination: "KORD", Flights: 2 } && insights.Longest is { FlightNumber: "S4900", BlockMinutes: 165 }, "insights find the most flown route and the longest flight");
+Check(insights.Months.Length == 12 && insights.Months.Sum(m => m.Flights) == 4 && insights.Months[^1].Year == DateTimeOffset.UtcNow.Year && insights.Months[^1].Month == DateTimeOffset.UtcNow.Month,
+    "insights cover twelve months ending with this one");
+Check(await Run(s => s.LogbookInsightsAsync(reporter)) is { FlightsLast30Days: 0, AverageLandingFpm: null, Longest: null, TopRoutes.Length: 0 } empty && empty.Months.All(m => m.Flights == 0), "an empty logbook has empty insights");
 // Self-service export and deletion: owners are blocked, a fresh sign-in is required, the grace period can be
 // cancelled, and the purge erases personal data while airline history keeps an anonymous tombstone.
 async Task<int> PurgeAt(DateTimeOffset at)

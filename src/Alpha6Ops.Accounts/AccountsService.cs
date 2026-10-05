@@ -65,14 +65,19 @@ public sealed partial class AccountsService(AccountsDbContext db, TimeProvider? 
         return result;
     }
 
+    /// <summary>The website's bootstrap. It never stamps "last seen", which records desktop sign-ins only.</summary>
     public Task<BootstrapResponse> BootstrapAsync(ActorIdentity actor, CancellationToken ct = default) => BootstrapAsync(actor, null, ct);
 
+    /// <summary>A non-null <paramref name="clientVersion"/> (the desktop's User-Agent, possibly empty) marks a desktop sign-in.</summary>
     public Task<BootstrapResponse> BootstrapAsync(ActorIdentity actor, string? clientVersion, CancellationToken ct = default) => Execute(actor, async (user, now) =>
     {
         var profile = await EnsureProfile(user, ct);
-        profile.LastSeenAt = now;
-        var version = AccountRules.ClientVersion(clientVersion);
-        if (version.Length > 0) profile.LastSeenVersion = version;
+        if (clientVersion is not null)
+        {
+            profile.LastSeenAt = now;
+            var version = AccountRules.ClientVersion(clientVersion);
+            if (version.Length > 0) profile.LastSeenVersion = version;
+        }
         var memberships = await db.Memberships.Include(x => x.Roles).Where(x => x.UserId == user.Id && x.Status == MembershipStatus.Active).ToArrayAsync(ct);
         var ids = memberships.Select(x => x.AirlineId).ToArray();
         var airlines = await db.Airlines.Where(x => ids.Contains(x.Id) && x.Status == "active").ToArrayAsync(ct);

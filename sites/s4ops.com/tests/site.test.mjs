@@ -28,6 +28,10 @@ test('asking for an invitation goes to the portal request form', () => {
   assert.match(index, /<a href="https:\/\/app\.s4ops\.com\/Request">Ask for an invitation<\/a>/);
 });
 
+test('the footer links the tester guide', () => {
+  assert.match(index, /<footer[\s\S]*<a href="https:\/\/app\.s4ops\.com\/Guide">Tester guide<\/a>[\s\S]*<\/footer>/);
+});
+
 test('pages carry no inline scripts or style attributes', () => {
   for (const page of ['index.html', '404.html']) {
     const html = read(page);

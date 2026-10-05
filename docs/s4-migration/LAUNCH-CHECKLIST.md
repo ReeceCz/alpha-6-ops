@@ -26,12 +26,13 @@ git push fork feat/launch-prep:accounts
 ```
 
 `feat/launch-prep` starts at `fork/accounts` (259d9cb), so the second push is a fast-forward. Render deploys
-`accounts` automatically. At start-up the container applies the five new migrations:
+`accounts` automatically. At start-up the container applies the six new migrations:
 - lower-case emails
 - feedback
 - tester invitations
 - release notes
 - invitation requests
+- feedback replies
 
 ## 2. Render: add the custom domain (1 min)
 

@@ -131,9 +131,29 @@ Not pushed. Dan's handoff doc: `docs/SIERRA4-PROJECT-CONTINUITY.md`.
 3. Also: `verify-desktop.ps1` timeout went from 60s to 120s, because the full smoke run takes about 70s here.
 
 ## Next steps
+
+**2026-10-04/05 session (branch `feat/launch-prep`, worktree `C:\Dev\_scratch\s4-merge`, not pushed).** Reece's manual
+steps, in order, are in **`docs/s4-migration/LAUNCH-CHECKLIST.md`**. Suites: core 194, desktop identity 102, accounts
+237, server 176, landing 14, all green; both solutions 0 warnings.
+- [x] s4ops.com is live on Cloudflare (Worker `s4ops-landing`). `app.s4ops.com` has **no DNS record yet**, so every
+      account link on it is dead until checklist step 3.
+- [x] Landing: HSTS, phone menu, CSP allows Cloudflare Web Analytics, "Ask for an invitation" → `/Support#invitations`.
+- [x] `Legal__Contact` / `Legal__Jurisdiction` settings (default Wisconsin). No placeholder or `mailto:[CONTACT EMAIL]`
+      is shown while the contact is unset.
+- [x] Emails stored lower-case (migration `202610040001_LowercaseEmails`).
+- [x] CSP-blocked inline styles removed (the `.upper` class; the validation summary renders only on errors).
+- [x] Levels/plan pages: unbuilt paid features marked "(coming soon)".
+- [x] `scripts/publish-release.ps1` (GitHub Releases on the public fork) and `scripts/check-live.ps1`.
+- [x] Report a problem: `/Account/Feedback`, staff inbox `/Staff/Feedback` (migration `202610040002_Feedback`). Spec
+      and plan are in `docs/superpowers/`. Staff = `Staff__Emails` + verified email + recent MFA; others get 404.
+- [x] Testers invited from `/Staff/Testers` (migration `202610040003_TesterInvites`), alongside
+      `Accounts__InvitedEmails`. A new tester no longer needs a Render change.
+- [x] Airline console tabs fit at phone width.
+- Deferred minors: an unknown non-numeric feedback category binds to the default; the staff inbox shows the newest
+  500 reports only; ZIP attachments are checked by signature only.
 - [x] s4ops.com landing site built in `sites/s4ops.com` (simulated traffic-map hero, charcoal theme). Spec
       `docs/superpowers/specs/2026-10-02-s4ops-landing-design.md`.
-- [ ] Reece: deploy s4ops.com per `sites/s4ops.com/README.md` (needs the Cloudflare go-ahead).
+- [x] Reece: deploy s4ops.com per `sites/s4ops.com/README.md`. Done; redeploy for the 2026-10-04 landing fixes.
 - [x] Simplify the portal home to a short script-free entrance linking to s4ops.com.
 - [x] Portal restyled to charcoal Sierra tokens (dark only, fluid scale); marketing removed (spec
       `docs/superpowers/specs/2026-10-03-portal-simplify-design.md`). Levels page copy still needs a fact-check (see session notes).
@@ -158,7 +178,7 @@ Not pushed. Dan's handoff doc: `docs/SIERRA4-PROJECT-CONTINUITY.md`.
       call. Content lives in `Pages/Home/HomeContent.cs`, one partial per section, styles in `wwwroot/css/home.css`.
       Yellow is the primary action. Phone nav is a `<details>` menu. Long IDs/emails now wrap. Suites 85/102/180/111.
 - [ ] Ask Dan: the "Diverted" status is shown on the site but the engine has no diversion detection yet.
-- [ ] Known small issues: emails are stored and shown upper-case (`AccountRules.Email` normalises); inline
+- [x] Known small issues (fixed 2026-10-04): emails are stored and shown upper-case (`AccountRules.Email` normalises); inline
       `style=` attributes on the profile form are blocked by the CSP.
 - [ ] Phase 3 remaining: replace the desktop `alpha6-mark.png` / `alpha6.ico` from `s4-tile-512.png`; the static landing page for
       `s4ops.com` on Workers static assets (reuse `Index.cshtml` output + `site.css`); carry the tokens into the WPF

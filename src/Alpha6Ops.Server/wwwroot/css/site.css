@@ -419,6 +419,9 @@ td { font-variant-numeric: tabular-nums; }
   .console-sidebar ul { display: flex; overflow-x: auto; gap: var(--space-1); }
   .console-sidebar nav a { border-left: 0; border-bottom: 3px solid transparent; border-radius: var(--radius-s) var(--radius-s) 0 0; white-space: nowrap; }
   .console-sidebar nav a[aria-current="page"] { border-bottom-color: var(--brand); }
+  /* Three tabs share the width instead of scrolling; icons go below 440px so the labels fit. */
+  .console-sidebar li { flex: 1 1 auto; }
+  .console-sidebar nav a { justify-content: center; padding: 0 var(--space-2); gap: var(--space-2); }
   .console-facts, .console-note { display: none; }
   .console-content { padding: 0 var(--space-4) var(--space-6); }
   .two { grid-template-columns: 1fr; }
@@ -447,3 +450,4 @@ td { font-variant-numeric: tabular-nums; }
 .footer-row nav a { color: var(--text-2); }
 .footer-row .fine { grid-column: 1 / -1; color: var(--muted); font-size: var(--size-xs); }
 @media (max-width: 640px) { .footer-row { grid-template-columns: 1fr; } }
+@media (max-width: 440px) { .console-sidebar nav svg { display: none; } }

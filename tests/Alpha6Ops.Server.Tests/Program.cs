@@ -563,6 +563,13 @@ using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staf
     Check(invited.StatusCode == HttpStatusCode.Redirect && afterInvite.Contains(newTester.ToLowerInvariant()) && afterInvite.Contains("Met at the fly-in"), "Staff invite a tester");
     var badInvite = await SubmitAsync(staffBrowser, testersPage, testersHtml, "/Staff/Testers?handler=Add", new() { ["email"] = "not-an-email", ["note"] = "" });
     Check(badInvite.StatusCode == HttpStatusCode.BadRequest && (await badInvite.Content.ReadAsStringAsync()).Contains("valid email"), "A bad email is refused with a readable message");
+    if (Environment.GetEnvironmentVariable("S4OPS_PORTAL_SNAPSHOT_DIR") is { Length: > 0 } testerSnapshots)
+    {
+        await File.WriteAllTextAsync(Path.Combine(testerSnapshots, "staff-testers.html"), afterInvite);
+        await File.WriteAllTextAsync(Path.Combine(testerSnapshots, "account-staff.html"), await staffBrowser.GetStringAsync("/Account"));
+        await File.WriteAllTextAsync(Path.Combine(testerSnapshots, "privacy.html"), await anon.GetStringAsync("/Privacy"));
+        await File.WriteAllTextAsync(Path.Combine(testerSnapshots, "terms.html"), await anon.GetStringAsync("/Terms"));
+    }
     var testersPageAgain = await staffBrowser.GetAsync("/Staff/Testers");
     var removed = await SubmitAsync(staffBrowser, testersPageAgain, await testersPageAgain.Content.ReadAsStringAsync(), "/Staff/Testers?handler=Remove", new() { ["email"] = newTester.ToLowerInvariant() });
     Check(removed.StatusCode == HttpStatusCode.Redirect && !(await staffBrowser.GetStringAsync("/Staff/Testers")).Contains(newTester.ToLowerInvariant()), "Staff remove a tester invitation");

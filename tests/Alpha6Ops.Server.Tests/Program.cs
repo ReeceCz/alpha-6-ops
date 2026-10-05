@@ -512,6 +512,24 @@ using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staf
     using var staffBrowser = feedbackHost.Browser($"staff-{run}");
     using var staffNoMfa = feedbackHost.Browser($"staff-{run}", mfa: false);
     using var anon = feedbackHost.CreateClient(new() { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
+    // Pilot home: the getting-started checklist and the logbook insights.
+    using var ownerHome = feedbackHost.Browser(owner);
+    var homeHtml = await ownerHome.GetStringAsync("/Account");
+    Check(homeHtml.Contains("Getting started") && homeHtml.Contains("href=\"/Account/Feedback\"") && homeHtml.Contains("class=\"step done\""),
+    "The account page shows the getting-started checklist, with finished steps marked");
+    using (var ownerApi = feedbackHost.Client(owner))
+        await ownerApi.PostAsJsonAsync("/api/v1/me/flights/import", new LogbookImportRequest(
+            $"Date;Flight;From;To;Aircraft;Block Time;Landing Rate\n{DateTime.UtcNow.AddDays(-3):yyyy-MM-dd} 18:20;S4701;KMKE;KORD;A20N;0:55;-180\n{DateTime.UtcNow.AddDays(-4):yyyy-MM-dd} 20:30;S4702;KORD;KMKE;A20N;1:05;-140\n"));
+    var logbookHome = await ownerHome.GetStringAsync("/Account/Logbook");
+    if (Environment.GetEnvironmentVariable("S4OPS_PORTAL_SNAPSHOT_DIR") is { Length: > 0 } homeSnapshots)
+    {
+        Directory.CreateDirectory(homeSnapshots);
+        await File.WriteAllTextAsync(Path.Combine(homeSnapshots, "home-start.html"), homeHtml);
+        await File.WriteAllTextAsync(Path.Combine(homeSnapshots, "logbook-insights.html"), logbookHome);
+    }
+    Check(logbookHome.Contains("Your flying") && logbookHome.Contains("Top routes") && Regex.Matches(logbookHome, "class=\"bar h\\d+\"").Count == 12
+    && logbookHome.Contains("<table class=\"visually-hidden\"") && !Regex.IsMatch(logbookHome, @"\sstyle="""), "The logbook shows insights with a twelve-month chart and a table for screen readers");
+    Check(!logbookHome.Contains("land here automatically"), "The logbook no longer claims desktop flights arrive automatically");
     // Anonymous requests are challenged; here the challenge can't reach the fake identity provider, so assert no form is served.
     var anonForm = await anon.GetAsync("/Account/Feedback");
     Check(!anonForm.IsSuccessStatusCode && !(await anonForm.Content.ReadAsStringAsync()).Contains("Send report"), "The report form needs sign-in");
@@ -528,6 +546,8 @@ using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staf
     Check(sentEmptyFile.StatusCode == HttpStatusCode.Redirect, "An empty file input sends the report without an attachment");
     var lying = await PostMultipartAsync(reporterBrowser, formPage, formHtml, "/Account/Feedback", fields, ("Attachment", "<html>hi</html>"u8.ToArray(), "evil.png"));
     Check(lying.StatusCode == HttpStatusCode.BadRequest && (await lying.Content.ReadAsStringAsync()).Contains("PNG or JPEG"), "A file that isn't what its name says is refused with a readable message");
+    var emptyLogbook = await reporterBrowser.GetStringAsync("/Account/Logbook");
+    Check(emptyLogbook.Contains("Nothing logged yet.") && !emptyLogbook.Contains("Your flying"), "An empty logbook explains itself instead of showing empty charts");
     var mine = await reporterBrowser.GetStringAsync("/Account/Feedback");
     Check(mine.Contains("The map froze after takeoff") && mine.Contains("S4601"), "Pilots see their own reports");
     Check((await reporterBrowser.GetAsync("/Staff/Feedback")).StatusCode == HttpStatusCode.NotFound, "Staff inbox is 404 for pilots");

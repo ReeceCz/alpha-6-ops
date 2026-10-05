@@ -10,9 +10,10 @@ public class IndexModel(AccountsService accounts, ServerSettings settings, Staff
 {
     public BootstrapResponse? Account { get; private set; }
     public bool IsStaff { get; private set; }
+    public GettingStarted? Start { get; private set; }
     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
     {
-        try { Account = await Accounts.BootstrapAsync(Actor, ct); IsStaff = staff.IsStaff(Actor); return Page(); }
+        try { Account = await Accounts.BootstrapAsync(Actor, ct); Start = await Accounts.GettingStartedAsync(Actor, ct); IsStaff = staff.IsStaff(Actor); return Page(); }
         catch (IdentityException ex) { return Failure(ex); }
     }
     public async Task<IActionResult> OnPostWorkspaceAsync(Guid? airlineId, CancellationToken ct)

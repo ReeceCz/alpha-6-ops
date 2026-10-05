@@ -297,6 +297,31 @@ td { font-variant-numeric: tabular-nums; }
 .stat-value small { font-size: var(--size-xs); margin-left: 2px; color: var(--muted); }
 .stat-value.small { font-size: var(--size-s); padding-top: var(--space-2); color: var(--text); }
 .stat-label { font-size: var(--size-xs); color: var(--muted); }
+
+/* Getting started */
+.steps-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.step { display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-3); align-items: center; }
+.step-mark { width: 1.25rem; height: 1.25rem; border-radius: 50%; border: 2px solid var(--muted); }
+.step.done .step-mark { border-color: var(--action); background: var(--action); box-shadow: inset 0 0 0 3px var(--surface-raised); }
+.step.done strong { color: var(--muted); font-weight: 600; }
+
+/* Logbook insights */
+.insight-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-5); margin-bottom: var(--space-5); }
+.insight-grid h3, .insights > h3 { font-size: var(--size-xs); color: var(--muted); font-weight: 400; margin: 0 0 var(--space-2); text-transform: uppercase; letter-spacing: .06em; }
+.insight-value { font: 700 var(--size-l)/1.3 var(--mono); color: var(--text); margin: 0; }
+.insight-grid p { margin: 0; }
+.route-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-1); font-size: var(--size-s); }
+.route-list li { display: flex; justify-content: space-between; gap: var(--space-3); }
+/* One series, one hue; thin bars with rounded data ends anchored to the baseline and a 2px gap. */
+.month-chart { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 2px; align-items: end; height: 8rem; border-bottom: 1px solid var(--line); }
+.month { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; position: relative; }
+.bar { width: min(100%, 1.5rem); background: var(--action); border-radius: 4px 4px 0 0; }
+.bar.h0 { height: 2px; background: var(--line); border-radius: 0; }
+.bar.h1 { height: 10%; } .bar.h2 { height: 20%; } .bar.h3 { height: 30%; } .bar.h4 { height: 40%; } .bar.h5 { height: 50%; }
+.bar.h6 { height: 60%; } .bar.h7 { height: 70%; } .bar.h8 { height: 80%; } .bar.h9 { height: 90%; } .bar.h10 { height: 100%; }
+.month:hover .bar:not(.h0) { background: var(--action-hover); }
+.month-label { position: absolute; bottom: -1.5rem; font-size: var(--size-xs); color: var(--muted); }
+.insights .month-chart { margin-bottom: var(--space-6); }
 .pager { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); padding: var(--space-3) 0; font-size: var(--size-s); }
 .import-help { margin-top: var(--space-3); font-size: var(--size-xs); }
 .import-help summary { cursor: pointer; color: var(--text-2); }
@@ -419,6 +444,8 @@ td { font-variant-numeric: tabular-nums; }
   .strip-cta .actions { grid-column: 1 / -1; }
 }
 @media (max-width: 680px) {
+  .insight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .month-label { font-size: 0.625rem; }
   .legal-list { grid-template-columns: 1fr; gap: 0; }
   .logo-row { flex-wrap: wrap; }
   .legal-list dd { margin-bottom: var(--space-3); }

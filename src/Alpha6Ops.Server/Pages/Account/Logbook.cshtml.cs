@@ -11,9 +11,13 @@ public class LogbookModel(AccountsService accounts, ServerSettings settings) : A
     public const int PageSize = 50;
     [BindProperty(SupportsGet = true)] public int P { get; set; } = 1;
     public LogbookSummary? Summary { get; private set; }
+    public LogbookInsights? Insights { get; private set; }
     public LogbookPage? Flights { get; private set; }
     public LogbookImportResult? Import { get; private set; }
     public string? Saved { get; private set; }
+
+    /// <summary>Bar height class h0..h10 for a month, relative to the busiest month (h0 only for an empty month).</summary>
+    public static string BarClass(int value, int max) => "h" + (value <= 0 || max <= 0 ? 0 : Math.Max(1, (int)Math.Round(value * 10.0 / max)));
 
     public async Task<IActionResult> OnGetAsync(string? saved, CancellationToken ct)
     {
@@ -24,6 +28,7 @@ public class LogbookModel(AccountsService accounts, ServerSettings settings) : A
     private async Task LoadAsync(CancellationToken ct)
     {
         Summary = await Accounts.LogbookSummaryAsync(Actor, ct);
+        Insights = await Accounts.LogbookInsightsAsync(Actor, ct);
         Flights = await Accounts.ListFlightsAsync(Actor, Math.Max(1, P), PageSize, ct);
     }
 

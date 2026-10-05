@@ -1,7 +1,7 @@
 @page "/Account/Logbook"
 @model Alpha6Ops.Server.Pages.Account.LogbookModel
 @{ ViewData["Title"] = "Logbook"; var s = Model.Summary; var book = Model.Flights; var pages = book is null ? 0 : (book.Total + book.PageSize - 1) / book.PageSize; }
-<div class="page-heading"><a href="/Account">← Your workspaces</a><div class="eyebrow">Pilot logbook</div><h1>Every flight, in one book.</h1><p class="lead">Flights the desktop app files land here automatically. Bring the rest with you: import the logbook you kept on another platform and it counts from day one.</p></div>
+<div class="page-heading"><a href="/Account">← Your workspaces</a><div class="eyebrow">Pilot logbook</div><h1>Every flight, in one book.</h1><p class="lead">Bring your history with you: import the logbook you kept on another platform and it counts from day one. Flights the desktop app tracks stay in the app's own logbook for now.</p></div>
 @if (Model.Saved is { } saved) { <div class="notice" role="status"><p>@saved</p></div> }
 <partial name="_AccountError" model="Model" />
 @if (Model.Import is { } import) {
@@ -17,6 +17,27 @@
     <div class="stat"><span class="stat-value small">@(s.TopAircraft.Length > 0 ? string.Join(" · ", s.TopAircraft.Take(3)) : "—")</span><span class="stat-label">Most flown</span></div>
     <div class="stat"><span class="stat-value small">@(s.FirstFlight is { } first ? $"{first:yyyy-MM-dd} → {s.LastFlight:yyyy-MM-dd}" : "—")</span><span class="stat-label">Span</span></div>
 </section>
+@if (Model.Insights is { } ins && s.Flights > 0) {
+    var maxMonth = ins.Months.Max(m => m.Flights);
+    var monthName = (Alpha6Ops.Accounts.MonthCount m) => new DateTime(m.Year, m.Month, 1).ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+<section class="card insights" aria-labelledby="insights-title">
+    <h2 id="insights-title">Your flying</h2>
+    <div class="insight-grid">
+        <div><h3>Last 30 days</h3><p class="insight-value">@ins.FlightsLast30Days @(ins.FlightsLast30Days == 1 ? "flight" : "flights")</p><p class="muted">@Alpha6Ops.Server.Pages.Account.LogbookModel.Hours(ins.BlockMinutesLast30Days) block</p></div>
+        <div><h3>Landings</h3>@if (ins.AverageLandingFpm is { } avg) { <p class="insight-value">@avg fpm</p><p class="muted">Average · softest @ins.SoftestLandingFpm fpm</p> } else { <p class="muted">No landing rates recorded.</p> }</div>
+        <div><h3>Longest flight</h3>@if (ins.Longest is { } longest) { <p class="insight-value">@Alpha6Ops.Server.Pages.Account.LogbookModel.Hours(longest.BlockMinutes)</p><p class="muted">@longest.Origin → @longest.Destination@(longest.FlightNumber.Length > 0 ? $" · {longest.FlightNumber}" : "") · @longest.DepartureUtc.ToString("yyyy-MM-dd")</p> } else { <p class="muted">No block times recorded.</p> }</div>
+        <div><h3>Top routes</h3><ol class="route-list">@foreach (var r in ins.TopRoutes) { <li><span class="mono">@r.Origin → @r.Destination</span><span class="muted">@r.Flights</span></li> }</ol></div>
+    </div>
+    <h3 id="months-title">Flights per month</h3>
+    <div class="month-chart" role="img" aria-labelledby="months-title" aria-describedby="months-table">
+        @foreach (var m in ins.Months) {
+            <div class="month" title="@monthName(m): @m.Flights @(m.Flights == 1 ? "flight" : "flights")"><span class="bar @Alpha6Ops.Server.Pages.Account.LogbookModel.BarClass(m.Flights, maxMonth)"></span><span class="month-label" aria-hidden="true">@(new DateTime(m.Year, m.Month, 1).ToString("MMM", System.Globalization.CultureInfo.InvariantCulture))</span></div>
+        }
+    </div>
+    <table class="visually-hidden" id="months-table"><caption>Flights per month</caption><thead><tr><th scope="col">Month</th><th scope="col">Flights</th><th scope="col">Block</th></tr></thead>
+        <tbody>@foreach (var m in ins.Months) { <tr><td>@monthName(m)</td><td>@m.Flights</td><td>@Alpha6Ops.Server.Pages.Account.LogbookModel.Hours(m.BlockMinutes)</td></tr> }</tbody></table>
+</section>
+}
 <div class="console-grid">
 <section class="console-main">
     <div class="console-bar"><h2>Flights <span class="count">@book.Total.ToString("n0")</span></h2>@if (book.Total > 0) { <a class="button secondary small" href="/Account/Logbook?handler=Export">Export CSV</a> }</div>

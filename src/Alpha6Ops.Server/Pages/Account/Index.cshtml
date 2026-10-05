@@ -11,6 +11,24 @@ var personalSelected = account.LastWorkspace.AirlineId is null;
     <div class="account-summary"><strong>@account.Account.DisplayName</strong><span class="mono">@account.Account.Email</span><a class="badge" asp-page="Plan">Personal @account.PersonalEntitlement.Plan</a>@if (!account.Account.EmailVerified) { <span class="badge warn">Email not verified</span> }</div>
 </div>
 
+@if (Model.Start is { } start && !(start.ProfileSet && start.DesktopSignedIn && start.SentReport)) {
+<section class="card getting-started" aria-labelledby="start-title">
+    <h2 id="start-title">Getting started</h2>
+    <p class="muted">A few steps to your first tracked flight. This card goes away once they're done.</p>
+    <ol class="steps-list">
+        @{ var steps = new (bool Done, string Title, string Hint, string Href, string Action)[] {
+            (true, "Create your account", "You're signed in.", "", ""),
+            (start.ProfileSet, "Set up your pilot profile", "Callsign, home base and SimBrief username.", "/Account/Profile", "Open profile"),
+            (start.DesktopSignedIn, "Install the desktop app and sign in", "Windows 10 or 11, on the PC that runs MSFS 2024.", "/Download", "Download"),
+            (start.HasFlights, "Bring your old logbook (optional)", "Import a CSV from the platform you used before.", "/Account/Logbook", "Import"),
+            (start.SentReport, "Fly, then tell us how it went", "A flight that wasn't recorded right, a bug, or an idea.", "/Account/Feedback", "Report") }; }
+        @foreach (var step in steps) {
+            <li class="step @(step.Done ? "done" : "")"><span class="step-mark" aria-hidden="true"></span><div><strong><span class="visually-hidden">@(step.Done ? "Done: " : "To do: ")</span>@step.Title</strong><span class="muted block">@step.Hint</span></div>
+                @if (!step.Done && step.Href.Length > 0) { <a class="button secondary small" href="@step.Href">@step.Action</a> }</li>
+        }
+    </ol>
+</section>
+}
 <section class="grid two account-panels" aria-label="Account">
     <article class="card panel">
         <div class="panel-head">@if (account.Profile is { AvatarUrl.Length: > 0 } av) { <span class="tile image" aria-hidden="true"><img src="@av.AvatarUrl" alt="" /></span> } else { <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></span> }<div class="eyebrow">Account</div><span class="live">@account.Account.Status</span></div>

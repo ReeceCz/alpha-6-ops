@@ -13,7 +13,7 @@ public static partial class AccountRules
         value = (value ?? "").Trim();
         if (value.Length > 254 || !MailAddress.TryCreate(value, out var parsed) || parsed.Address != value)
             throw new IdentityException("invalid_email", "Enter a valid email address.", 400);
-        return value.ToUpperInvariant();
+        return value.ToLowerInvariant();
     }
 
     public static AirlineRole[] Roles(AirlineRole[]? roles)

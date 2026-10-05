@@ -36,7 +36,7 @@ async Task RejectDatabaseAsync(Func<Task> action, string name)
     throw new InvalidOperationException("Expected database rejection: " + name);
 }
 
-Check(AccountRules.Email(" Pilot@Example.com ") == "PILOT@EXAMPLE.COM", "email normalization");
+Check(AccountRules.Email(" Pilot@Example.com ") == "pilot@example.com" && AccountRules.Email("PILOT@EXAMPLE.COM") == "pilot@example.com", "emails are trimmed and stored lower-case, as people write them");
 var invited = AccountAdmission.InviteOnly(" Tester@Example.com ;; second@example.com; ");
 Check(AccountAdmission.Open.Admits("anyone@example.com", false) is null, "open admission creates any account");
 Check(invited.Admits("tester@example.com", true) is null && invited.Admits("SECOND@EXAMPLE.COM", true) is null, "invited emails match case-insensitively after trimming");
@@ -143,9 +143,19 @@ async Task Mutation(Func<AccountsService, Task> action)
 await using (var db = Context())
 {
     Check(!db.Database.HasPendingModelChanges(), "migration snapshot matches current model");
+    // Emails written upper-case before LowercaseEmails must come out lower-case, as the code now writes them.
+    // (EF can't target these 12-digit migration ids, so the test re-runs the real migration via its history row.)
+    await db.Database.MigrateAsync();
+    var legacyUser = Guid.NewGuid();
+    await db.Database.ExecuteSqlAsync($"""
+        INSERT INTO user_account ("Id","Issuer","Subject","DisplayName","Email","EmailVerified","Status","Plan","SubscriptionStatus","CreatedAt")
+        VALUES ({legacyUser}, 'https://legacy/', 'legacy', 'Legacy', 'LEGACY.PILOT@EXAMPLE.COM', true, 1, 0, 'active', now())
+        """);
+    await db.Database.ExecuteSqlAsync($"""DELETE FROM "__EFMigrationsHistory" WHERE "MigrationId" = '202610040001_LowercaseEmails'""");
     await db.Database.MigrateAsync();
     await db.Database.MigrateAsync();
-    Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 7, "migrations are repeatable");
+    Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 8, "migrations are repeatable");
+    Check((await db.Users.SingleAsync(x => x.Id == legacyUser)).Email == "legacy.pilot@example.com", "existing emails are lower-cased by the migration");
 }
 var prefix = Guid.NewGuid().ToString("N")[..10];
 actor = actor with { Subject = prefix + "-owner", Email = prefix + "-owner@example.com" };

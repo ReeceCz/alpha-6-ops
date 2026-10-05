@@ -33,6 +33,14 @@ h1, h2, h3 { font-family: var(--display); font-weight: 700; margin: 0; }
 .nav nav a { color: var(--text-2); text-decoration: none; }
 .nav nav a:hover { color: var(--text); }
 .nav .signin { border: 1px solid var(--yellow); color: var(--yellow) !important; padding: 0.5625rem 1rem; border-radius: 0.25rem; font-weight: 600; }
+/* Phone menu: a <details> disclosure, so it needs no script. Hidden above 640px, where the inline links show. */
+.menu { display: none; position: relative; margin-left: auto; }
+.menu summary { list-style: none; cursor: pointer; padding: 0.5625rem 0.875rem; border: 1px solid var(--line); border-radius: 0.25rem; color: var(--text); font-weight: 600; font-size: 0.9375rem; }
+.menu summary::-webkit-details-marker { display: none; }
+.menu[open] summary { border-color: var(--yellow); color: var(--yellow); }
+.menu nav { position: absolute; right: 0; top: calc(100% + 0.5rem); min-width: 12rem; display: grid; padding: 0.5rem; background: var(--bg); border: 1px solid var(--line); border-radius: 0.25rem; }
+.menu nav a { padding: 0.75rem 0.875rem; color: var(--text-2); text-decoration: none; }
+.menu nav a:hover { color: var(--text); }
 
 /* Hero */
 /* --edge is the sections' content edge (centred .wrap, max(84rem, 70%)), so the hero text shares the page's left margin. */
@@ -125,7 +133,8 @@ h1, h2, h3 { font-family: var(--display); font-weight: 700; margin: 0; }
   .oooi, .steps { grid-template-columns: repeat(2, 1fr); } .start-grid, .split { grid-template-columns: 1fr; } .start-grid { gap: 2.5rem; }
 }
 @media (max-width: 640px) {
-  .nav nav a:not(.signin) { display: none; }
+  .nav > nav { display: none; }
+  .menu { display: block; }
   .oooi, .steps, .features { grid-template-columns: 1fr; }
   .readout { display: none; }
   .legend .long { display: none; }

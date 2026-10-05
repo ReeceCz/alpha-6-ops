@@ -1,0 +1,38 @@
+@page "/Staff"
+@model Alpha6Ops.Server.Pages.Staff.OverviewModel
+@{ ViewData["Title"] = "Staff overview"; }
+<div class="page-heading"><div class="eyebrow">Staff</div><h1>Overview</h1><partial name="_StaffNav" model='@("overview")' /></div>
+<partial name="_AccountError" model="Model" />
+@if (Model.Overview is { } o) {
+<section class="grid two">
+    <article class="card">
+        <h2>Tester funnel</h2>
+        <ol class="funnel">
+            <li><span class="funnel-count">@o.Invited</span> invited from the Testers page</li>
+            <li><span class="funnel-count">@o.Accounts</span> accounts created</li>
+            <li><span class="funnel-count">@o.DesktopSignedIn</span> signed in from the desktop app</li>
+            <li><span class="funnel-count">@o.WithFlights</span> with a flight in their logbook</li>
+            <li><span class="funnel-count">@o.Reported</span> sent a problem report</li>
+        </ol>
+        <p class="muted">Accounts include everyone admitted through <code>Accounts__InvitedEmails</code>. @o.NewAccountsThisWeek new this week.</p>
+    </article>
+    <article class="card">
+        <h2>Needs you</h2>
+        <dl class="facts">
+            <dt>Open reports</dt><dd><a href="/Staff/Feedback">@o.OpenReports new</a></dd>
+            <dt>Testers</dt><dd><a href="/Staff/Testers">Invite or remove testers</a></dd>
+        </dl>
+    </article>
+</section>
+<section class="card">
+    <h2>Desktop versions</h2>
+    <p class="muted">Pilots whose desktop app signed in during the last 30 days, by version.@(Model.CurrentRelease is { } cur ? $" The published release is {cur}." : " No release is published yet.")</p>
+    @if (o.Versions.Length == 0) { <p class="muted">No desktop sign-ins in the last 30 days.</p> } else {
+    <ul class="report-list">
+    @foreach (var v in o.Versions) {
+        <li class="row"><span class="mono">@(v.Version.Length > 0 ? v.Version : "unknown")</span><span>@v.Pilots @(v.Pilots == 1 ? "pilot" : "pilots")@if (Model.IsBehind(v.Version)) { <span class="badge warn">behind</span> }</span></li>
+    }
+    </ul>
+    }
+</section>
+}

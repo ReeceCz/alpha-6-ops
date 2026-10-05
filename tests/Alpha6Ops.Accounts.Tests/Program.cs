@@ -548,6 +548,19 @@ Check((await RunAdmitting(closedList, s => s.BootstrapAsync(invitedTester with {
 Check((await Run(s => s.ListTesterInvitesAsync(staffer, staffList))).Single(x => x.Email == addedEmail).HasAccount, "the tester list shows who has created their account");
 await Run(s => s.RemoveTesterInviteAsync(staffer, staffList, addedEmail));
 Check((await Run(s => s.ListTesterInvitesAsync(staffer, staffList))).All(x => x.Email != addedEmail), "staff remove an invitation");
+// Staff overview: the tester funnel and desktop versions, counted from what's stored.
+await RejectAsync(() => Run(s => s.GetStaffOverviewAsync(reporter, staffList)), "not_found");
+var overview = await Run(s => s.GetStaffOverviewAsync(staffer, staffList));
+await using (var db = Context())
+{
+    var active = db.Users.Where(x => x.Status == AccountStatus.Active);
+    Check(overview.Invited == await db.TesterInvites.CountAsync() && overview.Accounts == await active.CountAsync()
+        && overview.DesktopSignedIn == await active.CountAsync(u => db.Profiles.Any(p => p.UserId == u.Id && p.LastSeenAt != null))
+        && overview.WithFlights == await active.CountAsync(u => db.Flights.Any(f => f.UserId == u.Id))
+        && overview.Reported == await active.CountAsync(u => db.Feedback.Any(f => f.UserId == u.Id))
+        && overview.OpenReports == await db.Feedback.CountAsync(x => x.Status == FeedbackStatus.New), "the overview counts the tester funnel and open reports");
+}
+Check(overview.Versions.Any(v => v.Version == "0.16.0" && v.Pilots >= 1) && overview.NewAccountsThisWeek >= 1, "the overview lists desktop versions seen in the last 30 days and new accounts");
 var lateTester = actor with { Subject = prefix + "-late-tester", Email = prefix + "-late@example.com" };
 await RejectAsync(() => RunAdmitting(closedList, s => s.BootstrapAsync(lateTester)), "invite_required");
 Console.WriteLine($"{passed} account checks passed, including real PostgreSQL integration.");

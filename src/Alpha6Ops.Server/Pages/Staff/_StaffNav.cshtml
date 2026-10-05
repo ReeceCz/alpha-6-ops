@@ -1,3 +1,3 @@
 @model string
-@* Tabs shared by the staff pages. Model is the current section: "feedback" or "testers". *@
-<nav class="tabs" aria-label="Staff"><a href="/Staff/Feedback" aria-current="@(Model == "feedback" ? "page" : null)">Problem reports</a><a href="/Staff/Testers" aria-current="@(Model == "testers" ? "page" : null)">Testers</a></nav>
+@* Tabs shared by the staff pages. Model is the current section: "overview", "feedback" or "testers". *@
+<nav class="tabs" aria-label="Staff"><a href="/Staff" aria-current="@(Model == "overview" ? "page" : null)">Overview</a><a href="/Staff/Feedback" aria-current="@(Model == "feedback" ? "page" : null)">Problem reports</a><a href="/Staff/Testers" aria-current="@(Model == "testers" ? "page" : null)">Testers</a></nav>

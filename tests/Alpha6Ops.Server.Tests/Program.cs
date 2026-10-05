@@ -552,8 +552,12 @@ using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staf
     // Testers: staff invite and remove testers without a hosting configuration change.
     Check((await reporterBrowser.GetAsync("/Staff/Testers")).StatusCode == HttpStatusCode.NotFound, "Tester invitations are 404 for pilots");
     Check(inboxHtml.Contains("href=\"/Staff/Testers\""), "Staff pages link to each other");
-    Check((await staffBrowser.GetStringAsync("/Account")).Contains("href=\"/Staff/Feedback\"") && !(await reporterBrowser.GetStringAsync("/Account")).Contains("/Staff/"),
+    Check((await staffBrowser.GetStringAsync("/Account")).Contains("href=\"/Staff\"") && !(await reporterBrowser.GetStringAsync("/Account")).Contains("/Staff"),
         "The account page shows staff tools to staff only");
+    Check((await reporterBrowser.GetAsync("/Staff")).StatusCode == HttpStatusCode.NotFound, "The staff overview is 404 for pilots");
+    var overviewHtml = await staffBrowser.GetStringAsync("/Staff");
+    Check(overviewHtml.Contains("Tester funnel") && overviewHtml.Contains("Desktop versions") && overviewHtml.Contains("href=\"/Staff/Feedback\"")
+        && !Regex.IsMatch(overviewHtml, @"\sstyle=""") && !overviewHtml.Contains("<script"), "Staff see the overview with the funnel, versions and links");
     var testersPage = await staffBrowser.GetAsync("/Staff/Testers");
     var testersHtml = await testersPage.Content.ReadAsStringAsync();
     Check(testersPage.IsSuccessStatusCode && testersHtml.Contains("Invite a tester") && !Regex.IsMatch(testersHtml, @"\sstyle=""") && !testersHtml.Contains("<script"), "Staff open the tester invitations page");

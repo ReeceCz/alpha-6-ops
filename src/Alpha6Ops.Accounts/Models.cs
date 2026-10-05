@@ -206,3 +206,14 @@ public sealed class TesterInvite
     public Guid InvitedByUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
+
+/// <summary>Staff-written "what's new" for one desktop version.</summary>
+public sealed class ReleaseNote
+{
+    public string Version { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string Notes { get; set; } = "";
+    public Guid AuthorUserId { get; set; }
+    public DateTimeOffset PublishedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}

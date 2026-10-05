@@ -67,6 +67,12 @@ Reject(() => FeedbackRules.Attachment(new("a.svg", "<svg onload=alert(1)/>"u8.To
 Reject(() => FeedbackRules.Attachment(new("a.exe", [0x4D, 0x5A, 0x90, 0])), "invalid_attachment");
 Reject(() => FeedbackRules.Attachment(new("a.json", "{not json"u8.ToArray())), "invalid_attachment");
 Reject(() => FeedbackRules.Attachment(new("big.zip", [0x50, 0x4B, 0x03, 0x04, .. new byte[FeedbackRules.MaxAttachmentBytes]])), "invalid_attachment");
+var note = ReleaseRules.Note(new(" 0.23.0 ", "  Smoother block-in  ", "  - Fenix block-in from engine shutdown\r\n- Faster SimBrief import  "));
+Check(note is { Version: "0.23.0", Title: "Smoother block-in", Notes: "- Fenix block-in from engine shutdown\n- Faster SimBrief import" }, "release notes are trimmed with line endings normalised");
+Reject(() => ReleaseRules.Note(new("v0.23", "Title", "Notes")), "invalid_release");
+Reject(() => ReleaseRules.Note(new("0.23.0", "", "Notes")), "invalid_release");
+Reject(() => ReleaseRules.Note(new("0.23.0", "Title", new string('x', 8001))), "invalid_release");
+Reject(() => ReleaseRules.Note(new("0.23.0", "Title", "bell \u0007")), "invalid_release");
 var staff = StaffAccess.FromEmails(" Reece@Example.com ; dan@example.com,");
 Check(staff.IsConfigured && staff.IsStaff(actor with { Email = "reece@example.com" }) && staff.IsStaff(actor with { Email = "DAN@EXAMPLE.COM" }), "staff allowlist matches case-insensitively");
 Check(!staff.IsStaff(actor with { Email = "reece@example.com", EmailVerified = false }), "an unverified email never grants staff");
@@ -181,7 +187,7 @@ await using (var db = Context())
     await db.Database.ExecuteSqlAsync($"""DELETE FROM "__EFMigrationsHistory" WHERE "MigrationId" = '202610040001_LowercaseEmails'""");
     await db.Database.MigrateAsync();
     await db.Database.MigrateAsync();
-    Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 10, "migrations are repeatable");
+    Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 11, "migrations are repeatable");
     Check((await db.Users.SingleAsync(x => x.Id == legacyUser)).Email == "legacy.pilot@example.com", "existing emails are lower-cased by the migration");
 }
 var prefix = Guid.NewGuid().ToString("N")[..10];
@@ -561,6 +567,15 @@ await using (var db = Context())
         && overview.OpenReports == await db.Feedback.CountAsync(x => x.Status == FeedbackStatus.New), "the overview counts the tester funnel and open reports");
 }
 Check(overview.Versions.Any(v => v.Version == "0.16.0" && v.Pilots >= 1) && overview.NewAccountsThisWeek >= 1, "the overview lists desktop versions seen in the last 30 days and new accounts");
+// Release notes: staff write them; anyone reads them, newest version first.
+await RejectAsync(() => Run(s => s.SaveReleaseNoteAsync(reporter, staffList, new("0.23.0", "Title", "Notes"))), "not_found");
+await Run(s => s.SaveReleaseNoteAsync(staffer, staffList, new("0.9.0", "Older", "First test build.")));
+var saved = await Run(s => s.SaveReleaseNoteAsync(staffer, staffList, new("0.10.0", "Newer", "Block-in from engine shutdown.")));
+Check(saved is { Version: "0.10.0", Title: "Newer", Author: "Staffer" }, "staff publish release notes");
+Check((await Run(s => s.SaveReleaseNoteAsync(staffer, staffList, new("0.10.0", "Newer, edited", "Block-in from engine shutdown.")))).Title == "Newer, edited", "saving the same version edits its notes");
+Check((await Run(s => s.ListReleaseNotesAsync())).Select(x => x.Version).Take(2).SequenceEqual(["0.10.0", "0.9.0"]), "release notes list newest version first, compared numerically");
+Check((await Run(s => s.GetReleaseNoteAsync("0.10.0")))?.Title == "Newer, edited" && await Run(s => s.GetReleaseNoteAsync("1.0.0")) is null, "one version's notes can be read on their own");
+Check(await Run(s => s.DeleteReleaseNoteAsync(staffer, staffList, "0.9.0")) && (await Run(s => s.ListReleaseNotesAsync())).All(x => x.Version != "0.9.0"), "staff delete release notes");
 var lateTester = actor with { Subject = prefix + "-late-tester", Email = prefix + "-late@example.com" };
 await RejectAsync(() => RunAdmitting(closedList, s => s.BootstrapAsync(lateTester)), "invite_required");
 Console.WriteLine($"{passed} account checks passed, including real PostgreSQL integration.");

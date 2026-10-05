@@ -19,6 +19,7 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
     public DbSet<Feedback> Feedback => Set<Feedback>();
     public DbSet<FeedbackAttachment> FeedbackAttachments => Set<FeedbackAttachment>();
     public DbSet<TesterInvite> TesterInvites => Set<TesterInvite>();
+    public DbSet<ReleaseNote> ReleaseNotes => Set<ReleaseNote>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -121,5 +122,10 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
         var tester = model.Entity<TesterInvite>(); tester.ToTable("tester_invite"); tester.HasKey(x => x.Email);
         tester.Property(x => x.Email).HasMaxLength(254); tester.Property(x => x.Note).HasMaxLength(200);
         tester.HasOne<UserAccount>().WithMany().HasForeignKey(x => x.InvitedByUserId).OnDelete(DeleteBehavior.Restrict);
+
+        var release = model.Entity<ReleaseNote>(); release.ToTable("release_note"); release.HasKey(x => x.Version);
+        release.Property(x => x.Version).HasMaxLength(32); release.Property(x => x.Title).HasMaxLength(120);
+        release.Property(x => x.Notes).HasMaxLength(8000);
+        release.HasOne<UserAccount>().WithMany().HasForeignKey(x => x.AuthorUserId).OnDelete(DeleteBehavior.Restrict);
     }
 }

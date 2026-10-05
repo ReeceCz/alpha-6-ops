@@ -617,10 +617,67 @@ static async Task<HttpResponseMessage> PostMultipartAsync(HttpClient client, Htt
     request.Headers.Add("Cookie", string.Join("; ", client.DefaultRequestHeaders.GetValues("Cookie").Append(antiforgery ?? "")));
     return await client.SendAsync(request);
 }
+// Invitation requests: a public form with a honeypot and a per-address limit; staff invite or decline from Testers.
+using (var requestHost = new ServerFactory(connection, settings: new() { ["Staff:Emails"] = $"staff-{run}@example.test" }))
+{
+    using var visitor = requestHost.CreateClient(new() { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
+    visitor.DefaultRequestHeaders.Add("Cookie", "s4-test=1");
+    using var requestStaff = requestHost.Browser($"staff-{run}");
+    var form = await visitor.GetAsync("/Request");
+    var formHtml = await form.Content.ReadAsStringAsync();
+    Check(form.IsSuccessStatusCode && formHtml.Contains("Ask for an invitation") && !formHtml.Contains("<script") && !Regex.IsMatch(formHtml, @"\sstyle=""")
+        && !formHtml.Contains("cf-turnstile") && form.Headers.GetValues("Content-Security-Policy").Single().Contains("script-src 'none'"), "The request form renders script-free without Turnstile keys");
+    var requester = $"asker-{run}@example.test";
+    var asked = await SubmitAsync(visitor, form, formHtml, "/Request", new() { ["Email"] = requester, ["Name"] = "Sam", ["Note"] = "Fenix A320", ["website"] = "" });
+    Check(asked.StatusCode == HttpStatusCode.Redirect && asked.Headers.Location!.OriginalString.Contains("sent=true", StringComparison.OrdinalIgnoreCase), "A visitor asks for an invitation");
+    var bot = $"bot-{run}@example.test";
+    var botPost = await SubmitAsync(visitor, form, formHtml, "/Request", new() { ["Email"] = bot, ["Name"] = "", ["Note"] = "", ["website"] = "https://spam.example" });
+    Check(botPost.StatusCode == HttpStatusCode.Redirect, "A filled honeypot looks like success to the bot");
+    var badEmail = await SubmitAsync(visitor, form, formHtml, "/Request", new() { ["Email"] = "nope", ["Name"] = "", ["Note"] = "", ["website"] = "" });
+    Check(badEmail.StatusCode == HttpStatusCode.BadRequest && (await badEmail.Content.ReadAsStringAsync()).Contains("valid email"), "A bad email is explained");
+    var limited = await SubmitAsync(visitor, form, formHtml, "/Request", new() { ["Email"] = $"fourth-{run}@example.test", ["Name"] = "", ["Note"] = "", ["website"] = "" });
+    Check(limited.StatusCode == HttpStatusCode.TooManyRequests, "A fourth request from the same address within the hour is refused");
+    var testersWithRequests = await requestStaff.GetAsync("/Staff/Testers");
+    var testersWithRequestsHtml = await testersWithRequests.Content.ReadAsStringAsync();
+    Check(testersWithRequestsHtml.Contains(requester) && testersWithRequestsHtml.Contains("Fenix A320") && !testersWithRequestsHtml.Contains(bot), "Staff see real requests, not the bot's");
+    if (Environment.GetEnvironmentVariable("S4OPS_PORTAL_SNAPSHOT_DIR") is { Length: > 0 } requestSnapshots)
+    {
+        Directory.CreateDirectory(requestSnapshots);
+        await File.WriteAllTextAsync(Path.Combine(requestSnapshots, "request.html"), formHtml);
+        await File.WriteAllTextAsync(Path.Combine(requestSnapshots, "staff-testers-requests.html"), testersWithRequestsHtml);
+        await File.WriteAllTextAsync(Path.Combine(requestSnapshots, "staff-overview.html"), await requestStaff.GetStringAsync("/Staff"));
+    }
+    var requestId = Regex.Match(testersWithRequestsHtml, @"name=""id"" value=""([0-9a-f-]{36})""").Groups[1].Value;
+    var approvedRequest = await SubmitAsync(requestStaff, testersWithRequests, testersWithRequestsHtml, "/Staff/Testers?handler=Approve", new() { ["id"] = requestId });
+    var afterApprove = await requestStaff.GetStringAsync("/Staff/Testers");
+    Check(approvedRequest.StatusCode == HttpStatusCode.Redirect && afterApprove.Contains(requester) && afterApprove.Contains("Requested: Sam") && !afterApprove.Contains($"value=\"{requestId}\""), "Inviting a request moves it to the invited list");
+    Check((await requestStaff.GetStringAsync("/Staff")).Contains("pending request"), "The overview shows pending requests");
+}
+using (var turnstileHost = new ServerFactory(connection, settings: new() { ["Turnstile:SiteKey"] = "site-key-test", ["Turnstile:SecretKey"] = "secret-test" },
+    extraServices: s => s.AddSingleton<ITurnstileVerifier>(new FakeTurnstile())))
+{
+    using var visitor = turnstileHost.CreateClient(new() { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
+    visitor.DefaultRequestHeaders.Add("Cookie", "s4-test=1");
+    var form = await visitor.GetAsync("/Request");
+    var formHtml = await form.Content.ReadAsStringAsync();
+    var turnstileCsp = form.Headers.GetValues("Content-Security-Policy").Single();
+    Check(formHtml.Contains("class=\"cf-turnstile\" data-sitekey=\"site-key-test\"") && turnstileCsp.Contains("script-src https://challenges.cloudflare.com") && turnstileCsp.Contains("frame-src https://challenges.cloudflare.com"),
+        "With Turnstile keys the form shows the widget and the page allows only Cloudflare's script");
+    var noToken = await SubmitAsync(visitor, form, formHtml, "/Request", new() { ["Email"] = $"turnstile-{run}@example.test", ["Name"] = "", ["Note"] = "", ["website"] = "" });
+    Check(noToken.StatusCode == HttpStatusCode.BadRequest && (await noToken.Content.ReadAsStringAsync()).Contains("security check"), "Without a Turnstile pass the request is refused");
+    var withToken = await SubmitAsync(visitor, form, formHtml, "/Request", new() { ["Email"] = $"turnstile-{run}@example.test", ["Name"] = "", ["Note"] = "", ["website"] = "", ["cf-turnstile-response"] = "good" });
+    Check(withToken.StatusCode == HttpStatusCode.Redirect, "With a Turnstile pass the request is accepted");
+    Check((await visitor.GetAsync("/Download")).Headers.GetValues("Content-Security-Policy").Single().Contains("script-src 'none'"), "Other pages keep the script-free policy");
+}
 Console.WriteLine($"Server integration tests complete: {failures} failures.");
 return failures == 0 ? 0 : 1;
 
-sealed class ServerFactory(string? connection, string environment = "Development", string? certificateBase64 = null, string? admission = "Open", string? invitedEmails = null, Dictionary<string, string>? settings = null) : WebApplicationFactory<ServerSettings>
+sealed class FakeTurnstile : ITurnstileVerifier
+{
+    public Task<bool> VerifyAsync(string? token, string? remoteIp, CancellationToken ct) => Task.FromResult(token == "good");
+}
+
+sealed class ServerFactory(string? connection, string environment = "Development", string? certificateBase64 = null, string? admission = "Open", string? invitedEmails = null, Dictionary<string, string>? settings = null, Action<IServiceCollection>? extraServices = null) : WebApplicationFactory<ServerSettings>
 {
     private readonly RSA key = RSA.Create(2048);
     internal const string Issuer = "https://identity.example.test/";
@@ -647,6 +704,7 @@ sealed class ServerFactory(string? connection, string environment = "Development
         builder.ConfigureServices(services =>
         {
             if (certificateBase64 is null) services.AddDataProtection().UseEphemeralDataProtectionProvider();
+            extraServices?.Invoke(services);
             services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
             {
             var config = new OpenIdConnectConfiguration { Issuer = Issuer };

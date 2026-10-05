@@ -16,10 +16,12 @@ to check it worked.
    git push fork feat/launch-prep:accounts
    ```
    `feat/launch-prep` starts at `fork/accounts` (259d9cb), so the second push is a fast-forward.
-3. Render applies the three new migrations when the container starts (`entrypoint.sh` runs `--migrate-accounts`):
+3. Render applies the five new migrations when the container starts (`entrypoint.sh` runs `--migrate-accounts`):
    - lower-case emails
    - feedback tables
    - tester invitations
+   - release notes
+   - invitation requests
 4. **Check:** `https://alpha6ops.onrender.com/healthz` → `ok`, and `/Support` shows the "Invitations" and "Report a
    problem" cards.
 
@@ -34,8 +36,9 @@ Dashboard → service `alpha6ops` → Environment:
 | `Hosting__PublicHosts` | `app.s4ops.com` | Already in `render.yaml`; confirm it's set before step 3 |
 | `Hosting__TrustCloudflare` | `true` | Same |
 
-**Check:** sign in at `https://alpha6ops.onrender.com`. Your account page shows "Staff: reports & testers". The
-staff pages ask for a fresh MFA check the first time.
+**Check:** sign in at `https://alpha6ops.onrender.com`. Your account page shows a "Staff" button. `/Staff` opens the
+overview (tester funnel, desktop versions, what needs you), with tabs for Problem reports, Testers and Release notes.
+The staff pages ask for a fresh MFA check the first time.
 
 ## 3. `app.s4ops.com` (about 15 min, mostly waiting)
 
@@ -84,17 +87,28 @@ powershell -File scripts/publish-release.ps1 -SkipBuild -Upload
 The upload creates the public pre-release `desktop-v<version>` on the fork. Paste the three `Release__*` lines it
 prints into Render's Environment.
 
-**Check:** `/Download` shows the version, the button and the checksum, and `check-live.ps1` downloads the installer
-URL.
+Then write the notes at `/Staff/Releases` (version, title, one change per line). They appear on `/Download`, on
+`/Releases`, and as "Update available" on the account page of any pilot on an older desktop.
+
+**Check:** `/Download` shows the version, the button, the checksum and the notes, and `check-live.ps1` downloads the
+installer URL.
 
 ## 6. Invite testers (1 min each, repeatable)
 
-`https://app.s4ops.com/Staff/Testers` → add the tester's email and a note. Tell them:
+Strangers can ask at `https://app.s4ops.com/Request`; "Ask for an invitation" on s4ops.com and the portal links there.
+Requests appear at the top of `/Staff/Testers` with **Invite** and **Decline** buttons. You can also add an email
+there directly. Either way, tell the tester:
 
 > Go to s4ops.com → "Create your invited account" with that email → verify it → download S4 OPS for Windows → sign in.
 > Something wrong? Use "Report a problem" in your account.
 
 No Render change is needed per tester any more. `Accounts__InvitedEmails` still works alongside it.
+
+## 7. Optional: Turnstile on the request form (about 5 min, free)
+
+The form already has a honeypot and a limit of 3 requests per address per hour. If spam gets through, Cloudflare →
+Turnstile → Add widget for `app.s4ops.com` (Managed mode). Copy the keys into Render as `Turnstile__SiteKey` and
+`Turnstile__SecretKey`. The widget appears on `/Request` by itself; nothing else changes.
 
 ## Still open with Dan (not blocking testers)
 

@@ -5,6 +5,22 @@
 <p class="lead">S4 OPS is invite-only. Add a tester's email here, then tell them to create their account at s4ops.com with that address.</p></div>
 <partial name="_AccountError" model="Model" />
 @if (Model.ErrorCode is null or "invalid_email" or "invalid_invite") {
+@if (Model.Requests.Length > 0) {
+<section class="card" id="requests">
+    <h2>Requests (@Model.Requests.Length)</h2>
+    <p class="muted">From the public <a href="/Request">Ask for an invitation</a> form, oldest first. Unanswered requests are deleted after 90 days.</p>
+    <ul class="report-list">
+    @foreach (var r in Model.Requests) {
+        <li><strong class="break">@r.Email</strong>@if (r.Name.Length > 0) { <span> · @r.Name</span> }<span class="muted block">@r.CreatedAt.ToString("yyyy-MM-dd")</span>
+            @if (r.Note.Length > 0) { <p>@r.Note</p> }
+            <div class="actions">
+                <form method="post" asp-page-handler="Approve"><input type="hidden" name="id" value="@r.Id" /><button class="button" type="submit">Invite</button></form>
+                <form method="post" asp-page-handler="Decline"><input type="hidden" name="id" value="@r.Id" /><button class="text-button" type="submit">Decline</button></form>
+            </div></li>
+    }
+    </ul>
+</section>
+}
 <section class="card">
     <h2>Invite a tester</h2>
     <form method="post" asp-page-handler="Add" class="stack">

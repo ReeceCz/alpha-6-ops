@@ -1,0 +1,28 @@
+@page
+@model Alpha6Ops.Server.Pages.RequestModel
+@{ ViewData["Title"] = "Ask for an invitation"; }
+<div class="page-heading"><div class="eyebrow">Invite-only testing</div><h1>Ask for an invitation.</h1>
+<p class="lead">S4 OPS is in testing with a small group of pilots flying Microsoft Flight Simulator 2024 on Windows. Tell us who you are and we'll be in touch if we can add you.</p></div>
+@if (Model.Sent) {
+<section class="card"><p class="notice" role="status">Thanks. If we can add you to the test group, we'll contact you at the address you gave.</p><p><a href="https://s4ops.com/">Back to s4ops.com</a></p></section>
+} else if (!Model.Available) {
+<section class="card"><p class="notice" role="status">Requests aren't available on this installation yet.</p></section>
+} else {
+<section class="card">
+    @if (Model.ErrorMessage is { } error) { <div role="alert" class="notice"><p>@error</p></div> }
+    <form method="post" class="stack">
+        <div class="stack"><label for="Email">Email</label><input id="Email" name="Email" type="email" required maxlength="254" autocomplete="email" value="@Model.Email" />
+        <small>The address you'd sign in with. We'll only use it to answer you.</small></div>
+        <div class="stack"><label for="Name">Name (optional)</label><input id="Name" name="Name" maxlength="100" autocomplete="name" value="@Model.Name" /></div>
+        <div class="stack"><label for="Note">Tell us about your flying (optional)</label><textarea id="Note" name="Note" rows="4" maxlength="1000" placeholder="Aircraft you fly, virtual airline or network experience">@Model.Note</textarea></div>
+        <div class="hp" aria-hidden="true"><label for="website">Leave this empty</label><input id="website" name="website" tabindex="-1" autocomplete="off" /></div>
+        @if (Model.SiteKey is { } siteKey) {
+            <div class="cf-turnstile" data-sitekey="@siteKey"></div>
+            @* No integrity hash: Cloudflare requires api.js unpinned. The CSP limits this page to challenges.cloudflare.com. *@
+            <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+        }
+        <div class="actions"><button class="button" type="submit">Send request</button></div>
+    </form>
+    <p class="muted">Already invited? <a href="/auth/signup">Create your invited account</a>. We keep requests until we answer them, and for at most 90 days. See <a href="/Privacy">Privacy</a>.</p>
+</section>
+}

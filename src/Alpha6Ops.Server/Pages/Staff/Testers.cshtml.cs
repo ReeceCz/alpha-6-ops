@@ -7,13 +7,14 @@ namespace Alpha6Ops.Server.Pages.Staff;
 public class TestersModel(AccountsService accounts, ServerSettings settings, StaffAccess staff) : StaffPage(accounts, settings, staff)
 {
     public TesterInviteView[] Invites { get; private set; } = [];
+    public InviteRequestView[] Requests { get; private set; } = [];
     [BindProperty] public string? Email { get; set; }
     [BindProperty] public string? Note { get; set; }
 
     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
     {
         if (!Staff.IsConfigured) return NotFound();
-        try { Invites = await Accounts.ListTesterInvitesAsync(Actor, Staff, ct); return Page(); }
+        try { Invites = await Accounts.ListTesterInvitesAsync(Actor, Staff, ct); Requests = await Accounts.ListInviteRequestsAsync(Actor, Staff, ct); return Page(); }
         catch (IdentityException ex) { return StaffFailure(ex); }
     }
 
@@ -31,10 +32,24 @@ public class TestersModel(AccountsService accounts, ServerSettings settings, Sta
         catch (IdentityException ex) { return await Reload(ex, ct); }
     }
 
-    // Show the error with the list still on the page.
+    public async Task<IActionResult> OnPostApproveAsync(Guid id, CancellationToken ct)
+    {
+        if (!Staff.IsConfigured) return NotFound();
+        try { await Accounts.ApproveInviteRequestAsync(Actor, Staff, id, ct); return RedirectToPage(); }
+        catch (IdentityException ex) { return await Reload(ex, ct); }
+    }
+
+    public async Task<IActionResult> OnPostDeclineAsync(Guid id, CancellationToken ct)
+    {
+        if (!Staff.IsConfigured) return NotFound();
+        try { await Accounts.DeclineInviteRequestAsync(Actor, Staff, id, ct); return RedirectToPage(); }
+        catch (IdentityException ex) { return await Reload(ex, ct); }
+    }
+
+    // Show the error with the lists still on the page.
     private async Task<IActionResult> Reload(IdentityException error, CancellationToken ct)
     {
-        try { Invites = await Accounts.ListTesterInvitesAsync(Actor, Staff, ct); } catch (IdentityException) { }
+        try { Invites = await Accounts.ListTesterInvitesAsync(Actor, Staff, ct); Requests = await Accounts.ListInviteRequestsAsync(Actor, Staff, ct); } catch (IdentityException) { }
         return StaffFailure(error);
     }
 }

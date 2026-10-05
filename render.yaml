@@ -53,3 +53,8 @@ services:
       # Public contact email for Privacy, Terms, Help and Download. Until set, pages name "the team member who invited you".
       - key: Legal__Contact
         sync: false
+      # Optional Cloudflare Turnstile keys for the public invitation request form.
+      - key: Turnstile__SiteKey
+        sync: false
+      - key: Turnstile__SecretKey
+        sync: false

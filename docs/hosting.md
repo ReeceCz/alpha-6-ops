@@ -39,6 +39,7 @@ terminates TLS itself.
 | `Release__DownloadUrl` / `Release__Version` / `Release__Sha256` | Optional; enables `/Download` and the desktop Updates dialog once an installer is published |
 | `Legal__Contact` | Optional public contact email shown on Privacy, Terms, Help and Download. Until it is a valid address those pages say "the Sierra 4 team member who invited you" |
 | `Accounts__Admission` / `Accounts__InvitedEmails` | Sign-up is invite-only unless `Accounts__Admission` is `Open`. Invited emails come from `Accounts__InvitedEmails` (semicolon separated) **or** from the staff page `/Staff/Testers`, which needs no redeploy |
+| `Turnstile__SiteKey` / `Turnstile__SecretKey` | Optional. Cloudflare Turnstile keys (free) for the public `/Request` form. Without them the form relies on a honeypot and 3 requests per address per hour |
 | `Staff__Emails` | Optional. Semicolon-separated emails (verified at Auth0) that may read problem reports at `/Staff/Feedback`, after a fresh MFA. Empty means the staff pages answer 404 |
 | `Legal__Jurisdiction` | Optional; defaults to `Wisconsin, United States` (governing law in the Terms) |
 

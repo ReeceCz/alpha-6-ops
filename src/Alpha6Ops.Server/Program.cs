@@ -79,6 +79,9 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.Configure<ReleaseSettings>(builder.Configuration.GetSection("Release"));
 builder.Services.Configure<LegalSettings>(builder.Configuration.GetSection("Legal"));
 builder.Services.AddSingleton(StaffAccess.FromEmails(builder.Configuration["Staff:Emails"]));
+builder.Services.Configure<TurnstileSettings>(builder.Configuration.GetSection("Turnstile"));
+builder.Services.AddHttpClient<ITurnstileVerifier, CloudflareTurnstileVerifier>(c => c.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddSingleton<InviteRequestLimiter>();
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 32 * 1024);
 builder.Services.AddRazorPages(o => o.Conventions.AuthorizeFolder("/Account").AuthorizeFolder("/Staff"));
 builder.Services.AddAntiforgery(o =>

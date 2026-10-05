@@ -24,8 +24,8 @@ test('phone visitors get a menu with every header link', () => {
   for (const label of ['Levels', 'Download', 'Help', 'Sign in']) assert.match(menu[1], new RegExp(`>${label}</a>`));
 });
 
-test('asking for an invitation goes to the portal help page', () => {
-  assert.match(index, /<a href="https:\/\/app\.s4ops\.com\/Support">Ask for an invitation<\/a>/);
+test('asking for an invitation goes to the portal request form', () => {
+  assert.match(index, /<a href="https:\/\/app\.s4ops\.com\/Request">Ask for an invitation<\/a>/);
 });
 
 test('pages carry no inline scripts or style attributes', () => {

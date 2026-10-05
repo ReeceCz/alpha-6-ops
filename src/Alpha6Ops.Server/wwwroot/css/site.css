@@ -129,6 +129,8 @@ small { font-size: var(--size-xs); }
 .break { overflow-wrap: anywhere; word-break: break-all; }
 .upper { text-transform: uppercase; }
 .prewrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Honeypot field: off-screen for people, still in the form for bots. */
+.hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 .block { display: block; }
 
 /* Problem reports */
@@ -167,6 +169,8 @@ small { font-size: var(--size-xs); }
 .two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .card { position: relative; background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-m); padding: var(--space-5) var(--space-6); margin-bottom: var(--space-5); }
 .grid .card { margin: 0; }
+/* A grid of cards keeps the same space below it as a single card. */
+section.grid { margin-bottom: var(--space-5); }
 .card p { color: var(--text-2); }
 .card .eyebrow { margin-bottom: var(--space-2); }
 .tile { display: inline-grid; place-items: center; width: 2.875rem; height: 2.875rem; border: 1px solid var(--line-strong); border-radius: var(--radius-s); background: var(--surface); color: var(--text-2); flex: none; }

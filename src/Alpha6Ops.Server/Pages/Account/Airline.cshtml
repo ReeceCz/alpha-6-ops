@@ -12,7 +12,7 @@
 <section class="card"><h2>Airline level</h2><p>Complimentary during early access — no payment is collected.</p>
 <form method="post" asp-page-handler="Plan"><div class="grid two plan-grid">
     <label class="card plan-card @(airline.Plan == AirlinePlan.Community ? "selected" : "")"><input type="radio" name="plan" value="Community" checked="@(airline.Plan == AirlinePlan.Community)" /><div class="eyebrow">Airline</div><h2>Community</h2><span class="badge">Included</span><ul><li>Crew roster and invitations</li><li>Shared dispatch board</li><li>One Community airline per owner</li></ul></label>
-    <label class="card plan-card @(airline.Plan == AirlinePlan.Pro ? "selected" : "")"><input type="radio" name="plan" value="Pro" checked="@(airline.Plan == AirlinePlan.Pro)" /><div class="eyebrow">Airline</div><h2>Pro</h2><span class="badge">Complimentary · early access</span><ul><li>Everything in Community</li><li>Does not count toward the Community limit</li><li>Operations reporting (in development)</li><li>Priority support</li></ul></label>
+    <label class="card plan-card @(airline.Plan == AirlinePlan.Pro ? "selected" : "")"><input type="radio" name="plan" value="Pro" checked="@(airline.Plan == AirlinePlan.Pro)" /><div class="eyebrow">Airline</div><h2>Pro</h2><span class="badge">Complimentary · early access</span><ul><li>Everything in Community</li><li>Does not count toward the Community limit</li><li>Operations reporting (coming soon)</li><li>Priority support (coming soon)</li></ul></label>
 </div><div class="actions"><button class="button secondary">Apply level</button></div></form></section>
 }
 <section class="card logo-card"><div class="logo-row">

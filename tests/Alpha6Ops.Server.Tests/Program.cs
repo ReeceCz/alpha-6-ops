@@ -229,6 +229,7 @@ Check(accountHtml.Contains("/Account/Profile") && accountHtml.Contains("/Account
 Check(accountHtml.Contains("from v0.16.0"), "Workspace page reports the last desktop version seen");
 var profilePage = await browser.GetAsync("/Account/Profile");
 var profileHtml = await profilePage.Content.ReadAsStringAsync();
+Check(!Regex.IsMatch(profileHtml, @"\sstyle="""), "Profile form has no inline styles the CSP would block");
 Check(profilePage.IsSuccessStatusCode && profileHtml.Contains("value=\"reece74\"") && Regex.IsMatch(profileHtml, "<option (selected=\"selected\" value=\"personal\"|value=\"personal\" selected=\"selected\")>"), "Profile page renders the saved profile");
 Check((await browser.PostAsync("/Account/Profile", new FormUrlEncodedContent(new Dictionary<string, string> { ["SimBriefUsername"] = "forged" }))).StatusCode == HttpStatusCode.BadRequest, "Profile update without CSRF token is rejected");
 var planPage = await browser.GetAsync("/Account/Plan");
@@ -364,6 +365,7 @@ if (created.IsSuccessStatusCode)
         Check(tailPost.IsSuccessStatusCode && tail is { Registration: "N123A6", TypeIcao: "B738" }, "Aircraft added over the API");
         var schedulePage = await browser.GetAsync($"/Account/Airline/{airline.Id}/Schedule");
         var scheduleHtml = await schedulePage.Content.ReadAsStringAsync();
+        Check(!Regex.IsMatch(scheduleHtml, @"\sstyle=""") && scheduleHtml.Contains("placeholder=\"S4101\""), "Schedule form has no inline styles and uses S4 sample flight numbers");
         Check(schedulePage.IsSuccessStatusCode && scheduleHtml.Contains("A6101") && scheduleHtml.Contains("A6102") && scheduleHtml.Contains("Add a route") && scheduleHtml.Contains("Export CSV"), "Schedule console lists routes with the editor for operations roles");
         var routeForm = await SubmitAsync(browser, schedulePage, scheduleHtml, $"/Account/Airline/{airline.Id}/Schedule?handler=Save",
             new() { ["flightNumber"] = "A6103", ["origin"] = "KMKE", ["destination"] = "KMSP", ["departureUtc"] = "09:15", ["blockMinutes"] = "75", ["days"] = "0", ["aircraftType"] = "", ["notes"] = "", ["active"] = "true" });
@@ -372,6 +374,7 @@ if (created.IsSuccessStatusCode)
         Check(export.Content.Headers.ContentType?.MediaType == "text/csv" && (await export.Content.ReadAsStringAsync()).Contains("A6103,KMKE,KMSP,09:15,75,1,,"), "Schedule exports as CSV");
         var fleetPage = await browser.GetAsync($"/Account/Airline/{airline.Id}/Fleet");
         var fleetHtml = await fleetPage.Content.ReadAsStringAsync();
+        Check(!Regex.IsMatch(fleetHtml, @"\sstyle="""), "Fleet form has no inline styles the CSP would block");
         Check(fleetPage.IsSuccessStatusCode && fleetHtml.Contains("N123A6") && fleetHtml.Contains("Spirit of Milwaukee"), "Fleet console lists aircraft");
         var fleetForm = await SubmitAsync(browser, fleetPage, fleetHtml, $"/Account/Airline/{airline.Id}/Fleet?handler=Save",
             new() { ["aircraftId"] = tail!.Id.ToString(), ["registration"] = "N123A6", ["typeIcao"] = "B738", ["name"] = "Spirit of Milwaukee", ["homeBase"] = "KMKE", ["status"] = "maintenance", ["notes"] = "C check" });
@@ -418,7 +421,8 @@ if (created.IsSuccessStatusCode)
         Check(!chrome.Contains("Weather briefings") && !chrome.Contains("Shared dispatch board") && !chrome.Contains("in testing") && !chrome.Contains("Create an account")
             && chrome.Contains("Create your invited account") && chrome.Contains("invite-only"),
             "Levels makes only the claims s4ops.com makes and reflects invite-only accounts");
-        Check(chrome.Contains("Cloud logbook sync across PCs (coming soon)"), "Levels marks unbuilt Premium features as coming soon");
+        Check(chrome.Contains("Cloud logbook sync across PCs (coming soon)") && chrome.Contains("Extended flight history (coming soon)") && chrome.Contains("Priority support (coming soon)")
+            && chrome.Contains("Operations reporting (coming soon)") && chrome.Contains("Receipts and card changes will live"), "Levels marks every unbuilt paid feature as coming soon");
         Check(chrome.Contains("s4-tile.svg") && !chrome.Contains("s4-lockup") && !chrome.Contains("topbar-plus") && chrome.Contains("content=\"dark\""),
             "Shared header uses the S4 tile, no lockup or stray plus, and declares a dark-only colour scheme");
         Check(Regex.IsMatch(chrome, @"<a class=""brand"" href=""/""><img [^>]*alt=""""[^>]*/><span>SIERRA 4<small>AIRLINE OPERATIONS</small></span></a>"),

@@ -1,0 +1,80 @@
+@page
+@using Microsoft.Extensions.DependencyInjection
+@inject Microsoft.Extensions.Options.IOptions<ReleaseSettings> Release
+@{
+    ViewData["Title"] = "Tester guide";
+    var release = Release.Value;
+    var accounts = HttpContext.RequestServices.GetService<Alpha6Ops.Accounts.AccountsService>();
+    var notes = release.Available && accounts is not null ? await accounts.GetReleaseNoteAsync(release.Version, HttpContext.RequestAborted) : null;
+}
+@* Public so it can be sent to anyone invited. Every claim matches the shipped build; see docs/checkpoint-7.26b/known-limitations.md. *@
+<div class="page-heading"><div class="eyebrow">Tester guide</div><h1>Welcome to the S4 OPS test.</h1>
+<p class="lead">Thanks for flying with us. S4 OPS records every flight you fly in Microsoft Flight Simulator 2024 from off block to block in and keeps your pilot logbook. This page has everything you need for your first flights, and what we'd like you to look out for.</p></div>
+
+<nav class="card guide-contents" aria-label="On this page"><ol>
+    <li><a href="#setup">Set up</a></li><li><a href="#first-flight">Your first flight</a></li><li><a href="#not-yet">Not working yet</a></li>
+    <li><a href="#try">What we'd like you to try</a></li><li><a href="#wrong">If something goes wrong</a></li><li><a href="#faq">Questions</a></li></ol></nav>
+
+<section class="card" id="setup" aria-labelledby="setup-title">
+    <h2 id="setup-title">Set up</h2>
+    <ol>
+        <li><a href="/auth/signup">Create your invited account</a> with the email address you were invited with, and a password (or another sign-in option the page offers).</li>
+        <li>Verify your email from the message you receive, then sign in.</li>
+        <li><a href="/Download">Download S4 OPS for Windows</a> on the PC that runs MSFS 2024 (64-bit Windows 10 version 1809 or later, or Windows 11). It installs for your Windows user and doesn't need administrator rights.</li>
+        <li>The test build is not code-signed yet, so Windows will warn about an unknown publisher. Check the file's SHA-256 checksum against the one on the download page, then choose <strong>More info</strong> and <strong>Run anyway</strong>.</li>
+        <li>Open <strong>Sierra 4</strong> from the Start menu and sign in with the same account. The app remembers you and works offline after that.</li>
+        <li>Optional: set your callsign, home base and SimBrief username in your <a href="/Account/Profile">pilot profile</a>, and <a href="/Account/Logbook">import the logbook</a> you kept elsewhere.</li>
+    </ol>
+</section>
+
+<div id="first-flight"><partial name="_FirstFlight" /></div>
+
+<section class="card" id="not-yet" aria-labelledby="not-yet-title">
+    <h2 id="not-yet-title">Not working yet</h2>
+    <p>So you're not surprised. These are known, and you don't need to report them:</p>
+    <ul>
+        <li><strong>Flights stay in the app.</strong> Flights the desktop app tracks stay in the app's own logbook for now. The web logbook only holds flights you import.</li>
+        <li><strong>Automatic block in only on the Fenix A320 family.</strong> On other aircraft, select <strong>Confirm parked</strong> at the gate.</li>
+        <li><strong>Diversions aren't detected.</strong> If you land somewhere other than planned, the flight still records, but it isn't marked as a diversion.</li>
+        <li><strong>The installer isn't code-signed.</strong> Expect the Windows warning described above.</li>
+        <li><strong>Windows on ARM isn't supported.</strong></li>
+        <li><strong>The new live map needs the Microsoft Edge WebView2 Runtime.</strong> Most PCs have it. Without it, S4 OPS uses the classic map.</li>
+        <li><strong>Paid levels aren't charged.</strong> Every level is complimentary during testing.</li>
+    </ul>
+</section>
+
+<section class="card" id="try" aria-labelledby="try-title">
+    <h2 id="try-title">What we'd like you to try</h2>
+    <ul>
+        <li><strong>The four times.</strong> Check that OUT, OFF, ON and IN match what happened: brake released and moving, wheels up, wheels down, and parked.</li>
+        <li><strong>A paused or slewed sim.</strong> Pausing or slewing should never trigger a phase change.</li>
+        <li><strong>Recovery.</strong> Close the app or the sim mid-flight, reopen it, and check it picks the same flight back up.</li>
+        <li><strong>SimBrief.</strong> Import a plan in Dispatch and check the route and times look right.</li>
+        <li><strong>Different aircraft.</strong> Fly something other than the Fenix and tell us how block in felt.</li>
+    </ul>
+    @if (notes is not null) {
+        <h3>New in @notes.Version: @notes.Title</h3>
+        <p class="prewrap">@notes.Notes</p>
+    }
+    <p><a href="/Releases">All release notes</a></p>
+</section>
+
+<section class="card" id="wrong" aria-labelledby="wrong-title">
+    <h2 id="wrong-title">If something goes wrong</h2>
+    <ol>
+        <li>In the desktop app, open <strong>Settings</strong> and select <strong>Export test log</strong>. The log holds the flight's recorded simulator readings and flight plan.</li>
+        <li><a href="/Account/Feedback">Report a problem</a> from your account: say what you did, what you expected and what happened, and attach the log or a screenshot.</li>
+    </ol>
+    <p>Only the Sierra 4 team reads reports. You can see each report's status on the same page.</p>
+</section>
+
+<section class="card" id="faq" aria-labelledby="faq-title">
+    <h2 id="faq-title">Questions</h2>
+    <dl class="faq">
+        <dt>I forgot my password.</dt><dd>Use the password reset on the sign-in page. If you sign in with Microsoft or Google, recover access there. See <a href="/Support">Help</a>.</dd>
+        <dt>Why does it ask for a security check?</dt><dd>Airline administration asks for a fresh check with an authenticator app, and sets one up the first time. Ordinary flying never does.</dd>
+        <dt>How do I uninstall it?</dt><dd>Windows Settings → Apps → Installed apps (Apps &amp; features on Windows 10) → <strong>Sierra 4</strong> → Uninstall. Your local flights stay in <code>%LOCALAPPDATA%\Sierra 4</code>; delete that folder to remove them too.</dd>
+        <dt>What do you keep about me?</dt><dd>See <a href="/Privacy">Privacy</a>. You can download everything from your <a href="/Account/Profile#your-data">profile</a>, or delete your account at any time.</dd>
+        <dt>Can I fly for a virtual airline?</dt><dd>Yes. Join one with an invitation code, or found your own, from <a href="/Account">your account</a>.</dd>
+    </dl>
+</section>

@@ -48,7 +48,7 @@ Cloudflare → `s4ops.com` → DNS → Add record:
 There must be no `AAAA` record for `app`. Render now starts issuing its certificate (usually a few minutes). Do
 steps 4–7 while you wait.
 
-## 4. Auth0: allow the new address (2 min)
+## 4. Auth0: allow the new address (3 min)
 
 Auth0 → Applications → **Portal** application → Settings. Add, keeping the existing entries:
 
@@ -57,6 +57,10 @@ Auth0 → Applications → **Portal** application → Settings. Add, keeping the
 | Allowed Callback URLs | `https://app.s4ops.com/signin-oidc` |
 | Allowed Logout URLs | `https://app.s4ops.com/signout-callback-oidc` |
 | Allowed Web Origins | `https://app.s4ops.com` |
+
+While you're there, note which sign-in options are on (Authentication → Database / Social / Passwordless). The site
+promises only "email and password, or another option the page offers". If passkeys or Microsoft/Google sign-in are
+on, tell me and the pages can say so; Help's "Passkeys and MFA" card assumes passkeys may be available.
 
 ## 5. GitHub: keep-warm through the new address (1 min)
 

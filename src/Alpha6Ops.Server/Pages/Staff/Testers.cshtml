@@ -33,6 +33,18 @@
     <p class="muted">Emails in the server's <code>Accounts__InvitedEmails</code> setting are admitted too; they aren't listed here.</p>
 </section>
 <section class="card">
+    <h2>Message to send</h2>
+    <p class="muted">S4 OPS doesn't email invitations yet. After inviting someone, send them this.</p>
+    @{ var site = $"{Request.Scheme}://{Request.Host}"; }
+    <textarea class="mono" rows="7" readonly aria-label="Message to send a new tester">You're invited to test S4 OPS, airline operations for Microsoft Flight Simulator 2024.
+
+1. Create your account with this email address: @site/auth/signup
+2. Verify your email, then sign in.
+3. Read the tester guide, then download the app: @site/Guide
+
+Something wrong? Use "Report a problem" in your account.</textarea>
+</section>
+<section class="card">
     <h2>Invited (@Model.Invites.Length)</h2>
     @if (Model.Invites.Length == 0) { <p class="muted">Nobody yet.</p> } else {
     <ul class="report-list">

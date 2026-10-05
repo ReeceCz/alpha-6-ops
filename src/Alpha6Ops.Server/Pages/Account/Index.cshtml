@@ -14,7 +14,7 @@ var personalSelected = account.LastWorkspace.AirlineId is null;
 @if (Model.Start is { } start && !(start.ProfileSet && start.DesktopSignedIn && start.SentReport)) {
 <section class="card getting-started" aria-labelledby="start-title">
     <h2 id="start-title">Getting started</h2>
-    <p class="muted">A few steps to your first tracked flight. This card goes away once they're done.</p>
+    <p class="muted">A few steps to your first tracked flight. This card goes away once they're done. The <a href="/Guide">tester guide</a> has the details.</p>
     <ol class="steps-list">
         @{ var steps = new (bool Done, string Title, string Hint, string Href, string Action)[] {
             (true, "Create your account", "You're signed in.", "", ""),

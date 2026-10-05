@@ -67,6 +67,15 @@ using (var client = setup.CreateClient(new() { BaseAddress = new("https://localh
         Check(!html.Contains("[CONTACT") && !html.Contains("[STATE") && !html.Contains("mailto:"), $"{page} shows no contact placeholder or mailto without a configured contact");
     }
     Check((await client.GetStringAsync("/Terms")).Contains("governed by the laws of Wisconsin, United States"), "Terms name Wisconsin by default");
+    var guide = await client.GetAsync("/Guide");
+    var guideHtml = await guide.Content.ReadAsStringAsync();
+    Check(guide.IsSuccessStatusCode && new[] { "Welcome to the S4 OPS test", "Your first flight", "Not working yet", "What we'd like you to try", "If something goes wrong", "Questions" }.All(guideHtml.Contains)
+        && !guideHtml.Contains("<script") && !Regex.IsMatch(guideHtml, @"\sstyle="""), "The tester guide is public, script-free and has every section");
+    Check(guideHtml.Contains("Fenix A320") && guideHtml.Contains("not code-signed") && guideHtml.Contains("stay in the app"), "The guide states the known limits plainly");
+    Check(Regex.Matches(guideHtml, ">If something goes wrong</h2>").Count == 1 && Regex.Matches(guideHtml, ">Your first flight</h2>").Count == 1, "Each guide section appears once");
+    var downloadForGuide = await client.GetStringAsync("/Download");
+    Check(downloadForGuide.Contains("href=\"/Guide\"") && downloadForGuide.Contains("Confirm parked") && guideHtml.Contains("Confirm parked"), "Download and the guide share the first-flight steps and link each other");
+    Check((await client.GetStringAsync("/Support")).Contains("href=\"/Guide\""), "Help links the tester guide");
     var unconfiguredReleases = await client.GetAsync("/Releases");
     Check(unconfiguredReleases.IsSuccessStatusCode && (await unconfiguredReleases.Content.ReadAsStringAsync()).Contains("No release notes yet"), "Releases renders without an account store");
     var help = await client.GetStringAsync("/Support");
@@ -515,6 +524,7 @@ using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staf
     // Pilot home: the getting-started checklist and the logbook insights.
     using var ownerHome = feedbackHost.Browser(owner);
     var homeHtml = await ownerHome.GetStringAsync("/Account");
+    Check(homeHtml.Contains("href=\"/Guide\""), "The getting-started card links the tester guide");
     Check(homeHtml.Contains("Getting started") && homeHtml.Contains("href=\"/Account/Feedback\"") && homeHtml.Contains("class=\"step done\""),
     "The account page shows the getting-started checklist, with finished steps marked");
     using (var ownerApi = feedbackHost.Client(owner))
@@ -588,6 +598,7 @@ using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staf
     var invited = await SubmitAsync(staffBrowser, testersPage, testersHtml, "/Staff/Testers?handler=Add", new() { ["email"] = newTester, ["note"] = "Met at the fly-in" });
     var afterInvite = await staffBrowser.GetStringAsync("/Staff/Testers");
     Check(invited.StatusCode == HttpStatusCode.Redirect && afterInvite.Contains(newTester.ToLowerInvariant()) && afterInvite.Contains("Met at the fly-in"), "Staff invite a tester");
+    Check(afterInvite.Contains("Message to send") && afterInvite.Contains("https://localhost/Guide") && afterInvite.Contains("https://localhost/auth/signup"), "Staff get a ready-to-send message with the sign-up and guide links");
     var badInvite = await SubmitAsync(staffBrowser, testersPage, testersHtml, "/Staff/Testers?handler=Add", new() { ["email"] = "not-an-email", ["note"] = "" });
     Check(badInvite.StatusCode == HttpStatusCode.BadRequest && (await badInvite.Content.ReadAsStringAsync()).Contains("valid email"), "A bad email is refused with a readable message");
     if (Environment.GetEnvironmentVariable("S4OPS_PORTAL_SNAPSHOT_DIR") is { Length: > 0 } testerSnapshots)

@@ -8,7 +8,7 @@
     var notes = release.Available && accounts is not null ? await accounts.GetReleaseNoteAsync(release.Version, HttpContext.RequestAborted) : null;
 }
 @* Every requirement and step here matches the shipped desktop build; see docs/desktop.md and the 7.26B known limitations. *@
-<div class="page-heading"><div class="eyebrow">Windows desktop app</div><h1>Bring OPS aboard.</h1><p class="lead">Install S4 OPS on the PC that runs Microsoft Flight Simulator 2024, then sign in with your S4 OPS account.</p></div>
+<div class="page-heading"><div class="eyebrow">Windows desktop app</div><h1>Bring OPS aboard.</h1><p class="lead">Install S4 OPS on the PC that runs Microsoft Flight Simulator 2024, then sign in with your S4 OPS account. New to the test? Read the <a href="/Guide">tester guide</a>.</p></div>
 <section class="card">
 @if (release.Available) {
     <h2>S4 OPS @release.Version</h2><p>Windows installer for 64-bit Windows 10 (version 1809) or Windows 11.</p>
@@ -42,16 +42,7 @@
     </article>
 </section>
 <section class="grid two">
-    <article class="card">
-        <h2>Your first flight</h2>
-        <ol>
-            <li>In <strong>Dispatch</strong>, import your SimBrief plan or enter the flight yourself, then select <strong>Accept flight</strong>.</li>
-            <li>Load the aircraft at the gate in MSFS 2024 and select <strong>Launch / connect to MSFS 2024</strong>.</li>
-            <li>Fly as you normally would. Off block, takeoff and landing are recorded as they happen.</li>
-            <li>At the gate, set the parking brake. On the Fenix A320 family, shutting down the engines confirms block in. On other aircraft, select <strong>Confirm parked</strong> when it appears.</li>
-            <li>Review the flight and submit your PIREP.</li>
-        </ol>
-    </article>
+    <partial name="_FirstFlight" />
     <article class="card">
         <h2>If something goes wrong</h2>
         <p>Thank you for testing. When a flight is not recorded the way you expected, open <strong>Settings</strong> and select <strong>Export test log</strong>, then send us the file with a line about what happened.</p>

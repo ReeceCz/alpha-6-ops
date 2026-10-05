@@ -137,6 +137,10 @@ small { font-size: var(--size-xs); }
 .report-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-4); }
 .report-list li { border-bottom: 1px solid var(--line); padding-bottom: var(--space-4); }
 .release h2 { margin-top: var(--space-2); }
+.guide-contents ol { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); counter-reset: none; }
+.faq dt { font-weight: 600; color: var(--text); margin-top: var(--space-4); }
+.faq dt:first-child { margin-top: 0; }
+.faq dd { margin: var(--space-1) 0 0; color: var(--text-2); }
 .report-list p { margin: var(--space-2) 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .tabs { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-top: var(--space-3); }
 .tabs.filter { font-size: var(--size-s); }

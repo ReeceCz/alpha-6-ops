@@ -59,6 +59,8 @@ public sealed class AccountDeletionJob(IServiceScopeFactory scopes, Auth0Managem
         var accounts = scope.ServiceProvider.GetRequiredService<AccountsService>();
         var erased = await accounts.PurgeDueDeletionsAsync(ct);
         if (erased > 0) log.LogInformation("Erased {Count} account(s) after their deletion grace period.", erased);
+        var staleRequests = await accounts.PurgeStaleInviteRequestsAsync(ct);
+        if (staleRequests > 0) log.LogInformation("Deleted {Count} unanswered invitation request(s) older than {Days} days.", staleRequests, InviteRequestRules.RetentionDays);
         var pending = await accounts.PendingIdentityRemovalsAsync(ct);
         if (pending.Length == 0) return;
         if (!auth0.IsConfigured)

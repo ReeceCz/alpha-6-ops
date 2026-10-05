@@ -5,7 +5,7 @@ namespace Alpha6Ops.Accounts;
 
 public sealed record VersionInUse(string Version, int Pilots);
 public sealed record StaffOverview(int Invited, int Accounts, int DesktopSignedIn, int WithFlights, int Reported,
-    int OpenReports, int NewAccountsThisWeek, VersionInUse[] Versions);
+    int OpenReports, int PendingRequests, int NewAccountsThisWeek, VersionInUse[] Versions);
 
 // The staff overview: counts only, from what the account store already holds.
 public sealed partial class AccountsService
@@ -27,6 +27,7 @@ public sealed partial class AccountsService
                 await active.CountAsync(u => db.Flights.Any(f => f.UserId == u.Id), ct),
                 await active.CountAsync(u => db.Feedback.Any(f => f.UserId == u.Id), ct),
                 await db.Feedback.CountAsync(x => x.Status == FeedbackStatus.New, ct),
+                await db.InviteRequests.CountAsync(ct),
                 await active.CountAsync(u => u.CreatedAt >= weekAgo, ct),
                 versions.OrderByDescending(v => ParseVersion(v.Version)).ToArray());
         }, ct);

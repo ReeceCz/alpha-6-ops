@@ -73,6 +73,12 @@ Reject(() => ReleaseRules.Note(new("v0.23", "Title", "Notes")), "invalid_release
 Reject(() => ReleaseRules.Note(new("0.23.0", "", "Notes")), "invalid_release");
 Reject(() => ReleaseRules.Note(new("0.23.0", "Title", new string('x', 8001))), "invalid_release");
 Reject(() => ReleaseRules.Note(new("0.23.0", "Title", "bell \u0007")), "invalid_release");
+var cleanRequest = InviteRequestRules.Request(new(" Pilot@Example.com ", "  Sam Pilot  ", "  Fenix A320, 400 hours on VATSIM\r\n  "));
+Check(cleanRequest is { Email: "pilot@example.com", Name: "Sam Pilot", Note: "Fenix A320, 400 hours on VATSIM" }, "invitation requests are normalised");
+Check(InviteRequestRules.Request(new("a@example.com", null, null)) is { Name: "", Note: "" }, "name and note are optional");
+Reject(() => InviteRequestRules.Request(new("not an email", "", "")), "invalid_email");
+Reject(() => InviteRequestRules.Request(new("a@example.com", new string('x', 101), "")), "invalid_request");
+Reject(() => InviteRequestRules.Request(new("a@example.com", "", new string('x', 1001))), "invalid_request");
 var staff = StaffAccess.FromEmails(" Reece@Example.com ; dan@example.com,");
 Check(staff.IsConfigured && staff.IsStaff(actor with { Email = "reece@example.com" }) && staff.IsStaff(actor with { Email = "DAN@EXAMPLE.COM" }), "staff allowlist matches case-insensitively");
 Check(!staff.IsStaff(actor with { Email = "reece@example.com", EmailVerified = false }), "an unverified email never grants staff");
@@ -187,7 +193,7 @@ await using (var db = Context())
     await db.Database.ExecuteSqlAsync($"""DELETE FROM "__EFMigrationsHistory" WHERE "MigrationId" = '202610040001_LowercaseEmails'""");
     await db.Database.MigrateAsync();
     await db.Database.MigrateAsync();
-    Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 11, "migrations are repeatable");
+    Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 12, "migrations are repeatable");
     Check((await db.Users.SingleAsync(x => x.Id == legacyUser)).Email == "legacy.pilot@example.com", "existing emails are lower-cased by the migration");
 }
 var prefix = Guid.NewGuid().ToString("N")[..10];
@@ -576,6 +582,32 @@ Check((await Run(s => s.SaveReleaseNoteAsync(staffer, staffList, new("0.10.0", "
 Check((await Run(s => s.ListReleaseNotesAsync())).Select(x => x.Version).Take(2).SequenceEqual(["0.10.0", "0.9.0"]), "release notes list newest version first, compared numerically");
 Check((await Run(s => s.GetReleaseNoteAsync("0.10.0")))?.Title == "Newer, edited" && await Run(s => s.GetReleaseNoteAsync("1.0.0")) is null, "one version's notes can be read on their own");
 Check(await Run(s => s.DeleteReleaseNoteAsync(staffer, staffList, "0.9.0")) && (await Run(s => s.ListReleaseNotesAsync())).All(x => x.Version != "0.9.0"), "staff delete release notes");
+// Invitation requests: anyone asks; the answer never reveals whether an email is known; staff invite or decline.
+var asker = prefix + "-asker@example.com";
+await Run(s => s.SubmitInviteRequestAsync(new(asker.ToUpperInvariant(), "Asker", "MSFS 2024, PMDG 737")));
+await Run(s => s.SubmitInviteRequestAsync(new(asker, "Asker again", "duplicate")));
+await Run(s => s.SubmitInviteRequestAsync(new(actor.Email, "Already has an account", "")));
+await Run(s => s.SubmitInviteRequestAsync(new(prefix + "-leaver@example.com", "Pending deletion or invited", "")));
+await RejectAsync(() => Run(s => s.ListInviteRequestsAsync(reporter, staffList)), "not_found");
+var requests = await Run(s => s.ListInviteRequestsAsync(staffer, staffList));
+var askerRequest = requests.Single(x => x.Email == asker);
+Check(askerRequest is { Name: "Asker", Note: "MSFS 2024, PMDG 737" } && requests.Count(x => x.Email == asker) == 1, "one request per email; a repeat changes nothing");
+Check(requests.All(x => x.Email != actor.Email.ToLowerInvariant()), "an email with an account is silently not queued");
+Check((await Run(s => s.GetStaffOverviewAsync(staffer, staffList))).PendingRequests == requests.Length, "the overview counts pending requests");
+var approved = await Run(s => s.ApproveInviteRequestAsync(staffer, staffList, askerRequest.Id));
+Check(approved is { Email: var approvedEmail } && approvedEmail == asker && approved.Note.StartsWith("Requested: Asker"), "approving a request invites the tester with the request as the note");
+Check((await Run(s => s.ListInviteRequestsAsync(staffer, staffList))).All(x => x.Id != askerRequest.Id), "an approved request leaves the queue");
+await Run(s => s.SubmitInviteRequestAsync(new(asker, "Asker", "after approval")));
+Check((await Run(s => s.ListInviteRequestsAsync(staffer, staffList))).All(x => x.Email != asker), "an invited email is silently not queued again");
+var declineMe = prefix + "-decline@example.com";
+await Run(s => s.SubmitInviteRequestAsync(new(declineMe, "", "")));
+var toDecline = (await Run(s => s.ListInviteRequestsAsync(staffer, staffList))).Single(x => x.Email == declineMe);
+Check(await Run(s => s.DeclineInviteRequestAsync(staffer, staffList, toDecline.Id)) && (await Run(s => s.ListInviteRequestsAsync(staffer, staffList))).All(x => x.Email != declineMe), "staff decline a request");
+await RejectAsync(() => Run(s => s.ApproveInviteRequestAsync(staffer, staffList, Guid.NewGuid())), "not_found");
+var staleAsker = prefix + "-stale@example.com";
+await Run(s => s.SubmitInviteRequestAsync(new(staleAsker, "", "")));
+await using (var db = Context()) await db.InviteRequests.Where(x => x.Email == staleAsker).ExecuteUpdateAsync(x => x.SetProperty(r => r.CreatedAt, now.AddDays(-91)));
+Check(await Run(s => s.PurgeStaleInviteRequestsAsync()) >= 1 && (await Run(s => s.ListInviteRequestsAsync(staffer, staffList))).All(x => x.Email != staleAsker), "requests older than 90 days are deleted");
 var lateTester = actor with { Subject = prefix + "-late-tester", Email = prefix + "-late@example.com" };
 await RejectAsync(() => RunAdmitting(closedList, s => s.BootstrapAsync(lateTester)), "invite_required");
 Console.WriteLine($"{passed} account checks passed, including real PostgreSQL integration.");

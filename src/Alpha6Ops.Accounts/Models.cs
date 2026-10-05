@@ -217,3 +217,13 @@ public sealed class ReleaseNote
     public DateTimeOffset PublishedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }
+
+/// <summary>Someone asking to become a tester, until staff invite or decline them.</summary>
+public sealed class InviteRequest
+{
+    public Guid Id { get; set; }
+    public string Email { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Note { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; }
+}

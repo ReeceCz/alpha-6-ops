@@ -52,7 +52,8 @@ Reject(() => FeedbackRules.Request(goodReport with { Message = "short" }, today)
 Reject(() => FeedbackRules.Request(goodReport with { Message = new string('x', 4001) }, today), "invalid_feedback");
 Reject(() => FeedbackRules.Request(goodReport with { Category = (FeedbackCategory)9 }, today), "invalid_feedback");
 Reject(() => FeedbackRules.Request(goodReport with { FlightNumber = "S" }, today), "invalid_feedback");
-Reject(() => FeedbackRules.Request(goodReport with { FlownOn = today.AddDays(1) }, today), "invalid_feedback");
+Check(FeedbackRules.Request(goodReport with { FlownOn = today.AddDays(1) }, today).FlownOn == today.AddDays(1), "a pilot ahead of UTC can report a flight from their own today");
+Reject(() => FeedbackRules.Request(goodReport with { FlownOn = today.AddDays(2) }, today), "invalid_feedback");
 Reject(() => FeedbackRules.Request(goodReport with { FlownOn = new DateOnly(2019, 12, 31) }, today), "invalid_feedback");
 Check(FeedbackRules.Request(goodReport with { FlightNumber = null, FlownOn = null }, today) is { FlightNumber: "", FlownOn: null }, "flight and date are optional");
 byte[] pngBytes = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3];

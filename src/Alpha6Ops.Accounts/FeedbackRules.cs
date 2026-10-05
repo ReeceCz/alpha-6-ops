@@ -27,7 +27,8 @@ public static partial class FeedbackRules
         if (message.Length is < 10 or > 4000) throw Invalid("Describe the problem in 10 to 4000 characters.");
         var flight = (request.FlightNumber ?? "").Trim().ToUpperInvariant().Replace(" ", "").Replace("-", "");
         if (flight.Length > 0 && !FlightNumberPattern().IsMatch(flight)) throw Invalid("Flight number must be 2 to 10 letters or digits, or blank.");
-        if (request.FlownOn is { } date && (date > today || date < new DateOnly(2020, 1, 1))) throw Invalid("The flight date must be between 2020 and today.");
+        // A day of slack: `today` is the server's UTC date, and pilots east of UTC are already on the next one.
+        if (request.FlownOn is { } date && (date > today.AddDays(1) || date < new DateOnly(2020, 1, 1))) throw Invalid("The flight date must be between 2020 and today.");
         return new(request.Category, message, flight, request.FlownOn);
     }
 

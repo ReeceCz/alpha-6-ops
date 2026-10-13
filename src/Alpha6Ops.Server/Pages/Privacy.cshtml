@@ -8,10 +8,10 @@
     <dl class="legal-list">
         <dt>Your sign-in identity</dt><dd>The identifier your sign-in provider gives us, your name and email address, and whether the email is verified. We never see your password.</dd>
         <dt>Your profile</dt><dd>Callsign, home base, SimBrief username, units, time zone, profile picture and workspace preference, if you set them.</dd>
-        <dt>Your logbook</dt><dd>Flights you import, add or file from the desktop app: flight number, airports, aircraft, times, and landing rate where known.</dd>
+        <dt>Your logbook</dt><dd>Flights in your web logbook, which today are the ones you import: flight number, airports, aircraft, times, and landing rate where known.</dd>
         <dt>Airlines</dt><dd>Airlines you create or join, your roles, and what you add to them: schedule, fleet, logo, invitations.</dd>
         <dt>Activity</dt><dd>A record of account and airline actions (for example "role changed" or "route added"), with who did it and when, so airline administrators can see what changed.</dd>
-        <dt>Invitation requests</dt><dd>If you ask for an invitation: the email, name and note you send. Kept until we answer, and for at most 90 days. When the security check is on, Cloudflare Turnstile checks that a person sent the form.</dd>
+        <dt>Invitation requests</dt><dd>If you ask for an invitation: the email, name and note you send. Asking from your account sends the name and email you signed in with. Kept until we answer, and for at most 90 days. When the security check is on, Cloudflare Turnstile checks that a person sent the form.</dd>
         <dt>Problem reports</dt><dd>Reports you send from your account, with any file you attach and the desktop version you last used. Only the Sierra 4 team can read them, and they're deleted with your account.</dd>
         <dt>Desktop app</dt><dd>The app version you last signed in with and when, so we know which versions are still in use.</dd>
     </dl>
@@ -24,14 +24,14 @@
         <dt>Auth0 (Okta)</dt><dd>Sign-in, passwords, passkeys and multi-factor authentication.</dd>
         <dt>Render</dt><dd>Runs the S4 OPS server, in the United States (Ohio).</dd>
         <dt>Neon</dt><dd>Hosts the database.</dd>
-        <dt>Resend</dt><dd>Sends account emails, once enabled: your invitation, and a note when the team replies to your report. The reply itself stays on the site.</dd>
+        <dt>Resend</dt><dd>Sends account emails, once enabled: your tester invitation, an airline invitation sent to your address, and a note when the team replies to your report. The reply itself stays on the site.</dd>
         <dt>Cloudflare</dt><dd>Serves s4ops.com, counts its page views without cookies, and provides domain and network protection.</dd>
     </dl>
-    <p>We don't sell your data or share it with anyone else. Members of an airline you join can see your display name, roles and what you do in that airline.</p>
+    <p>We don't sell your data or share it with anyone else. Members of an airline you join can see your display name, roles and what you do in that airline. Its administrators also see your email address.</p>
 
     <h2>Your choices</h2>
     <ul>
-        <li><strong>Get a copy.</strong> <a href="/Account/Profile#your-data">Download your data</a> from your profile at any time: a ZIP with your account, profile, airlines, logbook, activity and profile picture.</li>
+        <li><strong>Get a copy.</strong> <a href="/Account/Profile#your-data">Download your data</a> from your profile at any time: a ZIP with your account, profile, airlines, logbook, activity, problem reports and profile picture.</li>
         <li><strong>Correct it.</strong> Edit your profile, logbook and airline details directly.</li>
         <li><strong>Delete it.</strong> <a href="/Account/Delete">Delete your account</a> from your profile. Your account locks straight away and is erased after @Legal.DeletionGraceDays days, unless you sign in and cancel. We then delete your profile, logbook, picture and memberships, remove your name and email from the account record, and remove your sign-in from Auth0. Airline history keeps an anonymous "deleted pilot" in your place. If you own an airline, transfer it first.</li>
     </ul>

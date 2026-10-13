@@ -1,0 +1,56 @@
+# Builds the hosted portal and runs its test executables against a throwaway PostgreSQL. The WPF desktop and
+# SimConnect only build on Windows, so they stay out of this Linux job; run /verify locally for those.
+# Tests are console executables (dotnet run), never `dotnet test`.
+name: ci
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  portal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: alpha6_test
+          POSTGRES_DB: alpha6_identity_test
+          POSTGRES_HOST_AUTH_METHOD: trust   # disposable container, reachable only from this job
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U alpha6_test" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      ALPHA6_TEST_DATABASE: Host=127.0.0.1;Port=5432;Username=alpha6_test;Database=alpha6_identity_test
+      ALPHA6_SERVER_TEST_DATABASE: Host=127.0.0.1;Port=5432;Username=alpha6_test;Database=alpha6_server_test
+      DOTNET_NOLOGO: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Create the server test database
+        run: psql -h 127.0.0.1 -U alpha6_test -d alpha6_identity_test -c "CREATE DATABASE alpha6_server_test"
+      - name: Build
+        run: dotnet build Alpha6Ops.Cloud.slnx -c Debug
+      - name: Accounts tests
+        run: dotnet run --project tests/Alpha6Ops.Accounts.Tests --no-build
+      - name: Server tests
+        run: dotnet run --project tests/Alpha6Ops.Server.Tests --no-build
+
+  landing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: sites/s4ops.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Landing tests
+        run: node --test "tests/*.test.mjs"

@@ -15,4 +15,8 @@ jobs:
           URL: ${{ vars.ALPHA6_HEALTH_URL }}
         run: |
           if [ -z "$URL" ]; then echo "ALPHA6_HEALTH_URL not set; nothing to do"; exit 0; fi
-          curl --silent --show-error --max-time 60 --retry 2 "$URL" && echo
+          # --fail turns an error status into a failed run, and GitHub emails a failed scheduled run to the
+          # workflow's owner: a free "the portal is down" alert. The health endpoint answers "ok" when configured.
+          body=$(curl --silent --show-error --fail --max-time 60 --retry 2 --retry-delay 10 "$URL")
+          echo "$body"
+          if [ "$body" != "ok" ]; then echo "::error::$URL answered '$body', not 'ok'"; exit 1; fi

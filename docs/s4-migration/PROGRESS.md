@@ -136,7 +136,7 @@ Not pushed. Dan's handoff doc: `docs/SIERRA4-PROJECT-CONTINUITY.md`.
 
 ## Next steps
 
-**2026-10-13 session (`feat/launch-prep`, worktree `C:\Dev\_scratch\s4-merge`, 7 local commits, not pushed).**
+**2026-10-13 session (`feat/launch-prep`, worktree `C:\Dev\_scratch\s4-merge`, local commits only, not pushed).**
 Reece: everything stays local until Dan's final approval. Plan: `PLAN-to-invites.md`. Suites: core 194, desktop identity
 102, accounts 292, server 237, landing 15, all green; both solutions 0 warnings.
 - [x] `publish-release.ps1` builds with `alpha6-identity.hosted.json` (gitignored, created locally) and refuses a payload
@@ -148,6 +148,19 @@ Reece: everything stays local until Dan's final approval. Plan: `PLAN-to-invites
       invitation emails) is fixed in 7257668.
 - [x] Draft for Dan: `flight-upload-contract-draft.md` (history row ID as the upload identity).
 - [x] Correction: the plan's "duplicate flight on retry" was wrong; `409 flight_exists` already prevents it.
+- [x] Rotation done (Neon `neondb_owner` password, Render deploy hook). Auth0 checked: password + passkeys + Google,
+      no passwordless, default email templates/provider and login page (brand them in the launch Auth0 step).
+- [x] Full local test pass (34 portal pages + landing, phone and desktop, links, form handlers). Fixed: logbook
+      block time showed raw code; "Shared dispatch board" and "Weather briefings" claims removed; "Microsoft" sign-in
+      wording removed (Google only); level names consistent; staff report buttons.
+- [x] Error pages: a reference to quote and links out; 404 / expired-form / forbidden pages instead of blank errors.
+      Locally, a stale database names `--migrate-accounts` (run it after pulling new migrations).
+- [x] Signed-in but uninvited pilots ask for an invitation in one click from the account page; signing in again
+      while it waits says so. Privacy updated (13 October) to match the site.
+- [x] Schedule, fleet and logbook are compact cards on phones.
+- Suites after this: accounts 292, server 250, all green.
+- Local run: `pg_ctl ... -o "-h 127.0.0.1 -p 55439"` (the cluster's config has no port), then the portal in
+  Development on https://localhost:7246 with real Auth0 sign-in and the `alpha6_server_dev` database.
 - Main checkout `devlpha-6-ops` (`chore/s4-rebrand`) is 81 commits behind and has stale uncommitted edits; not touched.
 
 **2026-10-04/05 session (branch `feat/launch-prep`, worktree `C:\Dev\_scratch\s4-merge`, not pushed).** Reece's manual

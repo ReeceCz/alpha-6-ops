@@ -132,6 +132,20 @@ Not pushed. Dan's handoff doc: `docs/SIERRA4-PROJECT-CONTINUITY.md`.
 
 ## Next steps
 
+**2026-10-13 session (`feat/launch-prep`, worktree `C:\Dev\_scratch\s4-merge`, 7 local commits, not pushed).**
+Reece: everything stays local until Dan's final approval. Plan: `PLAN-to-invites.md`. Suites: core 194, desktop identity
+102, accounts 292, server 237, landing 15, all green; both solutions 0 warnings.
+- [x] `publish-release.ps1` builds with `alpha6-identity.hosted.json` (gitignored, created locally) and refuses a payload
+      that doesn't point at `https://app.s4ops.com/`. Local dry-run installer built; localhost payload rejected.
+- [x] Airline console: Overview (counts + setup steps, any member), Crew and Settings split, invitations accepted from
+      Join without the code, invitation emails carry a link only and go only to addresses that may sign in.
+- [x] CI workflow (`.github/workflows/ci.yml`) written, **never run** (no Docker/WSL here); keep-warm fails on a bad `/healthz`.
+- [x] Security review of the launch-prep server diff: no findings at confidence 8+; the one low item (admin-controlled
+      invitation emails) is fixed in 7257668.
+- [x] Draft for Dan: `flight-upload-contract-draft.md` (history row ID as the upload identity).
+- [x] Correction: the plan's "duplicate flight on retry" was wrong; `409 flight_exists` already prevents it.
+- Main checkout `devlpha-6-ops` (`chore/s4-rebrand`) is 81 commits behind and has stale uncommitted edits; not touched.
+
 **2026-10-04/05 session (branch `feat/launch-prep`, worktree `C:\Dev\_scratch\s4-merge`, not pushed).** Reece's manual
 steps, in order, are in **`docs/s4-migration/LAUNCH-CHECKLIST.md`**. Suites: core 194, desktop identity 102, accounts
 282, server 225, landing 15, all green; both solutions 0 warnings.

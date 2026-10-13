@@ -244,6 +244,7 @@ Check(errorPage.StatusCode == HttpStatusCode.InternalServerError && errorHtml.Co
 Check(accountPage.IsSuccessStatusCode, "Authenticated portal workspace renders");
 var accountHtml = await accountPage.Content.ReadAsStringAsync();
 Check(accountHtml.Contains("__RequestVerificationToken"), "Portal mutation forms contain antiforgery token");
+Check(Regex.IsMatch(accountHtml, "(Premium pilot|Flying as a Pilot)</a>") && !accountHtml.Contains("Personal Premium") && !accountHtml.Contains("Personal Free"), "The account page names the level the way the Levels page does");
 Check((await browser.PostAsync("/Account?handler=Logout", new FormUrlEncodedContent([]))).StatusCode == HttpStatusCode.BadRequest, "Logout without CSRF token is rejected");
 var csp = accountPage.Headers.GetValues("Content-Security-Policy").Single();
 Check(Regex.IsMatch(csp, @"form-action 'self' " + Regex.Escape(ServerFactory.Issuer.TrimEnd('/')) + "(;|$)") && csp.Contains("script-src 'none'"), "CSP lets the sign-out form redirect to the identity provider and nowhere else");
@@ -455,7 +456,9 @@ if (created.IsSuccessStatusCode)
                 ["logbook"] = (browser, "/Account/Logbook"), ["create"] = (browser, "/Account/Create"), ["join"] = (browser, "/Account/Join"),
                 ["airline"] = (browser, $"/Account/Airline/{airline.Id}"), ["crew"] = (browser, $"/Account/Airline/{airline.Id}/Crew"),
                 ["settings"] = (browser, $"/Account/Airline/{airline.Id}/Settings"), ["schedule"] = (browser, $"/Account/Airline/{airline.Id}/Schedule"),
-                ["fleet"] = (browser, $"/Account/Airline/{airline.Id}/Fleet")
+                ["fleet"] = (browser, $"/Account/Airline/{airline.Id}/Fleet"),
+                ["pilot-airline"] = (joiner, $"/Account/Airline/{airline.Id}"), ["pilot-schedule"] = (joiner, $"/Account/Airline/{airline.Id}/Schedule"),
+                ["pilot-fleet"] = (joiner, $"/Account/Airline/{airline.Id}/Fleet"), ["pilot-account"] = (joiner, "/Account")
             };
             foreach (var (name, target) in snapshots)
                 await File.WriteAllTextAsync(Path.Combine(snapshotDir, name + ".html"), await target.Client.GetStringAsync(target.Path));

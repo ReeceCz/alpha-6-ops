@@ -8,7 +8,7 @@ var personalSelected = account.LastWorkspace.AirlineId is null;
 <div class="page-heading">
         <h1>Where are you flying today?</h1>
     <p class="lead">Fly independently or connect with your crew. Choose the workspace for your next desktop sign-in.</p>
-    <div class="account-summary"><strong>@account.Account.DisplayName</strong><span class="mono">@account.Account.Email</span><a class="badge" asp-page="Plan">Personal @account.PersonalEntitlement.Plan</a>@if (!account.Account.EmailVerified) { <span class="badge warn">Email not verified</span> }</div>
+    <div class="account-summary"><strong>@account.Account.DisplayName</strong><span class="mono">@account.Account.Email</span><a class="badge" asp-page="Plan">@Alpha6Ops.Server.Pages.Account.Levels.Personal(account.PersonalEntitlement.Plan)</a>@if (!account.Account.EmailVerified) { <span class="badge warn">Email not verified</span> }</div>
 </div>
 
 @if (Model.WaitingInvitations > 0) {
@@ -41,7 +41,7 @@ var personalSelected = account.LastWorkspace.AirlineId is null;
         <h2>@account.Account.DisplayName</h2>
         <dl class="facts"><dt>Email</dt><dd><span class="mono">@account.Account.Email</span> · @(account.Account.EmailVerified ? "verified" : "not verified")</dd>
         <dt>Status</dt><dd class="ok">@account.Account.Status</dd>
-        <dt>Personal level</dt><dd>@account.PersonalEntitlement.Plan · @account.PersonalEntitlement.Status</dd>
+        <dt>Personal level</dt><dd>@Alpha6Ops.Server.Pages.Account.Levels.Personal(account.PersonalEntitlement.Plan) · @account.PersonalEntitlement.Status</dd>
         @if (account.Profile is { } profile) { <dt>Home base</dt><dd>@(profile.HomeBaseIcao.Length > 0 ? profile.HomeBaseIcao : "—")@(profile.Callsign.Length > 0 ? $" · {profile.Callsign}" : "")</dd> }</dl>
         @if (!account.Account.EmailVerified) { <p>Verify your email from the message S4 OPS sent you, then sign in again to join or create airlines.</p> }
         <div class="actions"><a class="button secondary" asp-page="Profile">Pilot profile</a><a class="button secondary" asp-page="Logbook">Logbook</a><a class="button secondary" asp-page="Plan">Account level</a><a class="button secondary" asp-page="Feedback">Report a problem</a>@if (Model.IsStaff) { <a class="button secondary" href="/Staff">Staff</a> }<a class="button secondary" href="/Support">Security &amp; sign-in <span class="ext" aria-hidden="true">↗</span></a></div>
@@ -63,7 +63,7 @@ var personalSelected = account.LastWorkspace.AirlineId is null;
 <section class="card workspace pilot @(personalSelected ? "selected" : "")" aria-label="Personal workspace">
     <span class="tile big" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.5 13.5 10 11l2-8 2 1-1 6.5 7.5 2.5v2L13 13.5l-.5 5 2 2v1l-3-1-3 1v-1l2-2-.5-5-7.5 1.5z"/></svg></span>
     <div class="workspace-copy">
-        <div class="workspace-title"><h2>Flying as a Pilot</h2><span class="badge">@account.PersonalEntitlement.Plan</span></div>
+        <div class="workspace-title"><h2>Flying as a Pilot</h2>@if (account.PersonalEntitlement.Plan == PersonalPlan.Premium) { <span class="badge">Premium</span> }</div>
         <p>Your flights, your progress. All in your own space.</p>
         <div class="eyebrow">Logbook, dispatch, tracking and weather</div>
     </div>

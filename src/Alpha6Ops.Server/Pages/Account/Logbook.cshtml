@@ -15,7 +15,7 @@
     <div class="stat"><span class="stat-value">@((s.BlockMinutes / 60).ToString("n0"))<small>h</small></span><span class="stat-label">Block time</span></div>
     <div class="stat"><span class="stat-value">@s.Airports.ToString("n0")</span><span class="stat-label">Airports</span></div>
     <div class="stat"><span class="stat-value small">@(s.TopAircraft.Length > 0 ? string.Join(" · ", s.TopAircraft.Take(3)) : "—")</span><span class="stat-label">Most flown</span></div>
-    <div class="stat"><span class="stat-value small">@(s.FirstFlight is { } first ? $"{first:yyyy-MM-dd} → {s.LastFlight:yyyy-MM-dd}" : "—")</span><span class="stat-label">Span</span></div>
+    <div class="stat"><span class="stat-value small">@if (s.FirstFlight is { } first) { <span class="nowrap">@first.ToString("yyyy-MM-dd")</span> <span class="nowrap">→ @s.LastFlight?.ToString("yyyy-MM-dd")</span> } else { <text>—</text> }</span><span class="stat-label">Span</span></div>
 </section>
 @if (Model.Insights is { } ins && s.Flights > 0) {
     var maxMonth = ins.Months.Max(m => m.Flights);

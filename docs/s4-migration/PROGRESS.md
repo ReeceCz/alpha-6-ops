@@ -41,7 +41,7 @@ Without the DB env vars, the accounts suite skips its integration part (53 pure 
 | 2026-10-13 | Everything stays local (no push, deploy, release) until Dan's final approval | Reece |
 | 2026-10-13 | Testers launch on the existing Auth0 dev tenant; revisit before opening widely | Reece |
 | 2026-10-13 | Emails on from day one via Resend; public contact `support@s4ops.com` (Cloudflare Email Routing) | Reece |
-| 2026-10-13 | Rotate the Neon password and Render deploy hook now, before Dan's approval | Reece |
+| 2026-10-13 | Rotate the Neon password and Render deploy hook now, before Dan's approval. **Done 13 Oct:** `neondb_owner` reset, Render redeployed 18:56 UTC, sign-in verified, hook regenerated | Reece |
 
 ## Answers received 2026-09-22 (Reece)
 

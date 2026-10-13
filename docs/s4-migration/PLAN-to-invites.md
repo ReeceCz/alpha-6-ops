@@ -44,7 +44,7 @@ that sitting, the loop with the first testers, and the work needed before invita
    although Resend now sends tester invitations.
 5. **Production basics are unverified.** There's no build/test CI, no tested backup restore, and no alert when
    the site is down. The Auth0 tenant is the `dev-…` tenant. The Neon password and Render deploy hook pasted
-   into chat on 18 September may still need rotating.
+   into chat on 18 September were rotated on 13 October.
 
 ## 2. Phases
 
@@ -72,8 +72,8 @@ grey-cloud CNAME, Auth0 URLs, keep-warm variable, email routing and Resend, `wra
 Render environment. Then run `check-live.ps1` until it's clean.
 
 Add to that sitting:
-- [ ] Rotate the Neon password and the Render deploy hook if that hasn't happened since 18 September. Update
-      `ConnectionStrings__Accounts` in the same Render save as step 9.
+- [x] Rotate the Neon password and the Render deploy hook (done 13 October: new `neondb_owner` password in
+      `ConnectionStrings__Accounts`, deploy hook regenerated, sign-in confirmed).
 - [ ] Optional: create the Auth0 M2M app with only `delete:users` (`docs/hosting.md`). Without it, deleting an
       account leaves the Auth0 sign-in for you to remove by hand.
 

@@ -7,6 +7,9 @@ namespace Alpha6Ops.Server.Pages.Staff;
 public class ReportModel(AccountsService accounts, ServerSettings settings, StaffAccess staff, Mailer mailer) : StaffPage(accounts, settings, staff)
 {
     public StaffFeedbackView? Report { get; private set; }
+    /// <summary>A reply refused for a stale security check, kept so it can be sent again unchanged.</summary>
+    public string? PendingReply { get; private set; }
+    public bool PendingHandled { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken ct)
     {
@@ -39,6 +42,7 @@ public class ReportModel(AccountsService accounts, ServerSettings settings, Staf
         catch (IdentityException ex)
         {
             if (ex.Code == "invalid_reply") Report = await Accounts.GetFeedbackAsync(Actor, Staff, id, ct);
+            if (ex.Code == "mfa_required") { PendingReply = body; PendingHandled = markHandled; StepUpInNewTab = true; }
             return StaffFailure(ex);
         }
     }

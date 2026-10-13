@@ -18,6 +18,8 @@ public abstract class AccountPage(AccountsService accounts, ServerSettings setti
     public bool RequestPending { get; protected set; }
     /// <summary>Where the security check returns to; defaults to this page. Lets a refused form come back filled in.</summary>
     public string? StepUpReturn { get; protected set; }
+    /// <summary>The security check opens in a new tab, so text typed on this page stays put for a second try.</summary>
+    public bool StepUpInNewTab { get; protected set; }
     protected IActionResult Failure(IdentityException error)
     {
         // A locked account can only see its deletion, cancel it, or download its data.

@@ -4,7 +4,7 @@
 <div class="page-heading"><div class="eyebrow">Staff</div><h1>Release notes</h1><partial name="_StaffNav" model='@("releases")' />
 <p class="lead">Notes appear on <a href="/Releases">Release notes</a>, and on Download for the published version@(Model.CurrentRelease is { } cur ? $" ({cur})" : "").</p></div>
 <partial name="_AccountError" model="Model" />
-@if (Model.ErrorCode is null or "invalid_release") {
+@if (Model.ErrorCode is null or "invalid_release" || Model.StepUpInNewTab) {
 <section class="card">
     <h2>@(Model.Editing ? $"Edit {Model.Version}" : "Write release notes")</h2>
     <form method="post" asp-page-handler="Save" class="stack">

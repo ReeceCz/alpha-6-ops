@@ -36,6 +36,7 @@ public class ReleasesModel(AccountsService accounts, ServerSettings settings, St
         catch (IdentityException ex)
         {
             Published = await Accounts.ListReleaseNotesAsync(ct);
+            StepUpInNewTab = ex.Code == "mfa_required";
             return StaffFailure(ex);
         }
     }

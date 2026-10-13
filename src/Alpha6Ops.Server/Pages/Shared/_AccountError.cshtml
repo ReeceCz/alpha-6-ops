@@ -13,7 +13,8 @@
             <button class="button" type="submit">Ask for an invitation</button>
         </form>
     }
-    else if (Model.NeedsVerification) { <a class="button" href="/auth/step-up?returnUrl=@Uri.EscapeDataString(Model.StepUpReturn ?? Context.Request.Path)">Complete a fresh security check</a> }
+    else if (Model.NeedsVerification) { if (Model.StepUpInNewTab) { <p>Your text is kept below. Complete the check in the new tab, come back to this one and press the button again.</p> }
+        <a class="button" href="/auth/step-up?returnUrl=@Uri.EscapeDataString(Model.StepUpReturn ?? Context.Request.Path)" target="@(Model.StepUpInNewTab ? "_blank" : null)" rel="@(Model.StepUpInNewTab ? "noopener" : null)">Complete a fresh security check@(Model.StepUpInNewTab ? " (new tab)" : "")</a> }
     </div>
 }
 @* Only when there are errors: the empty summary carries an inline style the CSP blocks. *@

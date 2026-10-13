@@ -717,6 +717,15 @@ using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staf
     Check(!feedbackMail.Sent.Any(m => m.To.Contains(staleTester)), "Nothing is emailed before the security check");
     var prefilled = await staffBrowser.GetStringAsync($"/Staff/Testers?email={Uri.EscapeDataString(staleTester)}&note=From%20the%20fly-in");
     Check(prefilled.Contains($"value=\"{staleTester}\"") && prefilled.Contains("value=\"From the fly-in\""), "After the check the invitation form comes back filled in");
+    // Longer text survives a stale check: it stays on the page and the check opens in a new tab.
+    var staleReply = await SubmitAsync(staffNoMfa, stalePage, staleHtml, $"/Staff/Feedback/{reportId}?handler=Reply", new() { ["body"] = "Thanks, fixed in the next build.", ["markHandled"] = "true" });
+    var staleReplyHtml = await staleReply.Content.ReadAsStringAsync();
+    Check(staleReply.StatusCode == HttpStatusCode.Forbidden && staleReplyHtml.Contains("Thanks, fixed in the next build.</textarea>") && staleReplyHtml.Contains("target=\"_blank\""),
+        "A reply refused for a stale check stays on the page, with the check in a new tab");
+    var staleNotes = await SubmitAsync(staffNoMfa, stalePage, staleHtml, "/Staff/Releases?handler=Save", new() { ["Version"] = "9.9.9", ["Title"] = "Kept", ["Notes"] = "- A long change list" });
+    var staleNotesHtml = await staleNotes.Content.ReadAsStringAsync();
+    Check(staleNotes.StatusCode == HttpStatusCode.Forbidden && staleNotesHtml.Contains("- A long change list</textarea>") && staleNotesHtml.Contains("value=\"Kept\"")
+        && !(await anon.GetStringAsync("/Releases")).Contains("9.9.9"), "Release notes refused for a stale check are kept on the page and not published");
     if (Environment.GetEnvironmentVariable("S4OPS_PORTAL_SNAPSHOT_DIR") is { Length: > 0 } testerSnapshots)
     {
         await File.WriteAllTextAsync(Path.Combine(testerSnapshots, "staff-testers.html"), afterInvite);

@@ -3,6 +3,17 @@
 @{ ViewData["Title"] = "Problem report"; }
 <div class="page-heading"><a href="/Staff/Feedback">← Problem reports</a><div class="eyebrow">Staff</div><h1>Problem report</h1></div>
 <partial name="_AccountError" model="Model" />
+@if (Model.Report is null && Model.PendingReply is { } pending) {
+<section class="card">
+    <h2>Your reply hasn't been sent</h2>
+    <form method="post" asp-page-handler="Reply" asp-route-id="@RouteData.Values["id"]" class="stack">
+        <label for="body" class="visually-hidden">Reply</label>
+        <textarea id="body" name="body" rows="6" maxlength="2000" required>@pending</textarea>
+        <label class="check"><input type="checkbox" name="markHandled" value="true" checked="@Model.PendingHandled" /> Mark the report handled</label>
+        <div class="actions"><button class="button" type="submit">Send reply</button></div>
+    </form>
+</section>
+}
 @if (Model.Report is { } r) {
 <section class="card">
     <dl class="facts">

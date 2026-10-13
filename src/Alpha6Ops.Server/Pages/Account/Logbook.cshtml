@@ -12,7 +12,7 @@
 @if (s is not null && book is not null) {
 <section class="stat-row" aria-label="Logbook totals">
     <div class="stat"><span class="stat-value">@s.Flights.ToString("n0")</span><span class="stat-label">Flights</span></div>
-    <div class="stat"><span class="stat-value">@(s.BlockMinutes / 60).ToString("n0")<small>h</small></span><span class="stat-label">Block time</span></div>
+    <div class="stat"><span class="stat-value">@((s.BlockMinutes / 60).ToString("n0"))<small>h</small></span><span class="stat-label">Block time</span></div>
     <div class="stat"><span class="stat-value">@s.Airports.ToString("n0")</span><span class="stat-label">Airports</span></div>
     <div class="stat"><span class="stat-value small">@(s.TopAircraft.Length > 0 ? string.Join(" · ", s.TopAircraft.Take(3)) : "—")</span><span class="stat-label">Most flown</span></div>
     <div class="stat"><span class="stat-value small">@(s.FirstFlight is { } first ? $"{first:yyyy-MM-dd} → {s.LastFlight:yyyy-MM-dd}" : "—")</span><span class="stat-label">Span</span></div>

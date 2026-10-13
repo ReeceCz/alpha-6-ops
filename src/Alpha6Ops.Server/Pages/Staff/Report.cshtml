@@ -27,9 +27,9 @@
         <label class="check"><input type="checkbox" name="markHandled" value="true" @(r.Report.Status == Alpha6Ops.Accounts.FeedbackStatus.New ? "checked" : "") /> Mark the report handled</label>
         <div class="actions"><button class="button" type="submit">Send reply</button></div>
     </form>
-    <form method="post" asp-page-handler="Status" asp-route-id="@r.Report.Id">
+    <form method="post" asp-page-handler="Status" asp-route-id="@r.Report.Id" class="actions">
         <input type="hidden" name="status" value="@(r.Report.Status == Alpha6Ops.Accounts.FeedbackStatus.Handled ? "New" : "Handled")" />
-        <button class="button" type="submit">@(r.Report.Status == Alpha6Ops.Accounts.FeedbackStatus.Handled ? "Reopen" : "Mark handled")</button>
+        <button class="button secondary" type="submit">@(r.Report.Status == Alpha6Ops.Accounts.FeedbackStatus.Handled ? "Reopen" : "Mark handled")</button>
     </form>
 </section>
 }

@@ -8,10 +8,10 @@
 <section class="grid two plan-grid" aria-label="Account levels">
     <label class="card plan-card @(current == PersonalPlan.Free ? "selected" : "")"><input type="radio" name="plan" value="Free" checked="@(current == PersonalPlan.Free)" />
         <div class="eyebrow">Personal</div><h2>Flying as a Pilot</h2><span class="badge">Included</span>
-        <ul><li>Personal logbook and flight tracking</li><li>Dispatch and SimBrief import</li><li>Weather briefings</li><li>Membership in any number of airlines</li><li>Create one Community airline</li></ul></label>
+        <ul><li>Personal logbook and flight tracking</li><li>Dispatch and SimBrief import</li><li>Membership in any number of airlines</li><li>Create one Community airline</li></ul></label>
     <label class="card plan-card @(current == PersonalPlan.Premium ? "selected" : "")"><input type="radio" name="plan" value="Premium" checked="@(current == PersonalPlan.Premium)" />
         <div class="eyebrow">Personal</div><h2>Premium pilot</h2><span class="badge">Complimentary · early access</span>
-        <ul><li>Everything in Free</li><li>Cloud logbook sync (coming soon)</li><li>Extended flight history (coming soon)</li><li>Early access to new flight tools (coming soon)</li><li>Priority support (coming soon)</li></ul></label>
+        <ul><li>Everything in Flying as a Pilot</li><li>Cloud logbook sync (coming soon)</li><li>Extended flight history (coming soon)</li><li>Early access to new flight tools (coming soon)</li><li>Priority support (coming soon)</li></ul></label>
 </section>
 <div class="actions"><button class="button">Apply level</button><span class="muted">Current level: @current · @Model.Account.PersonalEntitlement.Status</span></div>
 </form>

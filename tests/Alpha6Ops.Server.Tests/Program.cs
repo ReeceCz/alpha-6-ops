@@ -248,6 +248,7 @@ Check((await browser.PostAsync("/Account/Profile", new FormUrlEncodedContent(new
 var planPage = await browser.GetAsync("/Account/Plan");
 var planHtml = await planPage.Content.ReadAsStringAsync();
 Check(planPage.IsSuccessStatusCode && planHtml.Contains("value=\"Premium\" checked"), "Account level page shows the current level");
+Check(!planHtml.Contains("Weather briefings") && !planHtml.Contains("Everything in Free"), "Account level page claims no weather briefings and names the included level");
 Check((await browser.PostAsync("/Account/Plan", new FormUrlEncodedContent(new Dictionary<string, string> { ["plan"] = "Free" }))).StatusCode == HttpStatusCode.BadRequest, "Account level change without CSRF token is rejected");
 // A genuine browser submission: antiforgery cookie from the GET plus the hidden form token.
 static async Task<HttpResponseMessage> SubmitAsync(HttpClient client, HttpResponseMessage page, string html, string path, Dictionary<string, string> fields)
@@ -361,6 +362,7 @@ if (created.IsSuccessStatusCode)
         var airlineHtml = await airlinePage.Content.ReadAsStringAsync();
         Check(airlinePage.IsSuccessStatusCode && airlineHtml.Contains("Airline level") && airlineHtml.Contains("value=\"Pro\" checked"), "Settings page offers the owner the level form with the current level");
         Check(airlineHtml.Contains("invitation.issued") && airlineHtml.Contains("airline.plan_changed") && !airlineHtml.Contains(invitation.Token), "Settings page shows the activity log without secrets");
+        Check(!airlineHtml.Contains("dispatch board"), "Settings promises no shared dispatch board, which doesn't exist");
         Check((await browser.PostAsync($"/Account/Airline/{airline.Id}/Settings?handler=Plan", new FormUrlEncodedContent(new Dictionary<string, string> { ["plan"] = "Community" }))).StatusCode == HttpStatusCode.BadRequest, "Airline level change without CSRF token is rejected");
         var airlinePlanPost = await SubmitAsync(browser, airlinePage, airlineHtml, $"/Account/Airline/{airline.Id}/Settings?handler=Plan", new() { ["plan"] = "Community" });
         Check(airlinePlanPost.StatusCode == HttpStatusCode.Redirect && (await pilot.GetFromJsonAsync<AirlineWorkspace>($"/api/v1/virtual-airlines/{airline.Id}"))?.Plan == AirlinePlan.Community, "Airline level form applies the chosen level");
@@ -436,6 +438,7 @@ if (created.IsSuccessStatusCode)
             {
                 ["index"] = (anonymous, "/"), ["levels"] = (anonymous, "/Levels"), ["download"] = (anonymous, "/Download"),
                 ["support"] = (anonymous, "/Support"), ["signed-out"] = (anonymous, "/SignedOut"), ["auth-error"] = (anonymous, "/AuthError"),
+                ["guide"] = (anonymous, "/Guide"), ["delete"] = (browser, "/Account/Delete"),
                 ["account"] = (browser, "/Account"), ["profile"] = (browser, "/Account/Profile"), ["plan"] = (browser, "/Account/Plan"),
                 ["logbook"] = (browser, "/Account/Logbook"), ["create"] = (browser, "/Account/Create"), ["join"] = (browser, "/Account/Join"),
                 ["airline"] = (browser, $"/Account/Airline/{airline.Id}"), ["crew"] = (browser, $"/Account/Airline/{airline.Id}/Crew"),
@@ -585,6 +588,7 @@ using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staf
     }
     Check(logbookHome.Contains("Your flying") && logbookHome.Contains("Top routes") && Regex.Matches(logbookHome, "class=\"bar h\\d+\"").Count == 12
     && logbookHome.Contains("<table class=\"visually-hidden\"") && !Regex.IsMatch(logbookHome, @"\sstyle="""), "The logbook shows insights with a twelve-month chart and a table for screen readers");
+    Check(Regex.IsMatch(logbookHome, @"stat-value"">\d+<small>h</small>") && !logbookHome.Contains(".ToString("), "The logbook totals block time in hours, not a raw expression");
     Check(!logbookHome.Contains("land here automatically"), "The logbook no longer claims desktop flights arrive automatically");
     // Anonymous requests are challenged; here the challenge can't reach the fake identity provider, so assert no form is served.
     var anonForm = await anon.GetAsync("/Account/Feedback");
@@ -686,6 +690,12 @@ using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staf
     Check(history.Contains("Block-in you can trust") && history.Contains("&lt;script&gt;") && !history.Contains("<script>alert"), "Releases lists the notes as plain text");
     var downloadNotes = await anon.GetStringAsync("/Download");
     Check(downloadNotes.Contains("What's new in 7.7.7") && downloadNotes.Contains("Engine shutdown confirms block in") && downloadNotes.Contains("href=\"/Releases\""), "Download shows the current release's notes");
+    if (Environment.GetEnvironmentVariable("S4OPS_PORTAL_SNAPSHOT_DIR") is { Length: > 0 } releaseSnapshots)
+    {
+        await File.WriteAllTextAsync(Path.Combine(releaseSnapshots, "releases.html"), history);
+        await File.WriteAllTextAsync(Path.Combine(releaseSnapshots, "download-notes.html"), downloadNotes);
+        await File.WriteAllTextAsync(Path.Combine(releaseSnapshots, "staff-releases.html"), await staffBrowser.GetStringAsync("/Staff/Releases"));
+    }
     using (var oldDesktop = feedbackHost.Client($"reporter-{run}"))
     {
         oldDesktop.DefaultRequestHeaders.UserAgent.ParseAdd("Alpha6OPS/0.1.0");

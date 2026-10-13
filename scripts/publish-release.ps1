@@ -11,6 +11,11 @@ the portal's Download page. It never changes Render itself.
 The version comes from src/Alpha6Ops.Desktop/Alpha6Ops.Desktop.csproj. packaging/build-desktop.ps1 is called
 as is (coordinate changes to it with Dan).
 
+The installer must point at the hosted portal, never at a developer's localhost. The build uses
+src/Alpha6Ops.Desktop/alpha6-identity.hosted.json (gitignored; same shape as alpha6-identity.example.json) in place
+of alpha6-identity.json, and puts the developer's own file back afterwards. The script then reads the configuration
+out of the installer's payload and stops unless ApiBaseUrl and PortalUrl are exactly -PortalUrl.
+
 .EXAMPLE
 powershell -File scripts/publish-release.ps1                 # build + hash, dry run
 powershell -File scripts/publish-release.ps1 -SkipBuild      # hash the existing outputs/ installer, dry run
@@ -21,20 +26,61 @@ param(
     [switch]$Upload,
     [string]$Installer = '',
     [string]$Repo = 'ReeceCz/alpha-6-ops',
-    [string]$SimConnectDll = ''
+    [string]$SimConnectDll = '',
+    [string]$PortalUrl = 'https://app.s4ops.com/',
+    [string]$DotNetRoot = ''   # passed to packaging/build-desktop.ps1, e.g. 'C:\Program Files\dotnet' in a worktree without work/dotnet
 )
 $ErrorActionPreference = 'Stop'
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+
+# Throws unless the JSON is an identity configuration aimed at the hosted portal.
+function Assert-HostedIdentity([string]$json, [string]$where) {
+    $config = $json | ConvertFrom-Json
+    foreach ($field in 'Authority', 'ClientId', 'Audience', 'ApiBaseUrl', 'PortalUrl') {
+        if (-not $config.$field -or $config.$field -match 'YOUR-') { throw "$where has no real $field." }
+    }
+    foreach ($field in 'ApiBaseUrl', 'PortalUrl') {
+        if ($config.$field -ne $PortalUrl) { throw "$where sets $field to '$($config.$field)', not '$PortalUrl'. Testers would not reach the portal." }
+    }
+}
 
 [xml]$project = Get-Content -LiteralPath (Join-Path $root 'src/Alpha6Ops.Desktop/Alpha6Ops.Desktop.csproj') -Raw
 $version = ($project.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1).Version
 if (-not ($version -match '^\d+\.\d+\.\d+$')) { throw "Could not read a x.y.z <Version> from the desktop project (got '$version')." }
 
 if (-not $SkipBuild) {
-    $buildArgs = @{}
-    if ($SimConnectDll) { $buildArgs.SimConnectDll = $SimConnectDll }
-    & (Join-Path $root 'packaging/build-desktop.ps1') @buildArgs
+    $desktop = Join-Path $root 'src/Alpha6Ops.Desktop'
+    $hosted = Join-Path $desktop 'alpha6-identity.hosted.json'
+    $active = Join-Path $desktop 'alpha6-identity.json'
+    if (-not (Test-Path -LiteralPath $hosted -PathType Leaf)) {
+        throw "Missing $hosted. Copy alpha6-identity.example.json there and fill in the Auth0 desktop (Native) application, with ApiBaseUrl and PortalUrl set to $PortalUrl."
+    }
+    Assert-HostedIdentity ([IO.File]::ReadAllText($hosted)) $hosted
+    $developerCopy = $null
+    if (Test-Path -LiteralPath $active -PathType Leaf) { $developerCopy = [IO.File]::ReadAllBytes($active) }
+    Copy-Item -LiteralPath $hosted -Destination $active -Force
+    try {
+        $buildArgs = @{}
+        if ($SimConnectDll) { $buildArgs.SimConnectDll = $SimConnectDll }
+        if ($DotNetRoot) { $buildArgs.DotNetRoot = $DotNetRoot }
+        & (Join-Path $root 'packaging/build-desktop.ps1') @buildArgs
+    } finally {
+        if ($null -ne $developerCopy) { [IO.File]::WriteAllBytes($active, $developerCopy) } else { Remove-Item -LiteralPath $active -Force }
+    }
 }
+
+# Check what actually ships: the configuration inside the installer's payload.
+$payload = Join-Path $root "outputs/Sierra4-Desktop-$version-win-x64.zip"
+if (-not (Test-Path -LiteralPath $payload -PathType Leaf)) { throw "Payload not found at '$payload'; build first." }
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zip = [IO.Compression.ZipFile]::OpenRead($payload)
+try {
+    $entry = $zip.Entries | Where-Object { $_.FullName -eq 'alpha6-identity.json' } | Select-Object -First 1
+    if (-not $entry) { throw "$payload has no alpha6-identity.json, so the installed app could not sign in." }
+    $reader = New-Object IO.StreamReader($entry.Open())
+    try { $shipped = $reader.ReadToEnd() } finally { $reader.Dispose() }
+} finally { $zip.Dispose() }
+Assert-HostedIdentity $shipped "The installer payload's alpha6-identity.json"
 
 if (-not $Installer) { $Installer = Join-Path $root "outputs/Sierra4-Setup-$version.exe" }
 if (-not (Test-Path -LiteralPath $Installer -PathType Leaf)) {

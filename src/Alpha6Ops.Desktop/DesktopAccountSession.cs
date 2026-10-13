@@ -159,7 +159,7 @@ internal sealed class DesktopAccountSession
     }
 
     // In-app sign-in: Auth0's password-realm grant plus the MFA API, so email/password pilots never leave the
-    // window. Passkeys and Microsoft/Google still go through the browser. Passwords are used for the one
+    // window. Passkeys and Google still go through the browser. Passwords are used for the one
     // request and never stored, logged or kept in the session file.
     internal async Task<PasswordLoginOutcome> PasswordLoginAsync(string email, string password, bool stepUp, CancellationToken token)
     {

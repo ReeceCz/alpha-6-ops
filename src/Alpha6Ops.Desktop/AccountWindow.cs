@@ -135,7 +135,7 @@ internal sealed partial class AccountWindow : Window
     }
 
     // In-app sign-in: email and password go to the provider's password grant; a second factor is handled in the
-    // MfaWindow. Passkeys and Microsoft/Google accounts use the browser path below.
+    // MfaWindow. Passkeys and Google accounts use the browser path below.
     private async void Continue_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
     {
         if (preview) { ShowWorkspaces(); return; }
@@ -143,7 +143,7 @@ internal sealed partial class AccountWindow : Window
         if (!MailAddress.TryCreate(email, out var parsed) || parsed.Address != email)
         { SetStatus("Enter a valid email address to continue."); EmailInput.Focus(); return; }
         var password = EnteredPassword;
-        if (password.Length == 0) { SetStatus("Enter your password, or use passkey / Microsoft / Google sign-in below."); PasswordInput.Focus(); return; }
+        if (password.Length == 0) { SetStatus("Enter your password, or use passkey / Google sign-in below."); PasswordInput.Focus(); return; }
         if (account is null) return;
         SetStatus("Signing in…");
         PasswordLoginOutcome outcome;

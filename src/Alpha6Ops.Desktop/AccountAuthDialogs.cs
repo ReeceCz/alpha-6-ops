@@ -135,7 +135,7 @@ internal sealed class SignUpWindow : PortalDialog
 }
 
 // Fresh proof for an administrative action without leaving the app: password again, then the code. The
-// browser remains one click away for passkey and Microsoft/Google accounts.
+// browser remains one click away for passkey and Google accounts.
 internal sealed class StepUpWindow : PortalDialog
 {
     private readonly PasswordBox password = new();
@@ -149,7 +149,7 @@ internal sealed class StepUpWindow : PortalDialog
         password.Padding = new Thickness(12, 10, 12, 10); password.FontSize = 14; password.MinHeight = 44; password.CaretBrush = OpsUi.Brush("#E5C44A");
         System.Windows.Automation.AutomationProperties.SetName(password, "Password");
         Body.Children.Add(password);
-        var browser = new Button { Content = "Use my browser instead (passkey, Microsoft or Google)", Style = (Style)FindResource("PortalLink"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 18, 0, 0) };
+        var browser = new Button { Content = "Use my browser instead (passkey or Google)", Style = (Style)FindResource("PortalLink"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 18, 0, 0) };
         browser.Click += (_, _) => { Result = StepUpChoice.Browser; Finish(); };
         Body.Children.Add(browser);
         Loaded += (_, _) => password.Focus();

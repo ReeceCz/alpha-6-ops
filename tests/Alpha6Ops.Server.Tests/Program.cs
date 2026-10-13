@@ -231,6 +231,16 @@ foreach (var anonymousPage in new[] { "/", "/Levels", "/Download", "/Support", "
 }
 foreach (var gone in retired)
     Check((await anonymous.GetAsync(gone)).StatusCode == HttpStatusCode.NotFound, $"Retired asset {gone} is gone");
+var missingPage = await anonymous.GetAsync("/No/Such/Page");
+var missingHtml = await missingPage.Content.ReadAsStringAsync();
+Check(missingPage.StatusCode == HttpStatusCode.NotFound && missingHtml.Contains("find that page") && missingHtml.Contains("href=\"/\"") && !missingHtml.Contains("<script"),
+    "An unknown address is a 404 page with a way home");
+var missingApi = await anonymous.GetAsync("/api/v1/no-such-endpoint");
+Check(missingApi.StatusCode == HttpStatusCode.NotFound && !(await missingApi.Content.ReadAsStringAsync()).Contains("<html"), "The API keeps plain 404s");
+var errorPage = await anonymous.GetAsync("/Error");
+var errorHtml = await errorPage.Content.ReadAsStringAsync();
+Check(errorPage.StatusCode == HttpStatusCode.InternalServerError && errorHtml.Contains("Something went wrong") && errorHtml.Contains("<code class=\"break\">") && errorHtml.Contains("href=\"/Support\"")
+    && !errorHtml.Contains("installation administrator") && !errorHtml.Contains("migrate-accounts"), "The error page gives a reference and a way out, and no database hint without a database failure");
 Check(accountPage.IsSuccessStatusCode, "Authenticated portal workspace renders");
 var accountHtml = await accountPage.Content.ReadAsStringAsync();
 Check(accountHtml.Contains("__RequestVerificationToken"), "Portal mutation forms contain antiforgery token");
@@ -250,6 +260,8 @@ var planHtml = await planPage.Content.ReadAsStringAsync();
 Check(planPage.IsSuccessStatusCode && planHtml.Contains("value=\"Premium\" checked"), "Account level page shows the current level");
 Check(!planHtml.Contains("Weather briefings") && !planHtml.Contains("Everything in Free"), "Account level page claims no weather briefings and names the included level");
 Check((await browser.PostAsync("/Account/Plan", new FormUrlEncodedContent(new Dictionary<string, string> { ["plan"] = "Free" }))).StatusCode == HttpStatusCode.BadRequest, "Account level change without CSRF token is rejected");
+var expiredForm = await browser.PostAsync("/Account/Plan", new FormUrlEncodedContent(new Dictionary<string, string> { ["plan"] = "Free" }));
+Check((await expiredForm.Content.ReadAsStringAsync()).Contains("That form had expired") && (await expiredForm.Content.ReadAsStringAsync()).Contains("href=\"/Account\""), "A form without a valid token explains itself and links back to the account");
 // A genuine browser submission: antiforgery cookie from the GET plus the hidden form token.
 static async Task<HttpResponseMessage> SubmitAsync(HttpClient client, HttpResponseMessage page, string html, string path, Dictionary<string, string> fields)
 {

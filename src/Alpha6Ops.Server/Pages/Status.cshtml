@@ -1,0 +1,17 @@
+@page "/Status/{code:int}"
+@model StatusModel
+@{
+    var signedIn = User.Identity?.IsAuthenticated == true;
+    var (title, text) = Model.Code switch
+    {
+        404 => ("We couldn't find that page.", "The link may be out of date, or the address mistyped."),
+        403 => ("That isn't open to you.", "It belongs to an airline you aren't a member of, or needs a role you don't have. An airline administrator can change your roles."),
+        400 => ("That form had expired.", "Go back, reload the page and try again. Forms stop working after a while, or after you sign in again."),
+        429 => ("Too many requests.", "Wait a minute, then try again."),
+        _ => ("We couldn't complete that request.", "Try again in a minute."),
+    };
+    ViewData["Title"] = title.TrimEnd('.');
+}
+<section class="card narrow"><h1>@title</h1><p>@text</p>
+<div class="actions">@if (signedIn) { <a class="button" href="/Account">Go to your account</a> } else { <a class="button" href="/">Return home</a> }<a class="button secondary" href="/Support">Help</a></div>
+</section>

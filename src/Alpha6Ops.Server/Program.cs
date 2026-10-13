@@ -223,6 +223,11 @@ if (trustCloudflare)
         return next(context);
     });
 app.UseExceptionHandler("/Error");
+// Pages that answer with an empty error (unknown address, expired form) get a page with a way back. The API, media and
+// health check keep their exact responses.
+app.UseWhen(context => !context.Request.Path.StartsWithSegments("/api") && !context.Request.Path.StartsWithSegments("/media")
+        && !context.Request.Path.StartsWithSegments("/healthz"),
+    branch => branch.UseStatusCodePagesWithReExecute("/Status/{0}"));
 if (!app.Environment.IsDevelopment()) app.UseHsts();
 app.Use(async (context, next) =>
 {

@@ -1,4 +1,12 @@
 @page
 @model ErrorModel
-@{ ViewData["Title"] = "Unable to complete request"; }
-<section class="card narrow"><h1>We couldn't complete that request.</h1><p>Please try again in a moment. If the issue continues, contact the installation administrator.</p><a href="/">Return home</a></section>
+@{ ViewData["Title"] = "Something went wrong"; var signedIn = User.Identity?.IsAuthenticated == true; }
+<section class="card narrow"><h1>Something went wrong on our side.</h1>
+<p>That page didn't load. Try again in a minute. If it keeps happening, @(signedIn ? "report it" : "tell us") and quote this reference so we can find it:</p>
+<p><code class="break">@Model.Reference</code></p>
+@if (Model.DatabaseBehind) {
+    <div class="notice" role="status"><p><strong>Local development:</strong> the account database is older than the code. Stop the portal, run
+    <code class="break">dotnet run --project src/Alpha6Ops.Server --no-build -- --migrate-accounts</code> and start it again.</p></div>
+}
+<div class="actions">@if (signedIn) { <a class="button" href="/Account">Go to your account</a><a class="button secondary" href="/Account/Feedback">Report a problem</a> } else { <a class="button" href="/">Return home</a><a class="button secondary" href="/Support">Help</a> }</div>
+</section>

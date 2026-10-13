@@ -35,7 +35,8 @@ that sitting, the loop with the first testers, and the work needed before invita
    `ApiBaseUrl`/`PortalUrl` at `https://localhost:7246/`. `publish-release.ps1` doesn't check for either case.
    A tester build made today would either refuse sign-in or call the tester's own localhost.
 2. **The desktop doesn't upload flights.** `POST /api/v1/me/flights` exists, but nothing in the desktop calls it.
-   The endpoint also has no submission ID, so a retry after a timeout records the flight twice.
+   Duplicates are already handled: a unique index on pilot, departure, flight number, origin and destination
+   makes a repeat return `409 flight_exists`, so a desktop outbox can treat that as delivered.
 3. **The main checkout is stale.** `C:\Users\…\dev\alpha-6-ops` is on `chore/s4-rebrand`, 81 commits behind. Its
    uncommitted page/CSS edits repeat fixes that already landed in `0b2bae6`. Its `docs/web-status-2026-10-13.md`
    reviewed that stale branch, so it misses the staff area, requests, feedback and email.
@@ -100,14 +101,14 @@ The web logbook holds CSV imports only. A pilot who flies sees nothing on the we
 reason to exist for them. This is the most valuable build. It touches Dan's PIREP/closeout area, so it starts
 with an agreed contract.
 
-1. **Contract with Dan (one conversation, written into `docs/`):** which completed-flight record is sent and
+1. **Contract with Dan:** draft in `flight-upload-contract-draft.md`. It proposes using his flight-history row
+   ID as the upload identity, which needs one server field and a migration once he agrees. Points to settle: which completed-flight record is sent and
    when (at block-in or at PIREP close), its fields, and its stable ID (the desktop's flight/row ID). Also agree
    whether it carries an airline and route, and what the pilot sees when an upload fails.
-2. **Server (Reece):** add a client submission ID to `FlightLogRequest`, with a unique index per user. A repeat
-   returns the existing flight instead of a duplicate. This needs a migration and tests. Tell the logbook
-   whether a flight came from the desktop or a CSV import.
+2. **Server (Reece):** after step 1, add `ClientFlightId` (unique per pilot, a repeat returns the stored flight).
+   Until then, the 409 rule in gap 2 stops duplicates. Airline/route attribution depends on step 1. The logbook already records `Source` (`desktop` or `import`).
 3. **Desktop (by agreement):** a small durable outbox in the account workspace. The flight is queued at closeout
-   and sent on success, on start-up, and when the user signs in again. Failures are shown, not swallowed.
+   and sent on success, on start-up, and when the user signs in again. `200` and `409 flight_exists` both mean delivered. Failures are shown, not swallowed.
 4. **Web:** the flight detail page (times, OOOI, block/flight minutes, aircraft), and change the
    copy that currently says flights don't arrive automatically.
 

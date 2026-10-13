@@ -34,7 +34,7 @@ public class CrewModel(AccountsService accounts, ServerSettings settings, Mailer
             await LoadAsync(ct);
             Issued = await Accounts.InviteAsync(Actor, Id, new(email, roles), ct);
             Invitations = await Accounts.ListInvitationsAsync(Actor, Id, ct);
-            mailer.AirlineInvitation(Issued.Invitation.Email, Airline!.Name, Actor.DisplayName);
+            if (await Accounts.MayEmailInviteeAsync(Issued.Invitation.Email, ct)) mailer.AirlineInvitation(Issued.Invitation.Email, Airline!.Name, Actor.DisplayName);
             return Page();
         }
         catch (IdentityException ex) { return Failure(ex); }

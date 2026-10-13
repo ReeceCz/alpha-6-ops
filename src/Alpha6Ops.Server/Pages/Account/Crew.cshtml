@@ -3,10 +3,10 @@
 @{ ViewData["Title"] = "Crew"; Layout = "_ConsoleLayout"; ViewData["ConsoleAirline"] = Model.Airline; ViewData["ConsoleActive"] = "crew"; }
 <partial name="_AccountError" model="Model" />
 @if (Model.Issued is { } issued) {
-    <section class="notice" role="status"><h2>@(Model.EmailOn ? "Invitation sent to" : "Invitation created for") @issued.Invitation.Email</h2>
-    <p>@(Model.EmailOn ? "We emailed them a link. " : "")They sign in with that email address and accept it under <a asp-page="Join">Join an airline</a> before @issued.Invitation.ExpiresAt.ToString("u").
+    <section class="notice" role="status"><h2>Invitation created for @issued.Invitation.Email</h2>
+    <p>@(Model.EmailOn ? "If they have an S4 OPS account or a tester invitation, we emailed them a link. " : "")They sign in with that email address and accept it under <a asp-page="Join">Join an airline</a> before @issued.Invitation.ExpiresAt.ToString("u").
     S4 OPS is invite-only while we test, so someone without an account also needs an invitation from the Sierra 4 team (they can <a href="/Request">ask for one</a>).</p>
-    <p>@(Model.EmailOn ? "If the email doesn't arrive, they" : "They") can also enter this code on the join page. It's shown only once:</p><code class="break">@issued.Token</code></section>
+    <p>@(Model.EmailOn ? "If no email arrives, they" : "They") can also enter this code on the join page. It's shown only once:</p><code class="break">@issued.Token</code></section>
 }
 @if (Model.Airline is { } airline) {
 <p class="lead console-lead">Invite pilots and choose what each crew member may do. Changes here need a security check within the last five minutes. <span class="muted">@Model.Members.Count(m => m.Status == MembershipStatus.Active) active crew · @Model.Invitations.Count(i => i.Status == "pending") pending invitations</span></p>

@@ -566,10 +566,10 @@ using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staf
         var ownedAirline = (await ownerApi.GetFromJsonAsync<BootstrapResponse>("/api/v1/me/bootstrap"))!.Airlines.First(a => a.Roles.Contains(AirlineRole.Owner));
         var crewPage = await ownerHome.GetAsync($"/Account/Airline/{ownedAirline.Id}/Crew");
         var crewHtml = await crewPage.Content.ReadAsStringAsync();
-        var mailedInvite = await SubmitAsync(ownerHome, crewPage, crewHtml, $"/Account/Airline/{ownedAirline.Id}/Crew?handler=Invite", new() { ["email"] = $"mailed-{run}@example.test", ["roles"] = "Pilot" });
+        var mailedInvite = await SubmitAsync(ownerHome, crewPage, crewHtml, $"/Account/Airline/{ownedAirline.Id}/Crew?handler=Invite", new() { ["email"] = $"reporter-{run}@example.test", ["roles"] = "Pilot" });
         var invitedHtml = await mailedInvite.Content.ReadAsStringAsync();
         var code = Regex.Match(invitedHtml, "<code class=\"break\">([^<]+)</code>").Groups[1].Value;
-        Check(code.Length > 20 && await WaitForAsync(() => feedbackMail.Sent.Any(m => m.To.SequenceEqual([$"mailed-{run}@example.test"]) && m.Subject == $"Join {ownedAirline.Name} on S4 OPS"
+        Check(code.Length > 20 && await WaitForAsync(() => feedbackMail.Sent.Any(m => m.To.SequenceEqual([$"reporter-{run}@example.test"]) && m.Subject == $"Join {ownedAirline.Name} on S4 OPS"
             && m.Text.Contains("https://app.example.test/Account/Join") && !m.Text.Contains(code) && !m.Html.Contains(code))),
             "An airline invitation emails a link to the join page without the invitation code");
     }

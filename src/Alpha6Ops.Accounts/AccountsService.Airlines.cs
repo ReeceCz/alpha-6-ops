@@ -40,6 +40,18 @@ public sealed partial class AccountsService
         return rows.Select(x => new PendingInvitation(x.Id, x.Name, x.Callsign, x.Roles.Select(r => (AirlineRole)r).ToArray(), x.ExpiresAt, x.Issuer ?? "A former member")).ToArray();
     }, ct);
 
+    /// <summary>
+    /// Whether S4 OPS may email this address about an airline invitation: it belongs to an account, or it may create one.
+    /// Keeps airline administrators from using the S4 OPS sender to mail arbitrary addresses. Never shown to the caller.
+    /// </summary>
+    public async Task<bool> MayEmailInviteeAsync(string email, CancellationToken ct = default)
+    {
+        var normalized = AccountRules.Email(email);
+        return await db.Users.AnyAsync(x => x.Email == normalized && x.Status != AccountStatus.Deleted, ct)
+            || admission.Admits(normalized, emailVerified: true) is null
+            || await IsInvitedTester(normalized, ct);
+    }
+
     /// <summary>Accepts an invitation listed for the actor. Same rules as accepting by code; an unknown or foreign ID is just unavailable.</summary>
     public Task<AirlineWorkspace> AcceptInvitationByIdAsync(ActorIdentity actor, Guid invitationId, CancellationToken ct = default) => Execute(actor, async (user, now) =>
     {

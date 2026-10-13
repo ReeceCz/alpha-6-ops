@@ -598,6 +598,9 @@ await RejectAsync(() => Run(s => s.AddTesterInviteAsync(staffer, staffList, "not
 var invite = await Run(s => s.AddTesterInviteAsync(staffer, staffList, " " + invitedTester.Email + " ", "  Dan's flying buddy  "));
 var addedEmail = invitedTester.Email.ToLowerInvariant();
 Check(invite is { Note: "Dan's flying buddy", HasAccount: false } && invite.Email == addedEmail, "staff invite a tester by email, stored lower-case with a note");
+Check(!await RunAdmitting(closedList, s => s.MayEmailInviteeAsync(prefix + "-nobody@example.com")) && await RunAdmitting(closedList, s => s.MayEmailInviteeAsync(invitedTester.Email))
+    && await RunAdmitting(closedList, s => s.MayEmailInviteeAsync(actor.Email.ToUpperInvariant())) && await RunAdmitting(testerList, s => s.MayEmailInviteeAsync(tester.Email)),
+    "airline invitation emails go only to accounts, invited testers and the configured list");
 Check((await Run(s => s.AddTesterInviteAsync(staffer, staffList, invitedTester.Email.ToUpperInvariant(), "again"))).Note == "again", "inviting the same email again updates the note");
 await RejectAsync(() => RunAdmitting(closedList, s => s.BootstrapAsync(invitedTester)), "invite_email_unverified");
 Check((await RunAdmitting(closedList, s => s.BootstrapAsync(invitedTester with { EmailVerified = true }))).Account.DisplayName == "Db Tester", "an email invited from the staff page creates an account once verified");

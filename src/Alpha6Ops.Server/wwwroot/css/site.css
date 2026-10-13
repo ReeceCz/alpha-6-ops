@@ -501,5 +501,11 @@ a.stat:hover, a.stat:focus-visible { border-color: var(--action); }
   table.stacked tr { border-bottom: 1px solid var(--line); padding: var(--space-2) 0; }
   table.stacked td { border-bottom: 0; padding: var(--space-1) 0; overflow-wrap: anywhere; }
   table.stacked td[data-label]::before { content: attr(data-label); display: block; color: var(--muted); font-size: var(--size-xs); }
+  /* Cards: one compact block per row, labels inline, wrapping. Notes stay attached to the row above. */
+  table.stacked.cards tr { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-4); border-bottom: 0; border-top: 1px solid var(--line); padding: var(--space-3) 0; }
+  table.stacked.cards tr.note-row { border-top: 0; padding-top: 0; }
+  table.stacked.cards td { padding: 0; }
+  table.stacked.cards td[data-label]::before { display: inline; margin-right: var(--space-1); }
+  table.stacked.cards td.row-actions { flex-basis: 100%; }
 }
 @media (max-width: 440px) { .console-sidebar nav svg { display: none; } }

@@ -11,11 +11,11 @@
     @if (Model.Fleet.Length == 0) {
         <div class="empty"><h3>No aircraft yet.</h3><p>Add each aircraft by registration. Rotations and the OCC board are built on real tails, not just types.</p></div>
     } else {
-    <div class="table-scroll"><table class="console-table"><thead><tr><th scope="col">Registration</th><th scope="col">Type</th><th scope="col">Name</th><th scope="col">Home base</th><th scope="col">Status</th>@if (Model.CanEdit) { <th scope="col"><span class="visually-hidden">Actions</span></th> }</tr></thead><tbody>
+    <div class="table-scroll"><table class="console-table stacked cards"><thead><tr><th scope="col">Registration</th><th scope="col">Type</th><th scope="col">Name</th><th scope="col">Home base</th><th scope="col">Status</th>@if (Model.CanEdit) { <th scope="col"><span class="visually-hidden">Actions</span></th> }</tr></thead><tbody>
     @foreach (var a in Model.Fleet) {
         <tr class="@(a.Status == AircraftStatuses.Retired ? "inactive" : "") @(e?.Id == a.Id ? "editing" : "")">
-            <td><strong class="reg">@a.Registration</strong></td><td>@a.TypeIcao</td><td>@(a.Name.Length > 0 ? a.Name : "—")</td><td>@(a.HomeBase.Length > 0 ? a.HomeBase : "—")</td>
-            <td><span class="status @a.Status">@a.Status</span></td>
+            <td><strong class="reg">@a.Registration</strong></td><td data-label="Type">@a.TypeIcao</td><td data-label="Name">@(a.Name.Length > 0 ? a.Name : "—")</td><td data-label="Home base">@(a.HomeBase.Length > 0 ? a.HomeBase : "—")</td>
+            <td data-label="Status"><span class="status @a.Status">@a.Status</span></td>
             @if (Model.CanEdit) { <td class="row-actions"><a href="/Account/Airline/@airline.Id/Fleet?edit=@a.Id#aircraft-form">Edit</a><form method="post" asp-page-handler="Delete"><input type="hidden" name="aircraftId" value="@a.Id" /><button class="text-button danger">Remove</button></form></td> }
         </tr>
         @if (a.Notes.Length > 0) { <tr class="note-row"><td colspan="6"><span class="muted">@a.Notes</span></td></tr> }

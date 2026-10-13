@@ -44,11 +44,11 @@
     @if (book.Total == 0) {
         <div class="empty"><h3>Nothing logged yet.</h3><p>Fly with the desktop app, or import your existing logbook on the right — most platforms can export a CSV.</p></div>
     } else {
-    <div class="table-scroll"><table class="console-table logbook"><thead><tr><th scope="col">Date (UTC)</th><th scope="col">Flight</th><th scope="col">Route</th><th scope="col">Aircraft</th><th scope="col">Block</th><th scope="col">Landing</th><th scope="col">Source</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead><tbody>
+    <div class="table-scroll"><table class="console-table logbook stacked cards"><thead><tr><th scope="col">Date (UTC)</th><th scope="col">Flight</th><th scope="col">Route</th><th scope="col">Aircraft</th><th scope="col">Block</th><th scope="col">Landing</th><th scope="col">Source</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead><tbody>
     @foreach (var f in book.Entries) {
         <tr><td class="nowrap">@f.DepartureUtc.ToString("yyyy-MM-dd HH:mm")</td><td><strong>@(f.FlightNumber.Length > 0 ? f.FlightNumber : "—")</strong></td><td class="nowrap">@f.Origin <span class="muted">→</span> @f.Destination</td>
-            <td>@(f.AircraftType.Length > 0 ? f.AircraftType : "—")@(f.Registration.Length > 0 ? $" · {f.Registration}" : "")</td><td class="nowrap">@Alpha6Ops.Server.Pages.Account.LogbookModel.Hours(f.BlockMinutes)</td>
-            <td>@(f.LandingRateFpm is { } vs ? $"{vs} fpm" : "—")</td><td><span class="badge outline">@f.Source</span></td>
+            <td data-label="Aircraft">@(f.AircraftType.Length > 0 ? f.AircraftType : "—")@(f.Registration.Length > 0 ? $" · {f.Registration}" : "")</td><td class="nowrap" data-label="Block">@Alpha6Ops.Server.Pages.Account.LogbookModel.Hours(f.BlockMinutes)</td>
+            <td data-label="Landing">@(f.LandingRateFpm is { } vs ? $"{vs} fpm" : "—")</td><td data-label="Source"><span class="badge outline">@f.Source</span></td>
             <td class="row-actions"><form method="post" asp-page-handler="Delete"><input type="hidden" name="flightId" value="@f.Id" /><input type="hidden" name="p" value="@book.Page" /><button class="text-button danger">Remove</button></form></td></tr>
         @if (f.Notes.Length > 0) { <tr class="note-row"><td colspan="8"><span class="muted">@f.Notes</span></td></tr> }
     }

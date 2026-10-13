@@ -15,13 +15,13 @@
     @if (Model.Routes.Length == 0) {
         <div class="empty"><h3>No routes yet.</h3><p>Add your first route on the right, or paste a CSV below. Pilots bid on these from the desktop app.</p></div>
     } else {
-    <div class="table-scroll"><table class="console-table"><thead><tr><th scope="col">Flight</th><th scope="col">Route</th><th scope="col">Dep UTC</th><th scope="col">Block</th><th scope="col">Days</th><th scope="col">Type</th><th scope="col">Status</th>@if (Model.CanEdit) { <th scope="col"><span class="visually-hidden">Actions</span></th> }</tr></thead><tbody>
+    <div class="table-scroll"><table class="console-table stacked cards"><thead><tr><th scope="col">Flight</th><th scope="col">Route</th><th scope="col">Dep UTC</th><th scope="col">Block</th><th scope="col">Days</th><th scope="col">Type</th><th scope="col">Status</th>@if (Model.CanEdit) { <th scope="col"><span class="visually-hidden">Actions</span></th> }</tr></thead><tbody>
     @foreach (var r in Model.Routes) {
         <tr class="@(r.Active ? "" : "inactive") @(e?.Id == r.Id ? "editing" : "")">
-            <td><strong>@r.FlightNumber</strong></td><td class="nowrap">@r.Origin <span class="muted">→</span> @r.Destination</td><td>@r.DepartureUtc</td>
-            <td>@(r.BlockMinutes / 60)h @(r.BlockMinutes % 60)m</td>
-            <td><span class="days">@for (var i = 0; i < 7; i++) { <i class="@((r.DaysOfWeek & (1 << i)) != 0 ? "on" : "")" title="@Alpha6Ops.Server.Pages.Account.ScheduleModel.DayLabels[i]">@Alpha6Ops.Server.Pages.Account.ScheduleModel.DayLabels[i][0]</i> }</span></td>
-            <td>@(r.AircraftType.Length > 0 ? r.AircraftType : "—")</td><td>@(r.Active ? "Active" : "Suspended")</td>
+            <td><strong>@r.FlightNumber</strong></td><td class="nowrap">@r.Origin <span class="muted">→</span> @r.Destination</td><td data-label="Dep UTC">@r.DepartureUtc</td>
+            <td data-label="Block">@(r.BlockMinutes / 60)h @(r.BlockMinutes % 60)m</td>
+            <td data-label="Days"><span class="days">@for (var i = 0; i < 7; i++) { <i class="@((r.DaysOfWeek & (1 << i)) != 0 ? "on" : "")" title="@Alpha6Ops.Server.Pages.Account.ScheduleModel.DayLabels[i]">@Alpha6Ops.Server.Pages.Account.ScheduleModel.DayLabels[i][0]</i> }</span></td>
+            <td data-label="Type">@(r.AircraftType.Length > 0 ? r.AircraftType : "—")</td><td data-label="Status">@(r.Active ? "Active" : "Suspended")</td>
             @if (Model.CanEdit) { <td class="row-actions"><a href="/Account/Airline/@airline.Id/Schedule?edit=@r.Id#route-form">Edit</a><form method="post" asp-page-handler="Delete"><input type="hidden" name="routeId" value="@r.Id" /><button class="text-button danger">Remove</button></form></td> }
         </tr>
         @if (r.Notes.Length > 0) { <tr class="note-row"><td colspan="8"><span class="muted">@r.Notes</span></td></tr> }

@@ -38,6 +38,10 @@ Without the DB env vars, the accounts suite skips its integration part (53 pure 
 | 2026-10-01 | Logo = Dan's taxiway-sign concepts: yellow `S4` tile (his Option 6) for favicon/app icon, Option 3 lockup "SIERRA 4 / Airline Operations Platform \| Powered by RYNEL" for the header | Reece + Dan |
 | 2026-10-01 | **RYNEL** is Dan's engine brand and appears on the product ("Powered by RYNEL"). Name not yet checked for conflicts | Reece |
 | 2026-10-01 | Merge Dan's dashboard look into the glass cockpit: yellow brand/navigation accent and a wide display face (Michroma) for headings and logo; keep cockpit structure and unambiguous status colours (yellow must not mean both "brand" and "caution") | Reece |
+| 2026-10-13 | Everything stays local (no push, deploy, release) until Dan's final approval | Reece |
+| 2026-10-13 | Testers launch on the existing Auth0 dev tenant; revisit before opening widely | Reece |
+| 2026-10-13 | Emails on from day one via Resend; public contact `support@s4ops.com` (Cloudflare Email Routing) | Reece |
+| 2026-10-13 | Rotate the Neon password and Render deploy hook now, before Dan's approval | Reece |
 
 ## Answers received 2026-09-22 (Reece)
 

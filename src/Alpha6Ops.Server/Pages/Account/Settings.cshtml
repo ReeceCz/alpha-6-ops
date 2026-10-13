@@ -1,0 +1,29 @@
+@page "/Account/Airline/{id:guid}/Settings"
+@model Alpha6Ops.Server.Pages.Account.SettingsModel
+@{ ViewData["Title"] = "Airline settings"; Layout = "_ConsoleLayout"; ViewData["ConsoleAirline"] = Model.Airline; ViewData["ConsoleActive"] = "settings"; }
+<partial name="_AccountError" model="Model" />
+@if (Model.PlanSaved) { <div class="notice" role="status"><p>Airline level updated.</p></div> }
+@if (Model.Airline is { } airline) {
+<p class="lead console-lead">Logo, airline level, ownership and the activity log. Changes here need a security check within the last five minutes.</p>
+<section class="card logo-card" id="logo"><div class="logo-row">
+    <div class="logo-preview">@if (airline.LogoUrl.Length > 0) { <img src="@airline.LogoUrl" alt="@airline.Name logo" width="96" height="96" /> } else { <span class="avatar-fallback mono" aria-hidden="true">@(airline.Callsign.Length > 3 ? airline.Callsign[..3] : airline.Callsign)</span> }</div>
+    <div class="logo-copy"><h2>Airline logo</h2><p>Shown on your airline's card, the console, and to your crew in the desktop app. PNG, JPEG or WebP, up to 1 MB. Square or wide logos both work; transparent PNG looks best on the dark theme.</p>
+    <form method="post" asp-page-handler="Logo" enctype="multipart/form-data" class="logo-form"><input id="logo-file" name="logo" type="file" accept="image/png,image/jpeg,image/webp" required aria-label="Choose a logo image" /><button class="button secondary small">Upload logo</button>@if (airline.LogoUrl.Length > 0) { <button class="text-button danger" formaction="/Account/Airline/@airline.Id/Settings?handler=RemoveLogo" formnovalidate>Remove logo</button> }</form></div>
+</div></section>
+@if (airline.Capabilities.Contains(Capabilities.OwnershipManage)) {
+<section class="card"><h2>Airline level</h2><p>Complimentary during early access — no payment is collected.</p>
+<form method="post" asp-page-handler="Plan"><div class="grid two plan-grid">
+    <label class="card plan-card @(airline.Plan == AirlinePlan.Community ? "selected" : "")"><input type="radio" name="plan" value="Community" checked="@(airline.Plan == AirlinePlan.Community)" /><div class="eyebrow">Airline</div><h2>Community</h2><span class="badge">Included</span><ul><li>Crew roster and invitations</li><li>Shared dispatch board</li><li>One Community airline per owner</li></ul></label>
+    <label class="card plan-card @(airline.Plan == AirlinePlan.Pro ? "selected" : "")"><input type="radio" name="plan" value="Pro" checked="@(airline.Plan == AirlinePlan.Pro)" /><div class="eyebrow">Airline</div><h2>Pro</h2><span class="badge">Complimentary · early access</span><ul><li>Everything in Community</li><li>Does not count toward the Community limit</li><li>Operations reporting (coming soon)</li><li>Priority support (coming soon)</li></ul></label>
+</div><div class="actions"><button class="button secondary">Apply level</button></div></form></section>
+<section class="card"><h2>Transfer ownership</h2><p>The selected active member will become the airline's owner. A fresh MFA or passkey check is required.</p><form method="post" asp-page-handler="Transfer" class="stack"><label for="newOwner">New owner</label><select id="newOwner" name="newOwnerUserId" required><option value="">Choose a crew member</option>
+@foreach (var member in Model.Members.Where(m => m.Status == MembershipStatus.Active && !m.Roles.Contains(AirlineRole.Owner))) { <option value="@member.UserId">@member.DisplayName (@member.Email)</option> }
+</select><label class="check"><input type="checkbox" name="confirmTransfer" value="true" required />I understand that I will give ownership to this member.</label><button class="button secondary">Transfer ownership</button></form></section>
+}
+<section class="card"><h2>Activity</h2><p>The last @Model.Activity.Length administrative events for this airline. Invitation codes are never recorded here.</p>
+@if (Model.Activity.Length == 0) { <p class="muted">No activity yet.</p> } else {
+<div class="table-scroll"><table class="activity"><thead><tr><th scope="col">When</th><th scope="col">Who</th><th scope="col">Event</th><th scope="col">Details</th></tr></thead><tbody>
+@foreach (var entry in Model.Activity) { <tr><td class="nowrap">@entry.CreatedAt.ToString("u")</td><td>@entry.ActorDisplayName</td><td><code>@entry.Action</code></td><td>@entry.Details</td></tr> }
+</tbody></table></div>}
+</section>
+}

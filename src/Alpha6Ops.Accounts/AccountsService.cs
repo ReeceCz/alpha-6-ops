@@ -229,6 +229,12 @@ public sealed partial class AccountsService(AccountsDbContext db, TimeProvider? 
         if (string.IsNullOrWhiteSpace(token) || token.Length > 128) throw InvalidInvitation();
         var hash = AccountRules.HashToken(token);
         var invitation = await db.Invitations.SingleOrDefaultAsync(x => x.TokenHash == hash, ct) ?? throw InvalidInvitation();
+        return await AcceptAsync(actor, user, invitation, now, ct);
+    }, ct);
+
+    // Shared by the code and the "invitations for you" paths. The invitation is bound to the verified email either way.
+    private async Task<AirlineWorkspace> AcceptAsync(ActorIdentity actor, UserAccount user, Invitation invitation, DateTimeOffset now, CancellationToken ct)
+    {
         if (invitation.Email != user.Email) throw new IdentityException("invitation_email_mismatch", "Sign in with the verified email this invitation was sent to.");
         if (invitation.Status == "revoked") throw InvalidInvitation();
         var airline = await db.Airlines.SingleOrDefaultAsync(x => x.Id == invitation.AirlineId && x.Status == "active", ct) ?? throw InvalidInvitation();
@@ -254,7 +260,7 @@ public sealed partial class AccountsService(AccountsDbContext db, TimeProvider? 
         invitation.Status = "accepted"; invitation.AcceptedByUserId = user.Id; invitation.AcceptedAt = now;
         Audit(user.Id, airline.Id, "invitation.accepted", invitation.Id, string.Join(',', roles), now);
         return Workspace(airline, member, user, now, await MediaVersion(MediaKinds.AirlineLogo, airline.Id, ct));
-    }, ct);
+    }
 
     public async Task RevokeInvitationAsync(ActorIdentity actor, Guid airlineId, Guid invitationId, CancellationToken ct = default) => await Execute(actor, async (user, now) =>
     {

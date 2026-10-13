@@ -1,59 +1,46 @@
 @page "/Account/Airline/{id:guid}"
 @model Alpha6Ops.Server.Pages.Account.AirlineModel
-@{ ViewData["Title"] = Model.Airline?.Name ?? "Airline management"; Layout = "_ConsoleLayout"; ViewData["ConsoleAirline"] = Model.Airline; ViewData["ConsoleActive"] = "crew"; }
+@{ ViewData["Title"] = Model.Overview?.Airline.Name ?? "Airline"; Layout = "_ConsoleLayout"; ViewData["ConsoleAirline"] = Model.Overview?.Airline; ViewData["ConsoleActive"] = "overview"; }
 <partial name="_AccountError" model="Model" />
-@if (Model.Issued is { } issued) {
-    <section class="notice" role="status"><h2>Invitation created for @issued.Invitation.Email</h2><p>Copy this code now. It is shown once and expires @issued.Invitation.ExpiresAt.ToString("u"). Send your invitee this code and the <a asp-page="Join">join page</a>. Email delivery is not connected yet.</p><code class="break">@issued.Token</code></section>
-}
-@if (Model.PlanSaved) { <div class="notice" role="status"><p>Airline level updated.</p></div> }
-@if (Model.Airline is { } airline) {
-<p class="lead console-lead">Crew, invitations, ownership and airline level. Changes here need a security check within the last five minutes. <span class="muted">@Model.Members.Count(m => m.Status == MembershipStatus.Active) active crew · @Model.Invitations.Count(i => i.Status == "pending") pending invitations</span></p>
-@if (airline.Capabilities.Contains(Capabilities.OwnershipManage)) {
-<section class="card"><h2>Airline level</h2><p>Complimentary during early access — no payment is collected.</p>
-<form method="post" asp-page-handler="Plan"><div class="grid two plan-grid">
-    <label class="card plan-card @(airline.Plan == AirlinePlan.Community ? "selected" : "")"><input type="radio" name="plan" value="Community" checked="@(airline.Plan == AirlinePlan.Community)" /><div class="eyebrow">Airline</div><h2>Community</h2><span class="badge">Included</span><ul><li>Crew roster and invitations</li><li>Shared dispatch board</li><li>One Community airline per owner</li></ul></label>
-    <label class="card plan-card @(airline.Plan == AirlinePlan.Pro ? "selected" : "")"><input type="radio" name="plan" value="Pro" checked="@(airline.Plan == AirlinePlan.Pro)" /><div class="eyebrow">Airline</div><h2>Pro</h2><span class="badge">Complimentary · early access</span><ul><li>Everything in Community</li><li>Does not count toward the Community limit</li><li>Operations reporting (coming soon)</li><li>Priority support (coming soon)</li></ul></label>
-</div><div class="actions"><button class="button secondary">Apply level</button></div></form></section>
-}
-<section class="card logo-card"><div class="logo-row">
-    <div class="logo-preview">@if (airline.LogoUrl.Length > 0) { <img src="@airline.LogoUrl" alt="@airline.Name logo" width="96" height="96" /> } else { <span class="avatar-fallback mono" aria-hidden="true">@(airline.Callsign.Length > 3 ? airline.Callsign[..3] : airline.Callsign)</span> }</div>
-    <div class="logo-copy"><h2>Airline logo</h2><p>Shown on your airline's card, the console, and to your crew in the desktop app. PNG, JPEG or WebP, up to 1 MB. Square or wide logos both work; transparent PNG looks best on the dark theme.</p>
-    <form method="post" asp-page-handler="Logo" enctype="multipart/form-data" class="logo-form"><input id="logo" name="logo" type="file" accept="image/png,image/jpeg,image/webp" required aria-label="Choose a logo image" /><button class="button secondary small">Upload logo</button>@if (airline.LogoUrl.Length > 0) { <button class="text-button danger" formaction="/Account/Airline/@airline.Id?handler=RemoveLogo" formnovalidate>Remove logo</button> }</form></div>
-</div></section>
-<section class="card"><h2>Invite a crew member</h2><form method="post" asp-page-handler="Invite" class="stack">
-    <label for="email">Email address</label><input id="email" name="email" type="email" maxlength="254" required />
-    <fieldset><legend>Initial roles</legend>
-        @foreach (var role in new[] { AirlineRole.Pilot, AirlineRole.Dispatcher, AirlineRole.Administrator }) {
-            <label class="check"><input name="roles" type="checkbox" value="@role" checked="@(role == AirlineRole.Pilot)" />@role</label>
+@if (Model.Overview is { } o) {
+    var a = o.Airline;
+    var ops = a.Capabilities.Contains(Capabilities.OperationsManage);
+    var admin = a.Capabilities.Contains(Capabilities.MembersManage);
+    var basePath = $"/Account/Airline/{a.Id}";
+    @if (Model.Joined) { <p class="notice" role="status">Welcome to @a.Name. Choose this airline as your workspace on <a href="/Account">your account page</a> to fly for it in the desktop app.</p> }
+    <section class="stat-row three" aria-label="Airline at a glance">
+        <a class="stat" href="@basePath/Schedule"><span class="stat-label">Routes · @o.ActiveRoutes active</span><span class="stat-value">@o.Routes</span></a>
+        <a class="stat" href="@basePath/Fleet"><span class="stat-label">Aircraft · @o.ActiveAircraft in service</span><span class="stat-value">@o.Aircraft</span></a>
+        @if (admin) { <a class="stat" href="@basePath/Crew"><span class="stat-label">Crew@(o.PendingInvitations > 0 ? $" · {o.PendingInvitations} invited" : "")</span><span class="stat-value">@o.Crew</span></a> }
+        else { <div class="stat"><span class="stat-label">Crew</span><span class="stat-value">@o.Crew</span></div> }
+    </section>
+    var steps = new List<(bool Done, string Title, string Hint, string Href, string Action)>();
+    if (ops) {
+        steps.Add((o.Routes > 0, "Add your first route", "Flight number, airports, departure time and days. Or import a CSV.", $"{basePath}/Schedule#route-form", "Add a route"));
+        steps.Add((o.Aircraft > 0, "Add your first aircraft", "Registration and type, so dispatch knows what you fly.", $"{basePath}/Fleet#aircraft-form", "Add aircraft"));
+    }
+    if (admin) {
+        steps.Add((a.LogoUrl.Length > 0, "Upload your logo", "Your crew sees it here and in the desktop app.", $"{basePath}/Settings#logo", "Upload"));
+        steps.Add((o.Crew > 1, "Invite your first pilot", o.PendingInvitations > 0 ? "An invitation is waiting to be accepted." : "They accept with the email address you invite.", $"{basePath}/Crew#invite", "Invite"));
+    }
+    if (steps.Count > 0 && steps.Any(s => !s.Done)) {
+    <section class="card getting-started" aria-labelledby="setup-title">
+        <h2 id="setup-title">Set up @a.Name</h2>
+        <p class="muted">@steps.Count(s => s.Done) of @steps.Count done. This card goes away once they are.</p>
+        <ol class="steps-list">
+        @foreach (var step in steps) {
+            <li class="step @(step.Done ? "done" : "")"><span class="step-mark" aria-hidden="true"></span><div><strong><span class="visually-hidden">@(step.Done ? "Done: " : "To do: ")</span>@step.Title</strong><span class="muted block">@step.Hint</span></div>
+                @if (!step.Done) { <a class="button secondary small" href="@step.Href">@step.Action</a> }</li>
         }
-    </fieldset><button class="button">Create invitation code</button>
-</form></section>
-<section class="card"><h2>Crew roster</h2><div class="table-scroll"><table><thead><tr><th scope="col">Crew member</th><th scope="col">Status</th><th scope="col">Roles</th></tr></thead><tbody>
-@foreach (var member in Model.Members) {
-    <tr><td>@member.DisplayName<br /><span class="muted">@member.Email</span></td><td>@member.Status</td><td>
-    @if (member.Roles.Contains(AirlineRole.Owner)) { <span>Owner · @string.Join(" · ", member.Roles.Where(r => r != AirlineRole.Owner))</span> }
-    else { <form method="post" asp-page-handler="Roles"><input type="hidden" name="membershipId" value="@member.Id" />
-        @foreach (var role in new[] { AirlineRole.Pilot, AirlineRole.Dispatcher, AirlineRole.Administrator }) {
-            <label class="check"><input name="roles" type="checkbox" value="@role" checked="@member.Roles.Contains(role)" />@role</label>
-        }
-        <button class="button secondary small">Save roles</button></form>
-    }</td></tr>
-}
-</tbody></table></div></section>
-<section class="card"><h2>Invitations</h2>@if (Model.Invitations.Length == 0) { <p class="muted">No invitations yet.</p> }
-@foreach (var invitation in Model.Invitations) {
-    <div class="row"><div><strong>@invitation.Email</strong><p class="muted">@string.Join(" · ", invitation.Roles) · @invitation.Status · Expires @invitation.ExpiresAt.ToString("u")</p></div><form method="post" asp-page-handler="Revoke"><input type="hidden" name="invitationId" value="@invitation.Id" /><button class="button secondary small">Revoke</button></form></div>
-}
-</section>
-@if (airline.Capabilities.Contains(Capabilities.OwnershipManage)) {
-<section class="card"><h2>Transfer ownership</h2><p>The selected active member will become the airline's owner. A fresh MFA or passkey check is required.</p><form method="post" asp-page-handler="Transfer" class="stack"><label for="newOwner">New owner</label><select id="newOwner" name="newOwnerUserId" required><option value="">Choose a crew member</option>
-@foreach (var member in Model.Members.Where(m => m.Status == MembershipStatus.Active && !m.Roles.Contains(AirlineRole.Owner))) { <option value="@member.UserId">@member.DisplayName (@member.Email)</option> }
-</select><label class="check"><input type="checkbox" name="confirmTransfer" value="true" required />I understand that I will give ownership to this member.</label><button class="button secondary">Transfer ownership</button></form></section>
-}
-<section class="card"><h2>Activity</h2><p>The last @Model.Activity.Length administrative events for this airline. Invitation codes are never recorded here.</p>
-@if (Model.Activity.Length == 0) { <p class="muted">No activity yet.</p> } else {
-<div class="table-scroll"><table class="activity"><thead><tr><th scope="col">When</th><th scope="col">Who</th><th scope="col">Event</th><th scope="col">Details</th></tr></thead><tbody>
-@foreach (var entry in Model.Activity) { <tr><td class="nowrap">@entry.CreatedAt.ToString("u")</td><td>@entry.ActorDisplayName</td><td><code>@entry.Action</code></td><td>@entry.Details</td></tr> }
-</tbody></table></div>}
-</section>
+        </ol>
+    </section>
+    }
+    <section class="card">
+        <h2>Your part in @a.Name</h2>
+        <p>Your roles: <strong>@string.Join(", ", a.Roles)</strong>.
+        @if (admin) { <span>You can edit the schedule and fleet, invite crew and change their roles.</span> }
+        else if (ops) { <span>You can edit the schedule and fleet. Administrators manage the crew.</span> }
+        else { <span>You can read the <a href="@basePath/Schedule">schedule</a> and <a href="@basePath/Fleet">fleet</a>. Dispatchers and administrators edit them.</span> }</p>
+        <p class="muted">To fly for @a.Name, choose it as your workspace on <a href="/Account">your account page</a>, then sign in to the desktop app.</p>
+    </section>
 }

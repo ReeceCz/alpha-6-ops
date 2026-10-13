@@ -14,10 +14,12 @@
     var admin = a.Capabilities.Contains(Capabilities.MembersManage);
     var sections = new List<(string Key, string Href, string Label, string Icon)>
     {
+        ("overview", $"/Account/Airline/{a.Id}", "Overview", "M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"),
         ("schedule", $"/Account/Airline/{a.Id}/Schedule", "Schedule", "M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"),
         ("fleet", $"/Account/Airline/{a.Id}/Fleet", "Fleet", "M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"),
     };
-    if (admin) { sections.Add(("crew", $"/Account/Airline/{a.Id}", "Crew & settings", "M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6m13 9v-1a4 4 0 0 0-3-3.9M16 4.1a3 3 0 0 1 0 5.8")); }
+    if (admin) { sections.Add(("crew", $"/Account/Airline/{a.Id}/Crew", "Crew", "M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6m13 9v-1a4 4 0 0 0-3-3.9M16 4.1a3 3 0 0 1 0 5.8"));
+        sections.Add(("settings", $"/Account/Airline/{a.Id}/Settings", "Settings", "M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6")); }
     <div class="console-shell">
         <aside class="console-sidebar" aria-label="Airline console">
             <a class="console-back" href="/Account">← Your workspaces</a>

@@ -338,6 +338,9 @@ Check(created.IsSuccessStatusCode, "Owner creates airline with recent MFA proof"
 if (created.IsSuccessStatusCode)
 {
     var airline = (await created.Content.ReadFromJsonAsync<AirlineWorkspace>())!;
+    var freshOverview = await browser.GetStringAsync($"/Account/Airline/{airline.Id}");
+    Check(freshOverview.Contains("setup-title") && freshOverview.Contains("Add your first route") && freshOverview.Contains("Invite your first pilot") && freshOverview.Contains("0 of 4 done"),
+        "A new airline's overview shows the four setup steps");
     using var outsider = host.Client("outsider-" + run);
     var denied = await outsider.GetAsync($"/api/v1/virtual-airlines/{airline.Id}/members");
     Check(denied.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound, "Cross-tenant roster is denied");
@@ -354,12 +357,12 @@ if (created.IsSuccessStatusCode)
         var activityLog = await pilot.GetStringAsync($"/api/v1/virtual-airlines/{airline.Id}/activity");
         Check(activityLog.Contains("invitation.issued") && !activityLog.Contains(invitation.Token), "Activity log lists operator actions without secrets");
         Check((await outsider.GetAsync($"/api/v1/virtual-airlines/{airline.Id}/activity")).StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound, "Activity log is administrator-only");
-        var airlinePage = await browser.GetAsync($"/Account/Airline/{airline.Id}");
+        var airlinePage = await browser.GetAsync($"/Account/Airline/{airline.Id}/Settings");
         var airlineHtml = await airlinePage.Content.ReadAsStringAsync();
-        Check(airlinePage.IsSuccessStatusCode && airlineHtml.Contains("Airline level") && airlineHtml.Contains("value=\"Pro\" checked"), "Airline page offers the owner the level form with the current level");
-        Check(airlineHtml.Contains("invitation.issued") && airlineHtml.Contains("airline.plan_changed") && !airlineHtml.Contains(invitation.Token), "Airline page shows the activity log without secrets");
-        Check((await browser.PostAsync($"/Account/Airline/{airline.Id}?handler=Plan", new FormUrlEncodedContent(new Dictionary<string, string> { ["plan"] = "Community" }))).StatusCode == HttpStatusCode.BadRequest, "Airline level change without CSRF token is rejected");
-        var airlinePlanPost = await SubmitAsync(browser, airlinePage, airlineHtml, $"/Account/Airline/{airline.Id}?handler=Plan", new() { ["plan"] = "Community" });
+        Check(airlinePage.IsSuccessStatusCode && airlineHtml.Contains("Airline level") && airlineHtml.Contains("value=\"Pro\" checked"), "Settings page offers the owner the level form with the current level");
+        Check(airlineHtml.Contains("invitation.issued") && airlineHtml.Contains("airline.plan_changed") && !airlineHtml.Contains(invitation.Token), "Settings page shows the activity log without secrets");
+        Check((await browser.PostAsync($"/Account/Airline/{airline.Id}/Settings?handler=Plan", new FormUrlEncodedContent(new Dictionary<string, string> { ["plan"] = "Community" }))).StatusCode == HttpStatusCode.BadRequest, "Airline level change without CSRF token is rejected");
+        var airlinePlanPost = await SubmitAsync(browser, airlinePage, airlineHtml, $"/Account/Airline/{airline.Id}/Settings?handler=Plan", new() { ["plan"] = "Community" });
         Check(airlinePlanPost.StatusCode == HttpStatusCode.Redirect && (await pilot.GetFromJsonAsync<AirlineWorkspace>($"/api/v1/virtual-airlines/{airline.Id}"))?.Plan == AirlinePlan.Community, "Airline level form applies the chosen level");
 
         // Schedule and fleet: API for the desktop, console pages for the browser, dispatcher-level access without MFA.
@@ -393,10 +396,36 @@ if (created.IsSuccessStatusCode)
             new() { ["aircraftId"] = tail!.Id.ToString(), ["registration"] = "N123A6", ["typeIcao"] = "B738", ["name"] = "Spirit of Milwaukee", ["homeBase"] = "KMKE", ["status"] = "maintenance", ["notes"] = "C check" });
         Check(fleetForm.StatusCode == HttpStatusCode.Redirect && (await pilot.GetFromJsonAsync<AircraftResponse[]>($"/api/v1/virtual-airlines/{airline.Id}/fleet"))!.Single().Status == "maintenance", "Fleet form updates an aircraft");
         Check((await browser.PostAsync($"/Account/Airline/{airline.Id}/Fleet?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string> { ["aircraftId"] = tail.Id.ToString() }))).StatusCode == HttpStatusCode.BadRequest, "Fleet removal without CSRF token is rejected");
-        var logoUpload = await UploadAsync(browser, airlinePage, airlineHtml, $"/Account/Airline/{airline.Id}?handler=Logo", "logo", Png(400, 200, 0xE15BE0), "logo.png");
+        var logoUpload = await UploadAsync(browser, airlinePage, airlineHtml, $"/Account/Airline/{airline.Id}/Settings?handler=Logo", "logo", Png(400, 200, 0xE15BE0), "logo.png");
         var branded = await pilot.GetFromJsonAsync<AirlineWorkspace>($"/api/v1/virtual-airlines/{airline.Id}");
         Check(logoUpload.StatusCode == HttpStatusCode.Redirect && branded?.LogoUrl.StartsWith("/media/airline-logo/") == true && (await anonymous.GetAsync(branded.LogoUrl)).IsSuccessStatusCode, "Airline logo upload through the console and served publicly");
         Check((await browser.GetStringAsync($"/Account/Airline/{airline.Id}/Schedule")).Contains(branded!.LogoUrl), "Console header shows the logo");
+
+        // Overview, crew and joining: any member reads the overview; the crew page is for administrators.
+        var overviewHtml = await browser.GetStringAsync($"/Account/Airline/{airline.Id}");
+        Check(overviewHtml.Contains("Routes · ") && overviewHtml.Contains($"/Account/Airline/{airline.Id}/Crew") && overviewHtml.Contains($"/Account/Airline/{airline.Id}/Settings"), "Overview shows counts and links crew and settings for the owner");
+        using var outsiderBrowser = host.Browser("outsider-" + run);
+        var memberOverview = await outsiderBrowser.GetAsync($"/Account/Airline/{airline.Id}");
+        var memberHtml = await memberOverview.Content.ReadAsStringAsync();
+        Check(memberOverview.IsSuccessStatusCode && memberHtml.Contains("You can read the") && !memberHtml.Contains(owner + "@example.test") && !memberHtml.Contains("/Crew") && !memberHtml.Contains("setup-title"),
+            "A pilot reads the overview without crew emails, crew links or setup steps");
+        Check((await outsiderBrowser.GetAsync($"/Account/Airline/{airline.Id}/Crew")).StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound, "A pilot cannot open the crew page");
+        Check((await anonymous.GetAsync($"/Account/Airline/{airline.Id}")).StatusCode != HttpStatusCode.OK, "The overview needs a signed-in member");
+        var crewPage = await browser.GetAsync($"/Account/Airline/{airline.Id}/Crew");
+        var crewHtml = await crewPage.Content.ReadAsStringAsync();
+        Check(crewPage.IsSuccessStatusCode && crewHtml.Contains("outsider-" + run + "@example.test"), "Crew page lists the roster");
+        var crewInvite = await SubmitAsync(browser, crewPage, crewHtml, $"/Account/Airline/{airline.Id}/Crew?handler=Invite", new() { ["email"] = $"joiner-{run}@example.test", ["roles"] = "Pilot" });
+        var crewInviteHtml = await crewInvite.Content.ReadAsStringAsync();
+        Check(crewInvite.IsSuccessStatusCode && crewInviteHtml.Contains($"Invitation created for joiner-{run}@example.test") && crewInviteHtml.Contains("Join an airline"), "Crew page issues an invitation and explains accepting it");
+        using var joiner = host.Browser("joiner-" + run);
+        Check((await joiner.GetStringAsync("/Account")).Contains("An airline invited you"), "Account page points to a waiting invitation");
+        var joinPage = await joiner.GetAsync("/Account/Join");
+        var joinHtml = await joinPage.Content.ReadAsStringAsync();
+        var waitingId = Regex.Match(joinHtml, "name=\"invitationId\" value=\"([0-9a-f-]{36})\"").Groups[1].Value;
+        Check(joinHtml.Contains(airline.Name) && waitingId.Length == 36, "Join page lists the invitation waiting for the verified email");
+        var joined = await SubmitAsync(joiner, joinPage, joinHtml, "/Account/Join?handler=Accept", new() { ["invitationId"] = waitingId });
+        Check(joined.StatusCode == HttpStatusCode.Redirect && joined.Headers.Location?.OriginalString.Contains($"/Account/Airline/{airline.Id}") == true, "Accepting a waiting invitation opens the airline");
+        Check((await joiner.GetStringAsync("/Account/Join")).Contains("No invitations are waiting"), "An accepted invitation leaves the list");
         // Design review aid: with S4OPS_PORTAL_SNAPSHOT_DIR set, save every rendered page (and the media it shows) so the
         // portal can be screenshotted signed in without a real identity provider. Not a check.
         if (Environment.GetEnvironmentVariable("S4OPS_PORTAL_SNAPSHOT_DIR") is { Length: > 0 } snapshotDir)
@@ -409,7 +438,8 @@ if (created.IsSuccessStatusCode)
                 ["support"] = (anonymous, "/Support"), ["signed-out"] = (anonymous, "/SignedOut"), ["auth-error"] = (anonymous, "/AuthError"),
                 ["account"] = (browser, "/Account"), ["profile"] = (browser, "/Account/Profile"), ["plan"] = (browser, "/Account/Plan"),
                 ["logbook"] = (browser, "/Account/Logbook"), ["create"] = (browser, "/Account/Create"), ["join"] = (browser, "/Account/Join"),
-                ["airline"] = (browser, $"/Account/Airline/{airline.Id}"), ["schedule"] = (browser, $"/Account/Airline/{airline.Id}/Schedule"),
+                ["airline"] = (browser, $"/Account/Airline/{airline.Id}"), ["crew"] = (browser, $"/Account/Airline/{airline.Id}/Crew"),
+                ["settings"] = (browser, $"/Account/Airline/{airline.Id}/Settings"), ["schedule"] = (browser, $"/Account/Airline/{airline.Id}/Schedule"),
                 ["fleet"] = (browser, $"/Account/Airline/{airline.Id}/Fleet")
             };
             foreach (var (name, target) in snapshots)
@@ -530,6 +560,19 @@ using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staf
     Check(homeHtml.Contains("href=\"/Guide\""), "The getting-started card links the tester guide");
     Check(homeHtml.Contains("Getting started") && homeHtml.Contains("href=\"/Account/Feedback\"") && homeHtml.Contains("class=\"step done\""),
     "The account page shows the getting-started checklist, with finished steps marked");
+    // Airline invitations by email carry a link, never the invitation code.
+    using (var ownerApi = feedbackHost.Client(owner))
+    {
+        var ownedAirline = (await ownerApi.GetFromJsonAsync<BootstrapResponse>("/api/v1/me/bootstrap"))!.Airlines.First(a => a.Roles.Contains(AirlineRole.Owner));
+        var crewPage = await ownerHome.GetAsync($"/Account/Airline/{ownedAirline.Id}/Crew");
+        var crewHtml = await crewPage.Content.ReadAsStringAsync();
+        var mailedInvite = await SubmitAsync(ownerHome, crewPage, crewHtml, $"/Account/Airline/{ownedAirline.Id}/Crew?handler=Invite", new() { ["email"] = $"mailed-{run}@example.test", ["roles"] = "Pilot" });
+        var invitedHtml = await mailedInvite.Content.ReadAsStringAsync();
+        var code = Regex.Match(invitedHtml, "<code class=\"break\">([^<]+)</code>").Groups[1].Value;
+        Check(code.Length > 20 && await WaitForAsync(() => feedbackMail.Sent.Any(m => m.To.SequenceEqual([$"mailed-{run}@example.test"]) && m.Subject == $"Join {ownedAirline.Name} on S4 OPS"
+            && m.Text.Contains("https://app.example.test/Account/Join") && !m.Text.Contains(code) && !m.Html.Contains(code))),
+            "An airline invitation emails a link to the join page without the invitation code");
+    }
     using (var ownerApi = feedbackHost.Client(owner))
         await ownerApi.PostAsJsonAsync("/api/v1/me/flights/import", new LogbookImportRequest(
             $"Date;Flight;From;To;Aircraft;Block Time;Landing Rate\n{DateTime.UtcNow.AddDays(-3):yyyy-MM-dd} 18:20;S4701;KMKE;KORD;A20N;0:55;-180\n{DateTime.UtcNow.AddDays(-4):yyyy-MM-dd} 20:30;S4702;KORD;KMKE;A20N;1:05;-140\n"));

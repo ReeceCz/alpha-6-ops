@@ -302,6 +302,9 @@ td { font-variant-numeric: tabular-nums; }
 .stat-value small { font-size: var(--size-xs); margin-left: 2px; color: var(--muted); }
 .stat-value.small { font-size: var(--size-s); padding-top: var(--space-2); color: var(--text); }
 .stat-label { font-size: var(--size-xs); color: var(--muted); }
+.stat-row.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+a.stat { text-decoration: none; color: inherit; }
+a.stat:hover, a.stat:focus-visible { border-color: var(--action); }
 
 /* Getting started */
 .steps-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
@@ -438,6 +441,7 @@ td { font-variant-numeric: tabular-nums; }
 @media (max-width: 900px) {
   .profile-grid { grid-template-columns: 1fr; }
   .stat-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat-row.three { grid-template-columns: 1fr; }
   .strip { grid-template-columns: 4.5rem 1fr; }
   .strip-price { grid-column: 2; border-left: 0; border-top: 1px dashed var(--line-strong); text-align: left; align-items: flex-start; }
   .strip-price .badge { align-self: flex-start; }

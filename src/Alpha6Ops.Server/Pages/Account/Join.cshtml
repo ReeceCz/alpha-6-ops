@@ -1,5 +1,16 @@
 @page
 @model Alpha6Ops.Server.Pages.Account.JoinModel
 @{ ViewData["Title"] = "Join an airline"; }
-<div class="page-heading"><div class="eyebrow">Crew invitation</div><h1>A seat is waiting.</h1><p class="lead">Paste the invitation code your airline administrator shared with you. Sign in with the verified email address they invited.</p></div>
-<section class="card narrow"><partial name="_AccountError" model="Model" /><form method="post" class="stack"><label asp-for="Token">Invitation code</label><input asp-for="Token" type="password" autocomplete="off" required maxlength="256" /><button class="button">Accept invitation</button></form></section>
+<div class="page-heading"><div class="eyebrow">Crew invitation</div><h1>A seat is waiting.</h1><p class="lead">Invitations sent to your verified email address appear here. Accept one to join that airline's crew.</p></div>
+<partial name="_AccountError" model="Model" />
+@if (Model.Waiting.Length > 0) {
+<section class="card narrow" aria-labelledby="waiting-title"><h2 id="waiting-title">Invitations for you</h2>
+@foreach (var invitation in Model.Waiting) {
+    <div class="row"><div><strong>@invitation.AirlineName</strong> <span class="mono muted">@invitation.Callsign</span><p class="muted">From @invitation.InvitedBy · @string.Join(" · ", invitation.Roles) · Expires @invitation.ExpiresAt.ToString("u")</p></div>
+    <form method="post" asp-page-handler="Accept"><input type="hidden" name="invitationId" value="@invitation.Id" /><button class="button small">Accept</button></form></div>
+}
+</section>
+} else {
+<section class="card narrow"><p>No invitations are waiting for your email address. Ask your airline administrator to invite the address you sign in with. If you just verified your email, sign out and in again.</p></section>
+}
+<section class="card narrow"><h2>Have an invitation code?</h2><form method="post" class="stack"><label asp-for="Token">Invitation code</label><input asp-for="Token" type="password" autocomplete="off" maxlength="256" /><button class="button secondary">Accept with code</button></form></section>

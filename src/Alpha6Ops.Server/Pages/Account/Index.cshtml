@@ -11,6 +11,9 @@ var personalSelected = account.LastWorkspace.AirlineId is null;
     <div class="account-summary"><strong>@account.Account.DisplayName</strong><span class="mono">@account.Account.Email</span><a class="badge" asp-page="Plan">Personal @account.PersonalEntitlement.Plan</a>@if (!account.Account.EmailVerified) { <span class="badge warn">Email not verified</span> }</div>
 </div>
 
+@if (Model.WaitingInvitations > 0) {
+<p class="notice" role="status">@(Model.WaitingInvitations == 1 ? "An airline invited you" : $"{Model.WaitingInvitations} airlines invited you") to join their crew. <a href="/Account/Join">See the invitation@(Model.WaitingInvitations > 1 ? "s" : "")</a></p>
+}
 @if (Model.UnreadReplies > 0) {
 <p class="notice" role="status">The Sierra 4 team sent a reply to your problem report@(Model.UnreadReplies > 1 ? "s" : ""). <a href="/Account/Feedback">Read it</a></p>
 }
@@ -81,7 +84,7 @@ var personalSelected = account.LastWorkspace.AirlineId is null;
         </div>
         <div class="workspace-side row">
             <form method="post" asp-page-handler="Workspace"><input type="hidden" name="airlineId" value="@airline.Id" /><button class="button secondary" disabled="@(airline.MembershipStatus != MembershipStatus.Active)">@(selected ? "Selected for next launch" : "Use airline workspace")</button></form>
-            <a class="button secondary" href="/Account/Airline/@airline.Id/Schedule">@(airline.Capabilities.Contains(Capabilities.OperationsManage) ? "Open console" : "Schedule & fleet")</a>
+            <a class="button secondary" href="/Account/Airline/@airline.Id">Open airline</a>
         </div>
     </article>
 }

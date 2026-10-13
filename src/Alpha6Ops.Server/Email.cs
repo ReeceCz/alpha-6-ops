@@ -109,6 +109,13 @@ public sealed class Mailer(EmailOutbox outbox, IOptions<EmailSettings> email, IO
         "Something wrong? Use \"Report a problem\" in your account.",
         [("Create your account", $"{Base}/auth/signup"), ("Read the tester guide", $"{Base}/Guide")]);
 
+    // No invitation code: the invitation is bound to this verified email, so signing in is enough to accept it.
+    public void AirlineInvitation(string to, string airline, string invitedBy) => Send([to], $"Join {airline} on S4 OPS",
+        $"{invitedBy} invited you to join {airline} on S4 OPS, airline operations for Microsoft Flight Simulator 2024.\n\n" +
+        $"Sign in with this email address and accept it within 7 days: {Base}/Account/Join\n\n" +
+        $"No S4 OPS account yet? S4 OPS is invite-only while we test. Ask for an invitation first: {Base}/Request",
+        [("Accept the invitation", $"{Base}/Account/Join")]);
+
     public void ReportReplied(string to) => Send([to], "The Sierra 4 team replied to your report",
         $"The Sierra 4 team replied to a problem report you sent.\n\nRead it in your account: {Base}/Account/Feedback",
         [("Read the reply", $"{Base}/Account/Feedback")]);

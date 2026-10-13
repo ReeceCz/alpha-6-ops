@@ -30,7 +30,7 @@
         <section class="notice" aria-labelledby="owner-title">
             <h2 id="owner-title">Transfer your airlines first</h2>
             <p>You own @(s.OwnedAirlines.Length == 1 ? "an airline" : "airlines") that need a new owner before your account can be deleted:</p>
-            <ul>@foreach (var a in s.OwnedAirlines) { <li><a href="/Account/Airline/@a.Id">@a.Name</a>: open Crew &amp; settings and transfer ownership.</li> }</ul>
+            <ul>@foreach (var a in s.OwnedAirlines) { <li><a href="/Account/Airline/@a.Id/Settings">@a.Name</a>: open Settings and transfer ownership.</li> }</ul>
         </section>
     } else {
         <form method="post" asp-page-handler="Request" class="card danger-card stack">

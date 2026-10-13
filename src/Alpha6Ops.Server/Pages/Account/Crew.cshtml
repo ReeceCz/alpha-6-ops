@@ -1,0 +1,38 @@
+@page "/Account/Airline/{id:guid}/Crew"
+@model Alpha6Ops.Server.Pages.Account.CrewModel
+@{ ViewData["Title"] = "Crew"; Layout = "_ConsoleLayout"; ViewData["ConsoleAirline"] = Model.Airline; ViewData["ConsoleActive"] = "crew"; }
+<partial name="_AccountError" model="Model" />
+@if (Model.Issued is { } issued) {
+    <section class="notice" role="status"><h2>@(Model.EmailOn ? "Invitation sent to" : "Invitation created for") @issued.Invitation.Email</h2>
+    <p>@(Model.EmailOn ? "We emailed them a link. " : "")They sign in with that email address and accept it under <a asp-page="Join">Join an airline</a> before @issued.Invitation.ExpiresAt.ToString("u").
+    S4 OPS is invite-only while we test, so someone without an account also needs an invitation from the Sierra 4 team (they can <a href="/Request">ask for one</a>).</p>
+    <p>@(Model.EmailOn ? "If the email doesn't arrive, they" : "They") can also enter this code on the join page. It's shown only once:</p><code class="break">@issued.Token</code></section>
+}
+@if (Model.Airline is { } airline) {
+<p class="lead console-lead">Invite pilots and choose what each crew member may do. Changes here need a security check within the last five minutes. <span class="muted">@Model.Members.Count(m => m.Status == MembershipStatus.Active) active crew · @Model.Invitations.Count(i => i.Status == "pending") pending invitations</span></p>
+<section class="card" id="invite"><h2>Invite a crew member</h2><form method="post" asp-page-handler="Invite" class="stack">
+    <label for="email">Email address</label><input id="email" name="email" type="email" maxlength="254" required />
+    <fieldset><legend>Initial roles</legend>
+        @foreach (var role in new[] { AirlineRole.Pilot, AirlineRole.Dispatcher, AirlineRole.Administrator }) {
+            <label class="check"><input name="roles" type="checkbox" value="@role" checked="@(role == AirlineRole.Pilot)" />@role</label>
+        }
+    </fieldset><button class="button">@(Model.EmailOn ? "Send invitation" : "Create invitation")</button>
+</form></section>
+<section class="card"><h2>Crew roster</h2><div class="table-scroll"><table><thead><tr><th scope="col">Crew member</th><th scope="col">Status</th><th scope="col">Roles</th></tr></thead><tbody>
+@foreach (var member in Model.Members) {
+    <tr><td>@member.DisplayName<br /><span class="muted">@member.Email</span></td><td>@member.Status</td><td>
+    @if (member.Roles.Contains(AirlineRole.Owner)) { <span>Owner · @string.Join(" · ", member.Roles.Where(r => r != AirlineRole.Owner))</span> }
+    else { <form method="post" asp-page-handler="Roles"><input type="hidden" name="membershipId" value="@member.Id" />
+        @foreach (var role in new[] { AirlineRole.Pilot, AirlineRole.Dispatcher, AirlineRole.Administrator }) {
+            <label class="check"><input name="roles" type="checkbox" value="@role" checked="@member.Roles.Contains(role)" />@role</label>
+        }
+        <button class="button secondary small">Save roles</button></form>
+    }</td></tr>
+}
+</tbody></table></div></section>
+<section class="card"><h2>Invitations</h2>@if (Model.Invitations.Length == 0) { <p class="muted">No invitations yet.</p> }
+@foreach (var invitation in Model.Invitations) {
+    <div class="row"><div><strong>@invitation.Email</strong><p class="muted">@string.Join(" · ", invitation.Roles) · @invitation.Status · Expires @invitation.ExpiresAt.ToString("u")</p></div>@if (invitation.Status == "pending") { <form method="post" asp-page-handler="Revoke"><input type="hidden" name="invitationId" value="@invitation.Id" /><button class="button secondary small">Revoke</button></form> }</div>
+}
+</section>
+}

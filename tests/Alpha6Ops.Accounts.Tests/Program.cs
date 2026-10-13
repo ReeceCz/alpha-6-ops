@@ -274,12 +274,21 @@ await using (var db = Context())
     var stored = await db.Invitations.SingleAsync(x => x.Id == issued.Invitation.Id);
     Check(stored.TokenHash == AccountRules.HashToken(issued.Token) && stored.TokenHash != issued.Token, "database stores only invitation hash");
 }
+var waiting = await Run(s => s.ListInvitationsForMeAsync(pilot));
+Check(waiting.Any(x => x.Id == issued.Invitation.Id && x.AirlineName == va.Name && x.Roles.SequenceEqual([AirlineRole.Pilot]) && x.InvitedBy == actor.DisplayName), "invitee sees the invitation waiting for their verified email");
+Check((await Run(s => s.ListInvitationsForMeAsync(pilot with { EmailVerified = false }))).Length == 0, "an unverified email sees no waiting invitations");
+Check((await Run(s => s.ListInvitationsForMeAsync(outsider))).All(x => x.Id != issued.Invitation.Id), "nobody else sees the invitation");
+await RejectAsync(() => Run(s => s.AcceptInvitationByIdAsync(outsider, issued.Invitation.Id)), "invitation_invalid");
+await RejectAsync(() => Run(s => s.GetAirlineOverviewAsync(outsider, va.Id)), "membership_required");
 await RejectAsync(() => Run(s => s.AcceptInvitationAsync(outsider, issued.Token)), "invitation_email_mismatch");
 await RejectAsync(() => Run(s => s.AcceptInvitationAsync(pilot with { EmailVerified = false }, issued.Token)), "email_verification_required");
 var accepted = await Run(s => s.AcceptInvitationAsync(pilot, issued.Token));
 Check(accepted.Id == va.Id && accepted.Roles.SequenceEqual([AirlineRole.Pilot]), "verified invited pilot joins");
 var repeated = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => Run(s => s.AcceptInvitationAsync(pilot, issued.Token))));
 Check(repeated.All(x => x.Id == va.Id), "concurrent acceptance retries are idempotent");
+Check((await Run(s => s.ListInvitationsForMeAsync(pilot))).All(x => x.Id != issued.Invitation.Id), "an accepted invitation stops waiting");
+var pilotOverview = await Run(s => s.GetAirlineOverviewAsync(pilot, va.Id));
+Check(pilotOverview.Airline.Id == va.Id && pilotOverview.Crew == 2 && pilotOverview.Airline.Roles.SequenceEqual([AirlineRole.Pilot]), "a pilot reads the airline overview counts");
 await RejectAsync(() => Run(s => s.ListMembersAsync(pilot, va.Id)), "administrator_required");
 await Mutation(s => s.SetWorkspaceAsync(pilot, new(va.Id)));
 Check((await Run(s => s.BootstrapAsync(pilot))).LastWorkspace.AirlineId == va.Id, "workspace selection persisted");
@@ -399,7 +408,8 @@ await using (var db = Context())
 Check((await Run(s => s.GetAirlineAsync(outsider, outsiderVa.Id))).Plan == AirlinePlan.Community, "expired Pro resolves to Community");
 await RejectAsync(() => Run(s => s.CreateAirlineAsync(outsider, new("Third", prefix + "third", "THRD"))), "plan_limit_reached");
 var ownerInvite = await Run(s => s.InviteAsync(actor, va.Id, new(outsider.Email, [AirlineRole.Pilot])));
-await Run(s => s.AcceptInvitationAsync(outsider, ownerInvite.Token));
+Check((await Run(s => s.GetAirlineOverviewAsync(actor, va.Id))).PendingInvitations == 1, "overview counts unexpired pending invitations only");
+Check((await Run(s => s.AcceptInvitationByIdAsync(outsider, ownerInvite.Invitation.Id))).Id == va.Id, "invitee accepts a waiting invitation without the code");
 await RejectAsync(() => Mutation(s => s.TransferOwnershipAsync(actor, va.Id, new(separate.Account.Id))), "plan_limit_reached");
 await using (var db = Context())
 {

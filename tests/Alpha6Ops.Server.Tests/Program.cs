@@ -572,6 +572,8 @@ using (var inviteOnly = new ServerFactory(connection, admission: null, invitedEm
     using (var scope = inviteOnly.Services.CreateScope())
         Check(await scope.ServiceProvider.GetRequiredService<AccountsDbContext>().InviteRequests.AnyAsync(x => x.Email == $"stranger-{inviteSuffix}@example.test" && x.Note == "Fenix A320, VATSIM"),
             "The request carries the signed-in address and the note");
+    var waiting = await (await strangerBrowser.GetAsync("/Account")).Content.ReadAsStringAsync();
+    Check(waiting.Contains("is waiting") && !waiting.Contains("/Request?handler=SignedIn"), "Signing in again while the request waits says so instead of offering another");
     var thanks = await strangerBrowser.GetStringAsync("/Request?sent=true&account=true");
     Check(thanks.Contains("your request is in") && thanks.Contains("href=\"/Account\""), "The confirmation sends the pilot back to their account");
 }

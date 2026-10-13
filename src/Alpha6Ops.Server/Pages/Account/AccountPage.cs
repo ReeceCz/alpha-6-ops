@@ -14,6 +14,8 @@ public abstract class AccountPage(AccountsService accounts, ServerSettings setti
     public string? ErrorCode { get; protected set; }
     /// <summary>The signed-in email, shown when the account isn't admitted yet so its invitation request is one click.</summary>
     public string? ActorEmail { get; private set; }
+    /// <summary>That email already has a request waiting for staff.</summary>
+    public bool RequestPending { get; protected set; }
     protected IActionResult Failure(IdentityException error)
     {
         // A locked account can only see its deletion, cancel it, or download its data.

@@ -20,6 +20,13 @@ public sealed partial class AccountsService
         return true;
     }, ct);
 
+    /// <summary>Whether an unanswered request exists for this address, so the account page can say so instead of offering another.</summary>
+    public async Task<bool> HasPendingInviteRequestAsync(string email, CancellationToken ct = default)
+    {
+        var normalized = AccountRules.Email(email);
+        return await db.InviteRequests.AnyAsync(x => x.Email == normalized, ct);
+    }
+
     public Task<InviteRequestView[]> ListInviteRequestsAsync(ActorIdentity actor, StaffAccess staff, CancellationToken ct = default) =>
         Execute(actor, async (_, now) =>
         {

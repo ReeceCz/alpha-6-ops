@@ -16,7 +16,11 @@ public class IndexModel(AccountsService accounts, ServerSettings settings, Staff
     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
     {
         try { Account = await Accounts.BootstrapAsync(Actor, ct); Start = await Accounts.GettingStartedAsync(Actor, ct); UnreadReplies = await Accounts.UnreadFeedbackRepliesAsync(Actor, ct); WaitingInvitations = (await Accounts.ListInvitationsForMeAsync(Actor, ct)).Length; IsStaff = staff.IsStaff(Actor); return Page(); }
-        catch (IdentityException ex) { return Failure(ex); }
+        catch (IdentityException ex)
+        {
+            if (ex.Code == "invite_required") RequestPending = await Accounts.HasPendingInviteRequestAsync(Actor.Email, ct);
+            return Failure(ex);
+        }
     }
     public async Task<IActionResult> OnPostWorkspaceAsync(Guid? airlineId, CancellationToken ct)
     {

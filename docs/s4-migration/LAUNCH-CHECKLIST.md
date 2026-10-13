@@ -25,7 +25,9 @@ git push fork feat/launch-prep
 git push fork feat/launch-prep:accounts
 ```
 
-`feat/launch-prep` starts at `fork/accounts` (259d9cb), so the second push is a fast-forward. Render deploys
+`feat/launch-prep` starts at `fork/accounts` (259d9cb), so the second push is a fast-forward. The push also starts the
+new `ci` workflow (portal build plus accounts, server and landing tests on Linux). Its first run has never been seen, so
+check it under the fork's **Actions** tab. A red run is a CI setup problem to fix; it doesn't block Render. Render deploys
 `accounts` automatically. At start-up the container applies the six new migrations:
 - lower-case emails
 - feedback
@@ -131,9 +133,14 @@ Render → `alpha6ops` → Environment. Every save restarts the service, so ente
 
 ```
 cd C:\Dev\_scratch\s4-merge
-powershell -File scripts/publish-release.ps1                 # build + hash, dry run
+powershell -File scripts/publish-release.ps1 -DotNetRoot "C:\Program Files\dotnet"   # build + hash, dry run
 powershell -File scripts/publish-release.ps1 -SkipBuild -Upload
 ```
+
+The build uses `src/Alpha6Ops.Desktop/alpha6-identity.hosted.json` (gitignored; created on 13 October from the dev
+config with both URLs set to `https://app.s4ops.com/`). The script refuses to continue if the installer would point
+anywhere else. Before uploading, install it once on a clean Windows account: download, compare the hash, install,
+sign in, then uninstall.
 
 1. Paste the three `Release__*` lines it prints into Render → Environment (one save).
 2. Write the notes at `/Staff/Releases`: the version, a title, and one change per line.

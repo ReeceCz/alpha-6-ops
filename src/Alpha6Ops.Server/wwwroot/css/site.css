@@ -494,4 +494,12 @@ a.stat:hover, a.stat:focus-visible { border-color: var(--action); }
 .footer-row nav a { color: var(--text-2); }
 .footer-row .fine { grid-column: 1 / -1; color: var(--muted); font-size: var(--size-xs); }
 @media (max-width: 640px) { .footer-row { grid-template-columns: 1fr; } }
+/* Crew roster: one block per member on phones, so the roles form isn't scrolled out of view. */
+@media (max-width: 640px) {
+  table.stacked thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  table.stacked tr, table.stacked td { display: block; }
+  table.stacked tr { border-bottom: 1px solid var(--line); padding: var(--space-2) 0; }
+  table.stacked td { border-bottom: 0; padding: var(--space-1) 0; overflow-wrap: anywhere; }
+  table.stacked td[data-label]::before { content: attr(data-label); display: block; color: var(--muted); font-size: var(--size-xs); }
+}
 @media (max-width: 440px) { .console-sidebar nav svg { display: none; } }

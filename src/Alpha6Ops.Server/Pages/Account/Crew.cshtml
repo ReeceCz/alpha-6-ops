@@ -18,9 +18,9 @@
         }
     </fieldset><button class="button">@(Model.EmailOn ? "Send invitation" : "Create invitation")</button>
 </form></section>
-<section class="card"><h2>Crew roster</h2><div class="table-scroll"><table><thead><tr><th scope="col">Crew member</th><th scope="col">Status</th><th scope="col">Roles</th></tr></thead><tbody>
+<section class="card"><h2>Crew roster</h2><div class="table-scroll"><table class="stacked"><thead><tr><th scope="col">Crew member</th><th scope="col">Status</th><th scope="col">Roles</th></tr></thead><tbody>
 @foreach (var member in Model.Members) {
-    <tr><td>@member.DisplayName<br /><span class="muted">@member.Email</span></td><td>@member.Status</td><td>
+    <tr><td>@member.DisplayName<br /><span class="muted">@member.Email</span></td><td data-label="Status">@member.Status</td><td data-label="Roles">
     @if (member.Roles.Contains(AirlineRole.Owner)) { <span>Owner · @string.Join(" · ", member.Roles.Where(r => r != AirlineRole.Owner))</span> }
     else { <form method="post" asp-page-handler="Roles"><input type="hidden" name="membershipId" value="@member.Id" />
         @foreach (var role in new[] { AirlineRole.Pilot, AirlineRole.Dispatcher, AirlineRole.Administrator }) {

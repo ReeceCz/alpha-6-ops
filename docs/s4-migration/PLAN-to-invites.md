@@ -55,10 +55,12 @@ Each phase lists its exit criteria. Don't start widening invitations until Phase
 - [ ] Make `C:\Dev\_scratch\s4-merge` (`feat/launch-prep`) the only working tree for web work. In the main checkout,
       move the uncommitted edits and `web-status-2026-10-13.md` to `C:\Dev\_scratch\stale-s4-rebrand\` after a diff
       check against `feat/launch-prep`, then leave that checkout alone. (Its untracked Neon leftovers stay as they are.)
-- [ ] Start the local PostgreSQL cluster and run `/verify` on `feat/launch-prep`. Record the counts in PROGRESS.md.
-- [ ] **Fix gap 1:** `publish-release.ps1` refuses to build unless `alpha6-identity.json` exists and its
-      `ApiBaseUrl` and `PortalUrl` are `https://app.s4ops.com/`. Add a `alpha6-identity.hosted.json` template
-      (Authority, ClientId, Audience and URLs only, nothing secret) so the right file is one copy away.
+- [x] Start the local PostgreSQL cluster and run `/verify` on `feat/launch-prep` (13 Oct: core 194, desktop identity 102,
+      accounts 282, server 225, all green).
+- [x] **Fix gap 1** (0de4b14): `publish-release.ps1` refuses to build unless `alpha6-identity.json` exists and its
+      `ApiBaseUrl` and `PortalUrl` are `https://app.s4ops.com/`. It builds with the gitignored
+      `alpha6-identity.hosted.json` and checks the payload inside the installer. A local dry-run build passed, and a
+      localhost payload was rejected.
 - [ ] Decide what happens to `docs/web-roadmap.md`. It's a September inventory. Add a banner that points here.
 
 **Exit:** one branch, all suites green, and a release build that can only point at the hosted server.
@@ -119,12 +121,12 @@ mid-upload doesn't lose or duplicate it.
 
 Make the service safe for strangers before inviting them.
 
-- [ ] **CI:** a GitHub Actions workflow on the fork that builds `Alpha6Ops.Cloud.slnx` on Linux and runs the
+- [x] **CI** (9a8576b, committed, not pushed, not yet run): a GitHub Actions workflow on the fork that builds `Alpha6Ops.Cloud.slnx` on Linux and runs the
       accounts and server suites against a Postgres service container. WPF stays out. Needs your go-ahead,
       because it adds a workflow file to GitHub.
 - [ ] **Backups:** restore Neon's production branch to a temporary branch at a past time, point a local server
       at it, sign in, delete the branch. Write down how far back the free plan lets you restore.
-- [ ] **Monitoring:** an outside uptime check on `/healthz` that emails you (for example Cloudflare's health check
+- [ ] **Monitoring:** keep-warm now fails (and GitHub emails you) when `/healthz` isn't `ok` (9a8576b). Still to do: an outside uptime check on `/healthz` that emails you (for example Cloudflare's health check
       or a free uptime service), and make the keep-warm workflow fail loudly. Check Render's logs for unhandled
       exceptions once a week during the beta.
 - [ ] **Auth0:** decide whether the `dev-…` tenant is good enough for a beta or whether to create a production
@@ -144,14 +146,15 @@ Make the service safe for strangers before inviting them.
 Testers who run a virtual airline need to set it up alone. This is the "usable airline setup" milestone from the
 13 October status review, still valid.
 
-- [ ] Airline **Overview** page with real counts (routes, aircraft, active crew) and a setup checklist: add a
+- [x] (62fc930) Airline **Overview** page with real counts (routes, aircraft, active crew) and a setup checklist: add a
       route, add an aircraft, upload a logo, invite a pilot. Each step links to the existing form and respects the
       user's access level.
-- [ ] Split today's single Crew & settings page into Crew (roster, invitations, roles) and Settings (level, logo,
+- [x] Split today's single Crew & settings page into Crew (roster, invitations, roles) and Settings (level, logo,
       ownership transfer). Fresh MFA stays on privileged actions.
-- [ ] **Emailed airline invitations** using the Resend outbox. Keep the code as a fallback. The token stays out of
-      URLs (the current invitation policy).
-- [ ] Empty states and redirects after create, import, invite and join lead back to the airline.
+- [x] **Emailed airline invitations.** Invitations are bound to the verified email, so the email carries only a link to
+      Join an airline, which lists invitations waiting for that address. The code remains a fallback.
+- [x] Create and join land on the airline Overview. (Imports and invites already stay on their page.)
+- [x] Crew roster stacks one member per block at phone width, so the roles form stays visible.
 - [ ] Test the journey as owner, dispatcher, pilot, outsider, and an account pending deletion, at phone width.
 
 **Exit:** a tester who has never seen S4 OPS creates an airline, adds a route and an aircraft, and invites a

@@ -3,7 +3,9 @@
 @{ ViewData["Title"] = "Ask for an invitation"; }
 <div class="page-heading"><div class="eyebrow">Invite-only testing</div><h1>Ask for an invitation.</h1>
 <p class="lead">S4 OPS is in testing with a small group of pilots flying Microsoft Flight Simulator 2024 on Windows. Tell us who you are and we'll be in touch if we can add you.</p></div>
-@if (Model.Sent) {
+@if (Model.FromAccount) {
+<section class="card"><p class="notice" role="status">Thanks, your request is in. Reece and Dan at Sierra 4 will see it. Once one of them approves it, open your account again; you won't need to sign up a second time.</p><p><a class="button" href="/Account">Back to your account</a></p></section>
+} else if (Model.Sent) {
 <section class="card"><p class="notice" role="status">Thanks. If we can add you to the test group, we'll contact you at the address you gave.</p><p><a href="https://s4ops.com/">Back to s4ops.com</a></p></section>
 } else if (!Model.Available) {
 <section class="card"><p class="notice" role="status">Requests aren't available on this installation yet.</p></section>

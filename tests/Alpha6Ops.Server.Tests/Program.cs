@@ -557,6 +557,20 @@ using (var inviteOnly = new ServerFactory(connection, admission: null, invitedEm
     Check(refused.StatusCode == HttpStatusCode.Forbidden && refusal.Contains("invite_required") && refusal.Contains("invite-only"), "An uninvited first sign-in is refused with an explanation");
     using var invitedPilot = inviteOnly.Client("invited-" + inviteSuffix);
     Check((await invitedPilot.GetAsync("/api/v1/me/bootstrap")).StatusCode == HttpStatusCode.OK, "An invited, verified email creates an account");
+    // Signed in but not invited: the account page offers a one-click request for the signed-in address.
+    using var strangerBrowser = inviteOnly.Browser("stranger-" + inviteSuffix);
+    var strangerPage = await strangerBrowser.GetAsync("/Account");
+    var strangerHtml = await strangerPage.Content.ReadAsStringAsync();
+    Check(strangerPage.StatusCode == HttpStatusCode.Forbidden && strangerHtml.Contains("Ask for an invitation") && strangerHtml.Contains($"stranger-{inviteSuffix}@example.test")
+        && strangerHtml.Contains("/Request?handler=SignedIn"), "An uninvited pilot's account page offers to ask for an invitation for their address");
+    var asked = await SubmitAsync(strangerBrowser, strangerPage, strangerHtml, "/Request?handler=SignedIn", new() { ["note"] = "Fenix A320, VATSIM" });
+    Check(asked.StatusCode == HttpStatusCode.Redirect && asked.Headers.Location?.OriginalString.Contains("account=True", StringComparison.OrdinalIgnoreCase) == true,
+        "Asking from the account page sends the request");
+    using (var scope = inviteOnly.Services.CreateScope())
+        Check(await scope.ServiceProvider.GetRequiredService<AccountsDbContext>().InviteRequests.AnyAsync(x => x.Email == $"stranger-{inviteSuffix}@example.test" && x.Note == "Fenix A320, VATSIM"),
+            "The request carries the signed-in address and the note");
+    var thanks = await strangerBrowser.GetStringAsync("/Request?sent=true&account=true");
+    Check(thanks.Contains("your request is in") && thanks.Contains("href=\"/Account\""), "The confirmation sends the pilot back to their account");
 }
 // Problem reports: pilots send them from the portal; allowlisted staff with a fresh MFA read them.
 var feedbackMail = new RecordingEmailSender();

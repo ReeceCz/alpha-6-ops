@@ -12,12 +12,15 @@ public abstract class AccountPage(AccountsService accounts, ServerSettings setti
     public string? ErrorMessage { get; protected set; }
     public bool NeedsVerification { get; protected set; }
     public string? ErrorCode { get; protected set; }
+    /// <summary>The signed-in email, shown when the account isn't admitted yet so its invitation request is one click.</summary>
+    public string? ActorEmail { get; private set; }
     protected IActionResult Failure(IdentityException error)
     {
         // A locked account can only see its deletion, cancel it, or download its data.
         if (error.Code == "account_pending_deletion") return Redirect("/Account/Delete");
         ErrorMessage = error.Message;
         ErrorCode = error.Code;
+        if (error.Code == "invite_required") ActorEmail = Actor.Email;
         NeedsVerification = error.Code is "mfa_required" or "recent_authentication_required" or "recent_mfa_required";
         Response.StatusCode = error.StatusCode;
         return Page();

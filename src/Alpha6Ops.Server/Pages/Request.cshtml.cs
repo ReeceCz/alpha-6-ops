@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 namespace Alpha6Ops.Server.Pages;
 
 // Public invitation request form. The answer is the same whether or not the email is already known.
-public class RequestModel(IServiceProvider services, IOptions<TurnstileSettings> turnstile, InviteRequestLimiter limiter, ITurnstileVerifier verifier, Mailer mailer) : PageModel
+public class RequestModel(IServiceProvider services, IOptions<TurnstileSettings> turnstile, InviteRequestLimiter limiter, ITurnstileVerifier verifier, Mailer mailer, ServerSettings settings) : PageModel
 {
     [BindProperty] public string? Email { get; set; }
     [BindProperty] public string? Name { get; set; }
@@ -17,13 +17,16 @@ public class RequestModel(IServiceProvider services, IOptions<TurnstileSettings>
     [BindProperty(Name = "cf-turnstile-response")] public string? TurnstileToken { get; set; }
 
     public bool Sent { get; private set; }
+    /// <summary>Sent from the account page while signed in: the pilot only has to come back once approved.</summary>
+    public bool FromAccount { get; private set; }
     public string? ErrorMessage { get; private set; }
     public string? SiteKey => turnstile.Value.Enabled ? turnstile.Value.SiteKey : null;
     public bool Available => services.GetService<AccountsService>() is not null;
 
-    public IActionResult OnGet(bool sent)
+    public IActionResult OnGet(bool sent, bool account)
     {
         Sent = sent;
+        FromAccount = sent && account;
         AllowTurnstile();
         return Page();
     }
@@ -41,6 +44,24 @@ public class RequestModel(IServiceProvider services, IOptions<TurnstileSettings>
         {
             if (await accounts.SubmitInviteRequestAsync(new(Email, Name, Note), ct)) mailer.NewRequest((Email ?? "").Trim().ToLowerInvariant());
             return RedirectToPage(new { sent = true });
+        }
+        catch (IdentityException ex) { return Error(ex.Message, ex.StatusCode); }
+    }
+
+    // From the invite-only notice on the account page. The address is the signed-in one, so there is nothing to type
+    // and no bot check; the per-address limit still applies.
+    public async Task<IActionResult> OnPostSignedInAsync(string? note, CancellationToken ct)
+    {
+        AllowTurnstile();
+        if (User.Identity?.IsAuthenticated != true) return RedirectToPage();
+        if (services.GetService<AccountsService>() is not { } accounts) return Error("Requests aren't available on this installation.", 503);
+        if (!limiter.TryAcquire(HttpContext.Connection.RemoteIpAddress?.ToString())) return Error("You've sent a few requests already. Please try again in an hour.", 429);
+        try
+        {
+            var actor = TrustedActor.Read(User, settings);
+            var name = actor.DisplayName.Length > 100 ? actor.DisplayName[..100] : actor.DisplayName;
+            if (await accounts.SubmitInviteRequestAsync(new(actor.Email, name, note), ct)) mailer.NewRequest(actor.Email.Trim().ToLowerInvariant());
+            return RedirectToPage(new { sent = true, account = true });
         }
         catch (IdentityException ex) { return Error(ex.Message, ex.StatusCode); }
     }

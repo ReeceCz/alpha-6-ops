@@ -2,6 +2,14 @@
 @if (Model.ErrorMessage is not null) {
     <div role="alert" class="notice"><p>@Model.ErrorMessage</p>
     @if (Model.ErrorCode == "recent_authentication_required") { <a href="/auth/reauth?returnUrl=@Uri.EscapeDataString(Context.Request.Path)">Sign in again</a> }
+    else if (Model.ErrorCode == "invite_required" && Model.ActorEmail is { } email) {
+        <form method="post" asp-page="/Request" asp-page-handler="SignedIn" class="stack">
+            <p>Send a request for <strong>@email</strong>. Reece and Dan at Sierra 4 see it, and when one of them approves it, reload this page to finish creating your account.</p>
+            <label for="invite-note">Tell us about your flying (optional)</label>
+            <textarea id="invite-note" name="note" rows="3" maxlength="1000" placeholder="Aircraft you fly, virtual airline or network experience"></textarea>
+            <button class="button" type="submit">Ask for an invitation</button>
+        </form>
+    }
     else if (Model.NeedsVerification) { <a href="/auth/step-up?returnUrl=@Uri.EscapeDataString(Context.Request.Path)">Complete a fresh security check</a> }
     </div>
 }

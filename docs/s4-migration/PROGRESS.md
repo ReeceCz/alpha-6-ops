@@ -168,9 +168,10 @@ Reece: everything stays local until Dan's final approval. Plan: `PLAN-to-invites
 - [x] Staff security check: returns to the staff page; a stale check keeps the invitation, reply or release notes
       instead of losing them, and nothing is sent first.
 - [x] `DAN-BRIEF.md` for the next meeting with Dan.
-- Still open (needs a go-ahead): redeploy the s4ops.com landing (`npx wrangler deploy`), set the GitHub variable
-  `ALPHA6_HEALTH_URL` to `https://app.s4ops.com/healthz`, Auth0 email/login branding, an outside uptime alert, a
-  backup restore drill. The installer waits for Dan.
+- [x] Landing redeployed (`s4ops-landing`, version be2ba9ef; deploy with `CLOUDFLARE_ACCOUNT_ID` set to Dan's
+      account, which holds the zone): HSTS on, "Ask for an invitation" goes to `/Request`. GitHub variable
+      `ALPHA6_HEALTH_URL` = `https://app.s4ops.com/healthz`. `check-live.ps1`: all checks pass.
+- Still open: Auth0 email/login branding, an outside uptime alert, a backup restore drill. The installer waits for Dan.
 - Local run: `pg_ctl ... -o "-h 127.0.0.1 -p 55439"` (the cluster's config has no port), then the portal in
   Development on https://localhost:7246 with real Auth0 sign-in and the `alpha6_server_dev` database.
 - Main checkout `devlpha-6-ops` (`chore/s4-rebrand`) is 81 commits behind and has stale uncommitted edits; not touched.

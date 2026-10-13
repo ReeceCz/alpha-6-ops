@@ -182,7 +182,7 @@ Each needs a named user and a gap it closes before it's built. Revisit after Pha
 | Installer on R2 at `s4ops.com` | GitHub Releases works. Move it when download counts matter. |
 | Moving off Render/Neon to Cloudflare Containers | Upgrade path when there are paying users (decision of 22 September). |
 | Code rename `Alpha6Ops` → `S4Ops` | Shelved on 2 October. Users never see it. |
-| Diversion detection | Dan's call. Until then, keep "Diverted" labelled as planned everywhere. |
+| Diversion detection | Dan's call. The website shows no "Diverted" status (checked 13 October). |
 
 ## 4. Waiting on Dan
 

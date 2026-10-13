@@ -163,5 +163,5 @@ sign in, then uninstall.
 - The installer version bump in `packaging/build-desktop.ps1` (needed for step 11).
 - Desktop flight upload to the web logbook. The server's `POST /api/v1/me/flights` is ready; the desktop doesn't
   call it yet. Until then the web logbook holds imports only, and the site says so.
-- "Diverted" is shown on the site, but the engine has no diversion detection yet.
+- Diversion detection: the website no longer shows a "Diverted" status (13 October), so this is the desktop's call only.
 - The desktop icon swap to the S4 tile, and carrying the colour tokens into WPF.

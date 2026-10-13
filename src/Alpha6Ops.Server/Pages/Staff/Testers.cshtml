@@ -3,7 +3,13 @@
 @{ ViewData["Title"] = "Testers"; }
 <div class="page-heading"><div class="eyebrow">Staff</div><h1>Testers</h1><partial name="_StaffNav" model='@("testers")' />
 <p class="lead">S4 OPS is invite-only. Add a tester's email here, then tell them to create their account at s4ops.com with that address.</p></div>
+@if (Model.ErrorCode == "mfa_required" && !string.IsNullOrWhiteSpace(Model.Email)) {
+    <p class="notice" role="status">The invitation for <strong>@Model.Email</strong> hasn't been sent. Staff actions need a security check from the last five minutes. Complete it and you'll come back here with the form filled in.</p>
+}
 <partial name="_AccountError" model="Model" />
+@if (Model.ErrorCode is null && Model.CheckValidUntil is { } until) {
+    <p class="muted">Your security check covers staff actions until @until.ToString("HH:mm") UTC. After that you'll be asked again before anything is sent.</p>
+}
 @if (Model.ErrorCode is null or "invalid_email" or "invalid_invite") {
 @if (Model.Requests.Length > 0) {
 <section class="card" id="requests">
@@ -21,7 +27,7 @@
     </ul>
 </section>
 }
-<section class="card">
+<section class="card" id="invite">
     <h2>Invite a tester</h2>
     <form method="post" asp-page-handler="Add" class="stack">
         <div class="grid two">

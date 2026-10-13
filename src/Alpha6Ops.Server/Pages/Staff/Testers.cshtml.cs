@@ -9,8 +9,11 @@ public class TestersModel(AccountsService accounts, ServerSettings settings, Sta
     public TesterInviteView[] Invites { get; private set; } = [];
     public InviteRequestView[] Requests { get; private set; } = [];
     public bool EmailOn => email.Value.Enabled;
-    [BindProperty] public string? Email { get; set; }
-    [BindProperty] public string? Note { get; set; }
+    // Also bound on GET, so an invitation refused for a stale security check comes back filled in after the check.
+    [BindProperty(SupportsGet = true)] public string? Email { get; set; }
+    [BindProperty(SupportsGet = true)] public string? Note { get; set; }
+    /// <summary>When the current security check stops covering staff actions (UTC).</summary>
+    public DateTimeOffset? CheckValidUntil => Actor.AuthenticatedAt?.AddMinutes(5);
 
     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
     {
@@ -30,7 +33,12 @@ public class TestersModel(AccountsService accounts, ServerSettings settings, Sta
             if (!existed && !invite.HasAccount) mailer.TesterInvited(invite.Email);
             return RedirectToPage();
         }
-        catch (IdentityException ex) { return await Reload(ex, ct); }
+        catch (IdentityException ex)
+        {
+            if (ex.Code == "mfa_required")
+                StepUpReturn = $"/Staff/Testers?email={Uri.EscapeDataString(Email ?? "")}&note={Uri.EscapeDataString(Note ?? "")}#invite";
+            return await Reload(ex, ct);
+        }
     }
 
     public async Task<IActionResult> OnPostRemoveAsync(CancellationToken ct)

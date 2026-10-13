@@ -289,8 +289,9 @@ app.MapGet("/auth/signup", () =>
     properties.Items["signup"] = "true";
     return Results.Challenge(properties, ["Auth0"]);
 }).RequireRateLimiting("requests");
-// Only pages inside the signed-in area may be returned to, so the redirect can never leave the site.
-static string AccountReturn(string? returnUrl) => returnUrl is { Length: < 200 } r && r.StartsWith("/Account", StringComparison.Ordinal)
+// Only pages inside the signed-in or staff area may be returned to, so the redirect can never leave the site.
+static string AccountReturn(string? returnUrl) => returnUrl is { Length: < 300 } r
+    && (r.StartsWith("/Account", StringComparison.Ordinal) || r.StartsWith("/Staff", StringComparison.Ordinal))
     && !r.Contains("//", StringComparison.Ordinal) && r.IndexOf((char)92) < 0 ? r : "/Account";
 // Step-up: a fresh MFA proof (enrolling a factor if needed) for administrative actions.
 app.MapGet("/auth/step-up", (string? returnUrl) =>

@@ -702,6 +702,21 @@ using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staf
     Check(feedbackMail.Sent.Count(m => m.To.Contains(newTester.ToLowerInvariant())) == invitesBefore, "Editing an invitation's note doesn't email the tester again");
     var badInvite = await SubmitAsync(staffBrowser, testersPage, testersHtml, "/Staff/Testers?handler=Add", new() { ["email"] = "not-an-email", ["note"] = "" });
     Check(badInvite.StatusCode == HttpStatusCode.BadRequest && (await badInvite.Content.ReadAsStringAsync()).Contains("valid email"), "A bad email is refused with a readable message");
+    Check(testersHtml.Contains("covers staff actions until"), "The testers page says when the security check runs out");
+    // A stale security check: nothing is sent, and the check returns to the form with the invitation filled in.
+    var staleTester = $"stale-{run}@example.test";
+    var stalePage = await staffNoMfa.GetAsync("/Staff/Testers");
+    var staleHtml = await stalePage.Content.ReadAsStringAsync();
+    Check(stalePage.StatusCode == HttpStatusCode.Forbidden && !staleHtml.Contains("Invite a tester") && staleHtml.Contains("/auth/step-up?returnUrl=%2FStaff%2FTesters"),
+        "Without a fresh check the testers page shows only the security check, which returns to the page");
+    var staleInvite = await SubmitAsync(staffNoMfa, stalePage, staleHtml, "/Staff/Testers?handler=Add", new() { ["email"] = staleTester, ["note"] = "From the fly-in" });
+    var staleInviteHtml = await staleInvite.Content.ReadAsStringAsync();
+    Check(staleInvite.StatusCode == HttpStatusCode.Forbidden && staleInviteHtml.Contains("been sent. Staff actions need a security check")
+        && staleInviteHtml.Contains("returnUrl=%2FStaff%2FTesters%3Femail%3Dstale-"), "An invitation refused for a stale check says so and keeps it for after the check");
+    await Task.Delay(300);
+    Check(!feedbackMail.Sent.Any(m => m.To.Contains(staleTester)), "Nothing is emailed before the security check");
+    var prefilled = await staffBrowser.GetStringAsync($"/Staff/Testers?email={Uri.EscapeDataString(staleTester)}&note=From%20the%20fly-in");
+    Check(prefilled.Contains($"value=\"{staleTester}\"") && prefilled.Contains("value=\"From the fly-in\""), "After the check the invitation form comes back filled in");
     if (Environment.GetEnvironmentVariable("S4OPS_PORTAL_SNAPSHOT_DIR") is { Length: > 0 } testerSnapshots)
     {
         await File.WriteAllTextAsync(Path.Combine(testerSnapshots, "staff-testers.html"), afterInvite);

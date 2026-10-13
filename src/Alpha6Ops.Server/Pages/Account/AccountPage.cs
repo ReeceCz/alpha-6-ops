@@ -16,6 +16,8 @@ public abstract class AccountPage(AccountsService accounts, ServerSettings setti
     public string? ActorEmail { get; private set; }
     /// <summary>That email already has a request waiting for staff.</summary>
     public bool RequestPending { get; protected set; }
+    /// <summary>Where the security check returns to; defaults to this page. Lets a refused form come back filled in.</summary>
+    public string? StepUpReturn { get; protected set; }
     protected IActionResult Failure(IdentityException error)
     {
         // A locked account can only see its deletion, cancel it, or download its data.

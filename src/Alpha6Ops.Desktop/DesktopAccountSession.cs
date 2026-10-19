@@ -363,6 +363,11 @@ internal sealed class DesktopAccountSession
         await SendAsync<object>(HttpMethod.Delete, $"api/v1/virtual-airlines/{airlineId}/invitations/{invitationId}", null, token), token);
     internal Task<MemberResponse[]> ListMembersAsync(Guid airlineId, CancellationToken token) => Under(async () =>
         await SendAsync<MemberResponse[]>(HttpMethod.Get, $"api/v1/virtual-airlines/{airlineId}/members", null, token) ?? [], token);
+    // Schedule and fleet for any member, read-only. Pair routes with AirlineSchedule.Between for a dated timeline.
+    internal Task<RouteResponse[]> ListRoutesAsync(Guid airlineId, CancellationToken token) => Under(async () =>
+        await SendAsync<RouteResponse[]>(HttpMethod.Get, $"api/v1/virtual-airlines/{airlineId}/routes", null, token) ?? [], token);
+    internal Task<AircraftResponse[]> ListFleetAsync(Guid airlineId, CancellationToken token) => Under(async () =>
+        await SendAsync<AircraftResponse[]>(HttpMethod.Get, $"api/v1/virtual-airlines/{airlineId}/fleet", null, token) ?? [], token);
     internal Task ChangeRolesAsync(Guid airlineId, Guid membershipId, AirlineRole[] roles, CancellationToken token) => Under(async () =>
         await SendAsync<object>(HttpMethod.Put, $"api/v1/virtual-airlines/{airlineId}/members/{membershipId}/roles", new ChangeRolesRequest(roles), token), token);
     internal Task TransferOwnershipAsync(Guid airlineId, Guid newOwnerUserId, CancellationToken token) => Under(async () =>

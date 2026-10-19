@@ -26,6 +26,22 @@ Check(!OfflineSessionPolicy.MayOpen(bootstrap with { Account = bootstrap.Account
 Check(OfflineSessionPolicy.ValidateWorkspace(bootstrap, new(Guid.NewGuid())) == WorkspaceSelection.Personal, "unknown airline falls back to personal");
 Check(OfflineSessionPolicy.ValidateWorkspace(bootstrap with { Airlines = [airline with { MembershipStatus = MembershipStatus.Suspended }] }, new(airline.Id)) == WorkspaceSelection.Personal, "suspended airline cannot remain selected");
 
+// Dated legs from recurring routes. 19 October 2026 is a Monday; days are UTC departure days, Monday = 1 ... Sunday = 64.
+RouteResponse Leg(string flight, string departure, int block, int days, bool active = true) =>
+    new(Guid.NewGuid(), flight, "KMKE", "KORD", departure, block, days, "A20N", "", active, now);
+var monday = new DateOnly(2026, 10, 19);
+Check(AirlineSchedule.Operates(1, monday) && AirlineSchedule.Operates(64, monday.AddDays(6)) && !AirlineSchedule.Operates(1, monday.AddDays(6)) && !AirlineSchedule.Operates(126, monday),
+    "the weekday bitmask starts at Monday on the UTC day");
+var routes = new[] { Leg("S4LATE", "23:30", 120, 1), Leg("S4DAWN", "06:00", 60, 2), Leg("S4OFF", "12:00", 60, 127, active: false), Leg("S4LONG", "22:00", 600, 64), Leg("S4BAD", "25:99", 60, 127) };
+DateTimeOffset Utc(DateOnly day, int hour, int minute = 0) => new(day.ToDateTime(new TimeOnly(hour, minute)), TimeSpan.Zero);
+var evening = AirlineSchedule.Between(routes, Utc(monday, 16), Utc(monday.AddDays(1), 6));
+Check(evening is [{ Route.FlightNumber: "S4LATE" } late] && late.ArrivalUtc == Utc(monday.AddDays(1), 1, 30),
+    "an evening window holds the late leg arriving after midnight, not one departing at the window's end or an inactive route");
+var wholeDay = AirlineSchedule.Between(routes, Utc(monday, 0), Utc(monday.AddDays(1), 0));
+Check(wholeDay.Select(x => x.Route.FlightNumber).SequenceEqual(["S4LONG", "S4LATE"]) && wholeDay[0].DepartureUtc == Utc(monday.AddDays(-1), 22),
+    "a day includes a Sunday overnight leg still flying at midnight, ordered by departure, and skips an unreadable time");
+Check(AirlineSchedule.Between(routes, Utc(monday, 6), Utc(monday, 6)).Length == 0, "an empty window has no legs");
+
 var directory = Path.GetFullPath(Path.Combine("work", "identity-client-tests", Guid.NewGuid().ToString("N")));
 Directory.CreateDirectory(directory);
 var config = new IdentityConfiguration("https://identity.example.invalid", "test-native", "https://api.example.invalid", "https://api.example.invalid/", "https://portal.example.invalid/");
@@ -70,6 +86,10 @@ async Task<HttpResponseMessage> Handle(HttpRequestMessage request)
     if (request.RequestUri.AbsolutePath == "/api/v1/invitations/accept") return Json(airline);
     if (request.RequestUri.AbsolutePath.EndsWith("/invitations") && request.Method == HttpMethod.Post)
         return Json(new IssuedInvitation(new InvitationResponse(Guid.NewGuid(), "NEW@EXAMPLE.INVALID", [AirlineRole.Pilot], now.AddDays(7), "pending"), "raw-invite-code"));
+    if (request.RequestUri.AbsolutePath.EndsWith("/routes") && request.Method == HttpMethod.Get)
+        return Json(new[] { new RouteResponse(Guid.NewGuid(), "S4101", "KMKE", "KORD", "14:35", 65, 31, "A20N", "", true, now) });
+    if (request.RequestUri.AbsolutePath.EndsWith("/fleet") && request.Method == HttpMethod.Get)
+        return Json(new[] { new AircraftResponse(Guid.NewGuid(), "N123S4", "A20N", "Spirit of Milwaukee", "KMKE", "active", "", now) });
     if (request.RequestUri.AbsolutePath.EndsWith("/members")) return Json(new[] { new MemberResponse(Guid.NewGuid(), bootstrap.Account.Id, "Test Pilot", "pilot@example.invalid", MembershipStatus.Active, [AirlineRole.Pilot, AirlineRole.Owner]) });
     if (request.RequestUri!.AbsolutePath == "/oauth/token")
     {
@@ -246,6 +266,9 @@ var refreshesBefore401 = tokensSeen.Count;
 var members = await session.ListMembersAsync(airline.Id, default);
 Check(members.Length == 1 && tokensSeen.Count == refreshesBefore401 + 1, "a rejected access token is refreshed once and the call retried");
 mode = "online";
+var memberRoutes = await session.ListRoutesAsync(airline.Id, default);
+var memberFleet = await session.ListFleetAsync(airline.Id, default);
+Check(memberRoutes is [{ FlightNumber: "S4101", DaysOfWeek: 31 }] && memberFleet is [{ Registration: "N123S4" }], "a member reads the airline's schedule and fleet");
 var refreshes = tokensSeen.Count;
 await session.SelectWorkspaceAsync(WorkspaceSelection.Personal, default);
 Check(tokensSeen.Count == refreshes + 1 && workspaceWrites == 1 && Read().Workspace == WorkspaceSelection.Personal,

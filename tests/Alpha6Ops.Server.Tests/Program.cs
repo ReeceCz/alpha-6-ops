@@ -471,6 +471,37 @@ if (created.IsSuccessStatusCode)
         var joined = await SubmitAsync(joiner, joinPage, joinHtml, "/Account/Join?handler=Accept", new() { ["invitationId"] = waitingId });
         Check(joined.StatusCode == HttpStatusCode.Redirect && joined.Headers.Location?.OriginalString.Contains($"/Account/Airline/{airline.Id}") == true, "Accepting a waiting invitation opens the airline");
         Check((await joiner.GetStringAsync("/Account/Join")).Contains("No invitations are waiting"), "An accepted invitation leaves the list");
+        // The airline journey by role, through the browser pages: a pilot reads, a dispatcher edits operations, a non-member sees nothing.
+        var pilotSchedule = await joiner.GetStringAsync($"/Account/Airline/{airline.Id}/Schedule");
+        Check(pilotSchedule.Contains("A6101") && !pilotSchedule.Contains("handler=Save") && !pilotSchedule.Contains("handler=Import"), "A pilot reads the schedule with no edit or import forms");
+        var tokenPage = await joiner.GetAsync("/Account/Join");
+        var pilotRoutePost = await SubmitAsync(joiner, tokenPage, await tokenPage.Content.ReadAsStringAsync(), $"/Account/Airline/{airline.Id}/Schedule?handler=Save",
+            new() { ["flightNumber"] = "S4999", ["origin"] = "KMKE", ["destination"] = "KORD", ["departureUtc"] = "09:00", ["blockMinutes"] = "60", ["days"] = "1" });
+        Check(pilotRoutePost.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound
+            && !(await pilot.GetStringAsync($"/api/v1/virtual-airlines/{airline.Id}/routes")).Contains("S4999"), "A pilot posting the schedule form directly is refused and nothing is added");
+        Check((await joiner.GetAsync($"/Account/Airline/{airline.Id}/Settings")).StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound, "A pilot cannot open settings");
+        var dispatcherInvite = await pilot.PostAsJsonAsync($"/api/v1/virtual-airlines/{airline.Id}/invitations", new InviteMemberRequest($"dispatch-{run}@example.test", [AirlineRole.Dispatcher]));
+        using (var dispatcherApi = host.Client("dispatch-" + run))
+            Check((await dispatcherApi.PostAsJsonAsync("/api/v1/invitations/accept", new { token = (await dispatcherInvite.Content.ReadFromJsonAsync<IssuedInvitation>())!.Token })).IsSuccessStatusCode,
+                "A dispatcher accepts an invitation");
+        using var dispatcher = host.Browser("dispatch-" + run, mfa: false);
+        var dispatchSchedule = await dispatcher.GetAsync($"/Account/Airline/{airline.Id}/Schedule");
+        var dispatchScheduleHtml = await dispatchSchedule.Content.ReadAsStringAsync();
+        Check(dispatchSchedule.IsSuccessStatusCode && dispatchScheduleHtml.Contains("Add a route"), "A dispatcher gets the schedule editor without MFA");
+        var dispatchRoute = await SubmitAsync(dispatcher, dispatchSchedule, dispatchScheduleHtml, $"/Account/Airline/{airline.Id}/Schedule?handler=Save",
+            new() { ["flightNumber"] = "S4777", ["origin"] = "KMKE", ["destination"] = "KMSP", ["departureUtc"] = "07:15", ["blockMinutes"] = "80", ["days"] = "2", ["active"] = "true" });
+        Check(dispatchRoute.StatusCode == HttpStatusCode.Redirect && (await joiner.GetStringAsync($"/Account/Airline/{airline.Id}/Schedule")).Contains("S4777"),
+            "A dispatcher adds a route that the pilots then see");
+        Check((await dispatcher.GetStringAsync($"/Account/Airline/{airline.Id}/Fleet")).Contains("handler=Save"), "A dispatcher gets the fleet editor");
+        Check((await dispatcher.GetAsync($"/Account/Airline/{airline.Id}/Crew")).StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound
+            && (await dispatcher.GetAsync($"/Account/Airline/{airline.Id}/Settings")).StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound, "A dispatcher cannot manage crew or settings");
+        using var nonMember = host.Browser("nonmember-" + run);
+        foreach (var page in new[] { "", "/Schedule", "/Fleet", "/Crew", "/Settings" })
+        {
+            var response = await nonMember.GetAsync($"/Account/Airline/{airline.Id}{page}");
+            Check(response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound && !(await response.Content.ReadAsStringAsync()).Contains(airline.Name),
+                $"A non-member gets nothing from the airline page {(page.Length == 0 ? "/" : page)}");
+        }
         // Design review aid: with S4OPS_PORTAL_SNAPSHOT_DIR set, save every rendered page (and the media it shows) so the
         // portal can be screenshotted signed in without a real identity provider. Not a check.
         if (Environment.GetEnvironmentVariable("S4OPS_PORTAL_SNAPSHOT_DIR") is { Length: > 0 } snapshotDir)
@@ -551,12 +582,20 @@ if (created.IsSuccessStatusCode)
         var staleHtml = await stale.Content.ReadAsStringAsync();
         Check(stale.StatusCode == HttpStatusCode.Forbidden && staleHtml.Contains("/auth/reauth?returnUrl=%2FAccount%2FDelete"), "Deletion after a stale sign-in asks the pilot to sign in again");
         using var leaver = Leaver(DateTimeOffset.UtcNow);
+        var leaverInvite = await pilot.PostAsJsonAsync($"/api/v1/virtual-airlines/{airline.Id}/invitations", new InviteMemberRequest($"leaver-{run}@example.test", [AirlineRole.Pilot]));
+        using (var leaverApi = host.Client("leaver-" + run))
+            await leaverApi.PostAsJsonAsync("/api/v1/invitations/accept", new { token = (await leaverInvite.Content.ReadFromJsonAsync<IssuedInvitation>())!.Token });
+        Check((await leaver.GetAsync($"/Account/Airline/{airline.Id}/Schedule")).IsSuccessStatusCode, "A member reads the schedule before asking for deletion");
         var deletePage = await leaver.GetAsync("/Account/Delete");
         var deleteHtml = await deletePage.Content.ReadAsStringAsync();
         Check((await SubmitAsync(leaver, deletePage, deleteHtml, "/Account/Delete?handler=Request", new() { ["Confirm"] = "false" })).StatusCode == HttpStatusCode.BadRequest, "Deletion needs the confirmation box");
         Check((await SubmitAsync(leaver, deletePage, deleteHtml, "/Account/Delete?handler=Request", new() { ["Confirm"] = "true" })).StatusCode == HttpStatusCode.Redirect, "A fresh sign-in schedules deletion without MFA");
         var locked = await leaver.GetAsync("/Account");
         Check(locked.StatusCode == HttpStatusCode.Redirect && locked.Headers.Location?.OriginalString == "/Account/Delete", "A scheduled account is locked to the delete page");
+        var lockedAirline = await leaver.GetAsync($"/Account/Airline/{airline.Id}/Schedule");
+        Check(lockedAirline.StatusCode == HttpStatusCode.Redirect && lockedAirline.Headers.Location?.OriginalString == "/Account/Delete", "A member scheduled for deletion is locked out of the airline pages too");
+        using (var leaverApi = host.Client("leaver-" + run))
+            Check(!(await leaverApi.GetAsync($"/api/v1/virtual-airlines/{airline.Id}/routes")).IsSuccessStatusCode, "The desktop API refuses an account scheduled for deletion");
         var scheduledPage = await leaver.GetAsync("/Account/Delete");
         var scheduledHtml = await scheduledPage.Content.ReadAsStringAsync();
         Check(scheduledHtml.Contains("Erased after") && (await leaver.GetAsync("/Account/Profile?handler=Export")).Content.Headers.ContentType?.MediaType == "application/zip",

@@ -20,6 +20,19 @@
     var links = new (string Href, string Label)[] { ("/Levels", "Levels"), ("/Download", "Download"), ("/Support", "Help") };
     // The version shown is the published desktop release, not the portal's own assembly version.
     var release = Release.Value;
+    // Signed-in pilots share the public home page, never a portal address (those need an account).
+    const string homeUrl = "https://s4ops.com/";
+    const string shareText = "S4 OPS: airline operations for Microsoft Flight Simulator 2024. Ask for an invitation here:";
+    var u = Uri.EscapeDataString(homeUrl);
+    var t = Uri.EscapeDataString(shareText);
+    var shareTargets = new (string Label, string Href)[]
+    {
+        ("Email", $"mailto:?subject={Uri.EscapeDataString("Fly with S4 OPS")}&body={t}%20{u}"),
+        ("WhatsApp", $"https://wa.me/?text={t}%20{u}"),
+        ("X", $"https://x.com/intent/tweet?text={t}&url={u}"),
+        ("Reddit", $"https://www.reddit.com/submit?url={u}&title={Uri.EscapeDataString("S4 OPS for MSFS 2024")}"),
+        ("Facebook", $"https://www.facebook.com/sharer/sharer.php?u={u}")
+    };
 }
 <body class="@ViewData["BodyClass"]">
     <a class="skip-link" href="#main">Skip to content</a>
@@ -47,6 +60,34 @@
                 </details>
             </div>
         </header>
+        @if (signedIn) {
+        <div class="homebar">
+            <div class="homebar-inner">
+                <a class="home-chip" href="@homeUrl">
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>
+                    <span>S4 OPS home</span><span class="home-chip-url">s4ops.com</span>
+                </a>
+                @* A native disclosure: the portal runs no script, so there is no copy button; the link is selectable text. *@
+                <details class="share">
+                    <summary>
+                        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
+                        <span>Share S4 OPS</span>
+                    </summary>
+                    <div class="share-panel">
+                        <p class="eyebrow">Invite a fellow pilot</p>
+                        <p class="share-lead">Send them the S4 OPS home page. They can read what it does and ask for an invitation there.</p>
+                        <label for="share-link">Home page link</label>
+                        <input id="share-link" class="share-link" type="text" readonly value="@homeUrl" />
+                        <div class="share-targets">
+                            @foreach (var (label, href) in shareTargets) {
+                                <a href="@href" target="@(label == "Email" ? null : "_blank")" rel="noopener noreferrer">@label</a>
+                            }
+                        </div>
+                    </div>
+                </details>
+            </div>
+        </div>
+        }
         <main id="main">@RenderBody()</main>
         <footer class="site-footer">
             <div class="footer-row">

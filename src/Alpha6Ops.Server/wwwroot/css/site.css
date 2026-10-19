@@ -98,6 +98,29 @@ code, .mono, .reg { font-family: var(--mono); }
 .site-menu nav form { border-top: 1px solid var(--line); margin-top: var(--space-1); padding-top: var(--space-1); }
 .text-button { border: 0; background: transparent; color: var(--text-2); padding: 0; font-size: var(--size-s); }
 .text-button:hover { color: var(--text); text-decoration: underline; }
+
+/* Signed-in home bar: a way back to s4ops.com and a share card for the home page. No script: the card is a <details>. */
+.homebar { position: relative; z-index: 4; border-bottom: 1px solid var(--line); background: linear-gradient(90deg, var(--brand-fill), var(--surface-raised) 45%); }
+.homebar-inner { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); max-width: var(--container); margin: 0 auto; padding: var(--space-2) var(--gutter); }
+.home-chip { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 2.25rem; padding: 0 var(--space-3) 0 var(--space-2); border: 1px solid transparent; border-radius: 999px; color: var(--text); font-size: var(--size-s); font-weight: 600; text-decoration: none; }
+.home-chip svg { color: var(--brand); flex: none; }
+.home-chip-url { padding-left: var(--space-2); border-left: 1px solid var(--line-strong); color: var(--muted); font: 500 var(--size-xs) var(--mono); }
+.home-chip:hover { border-color: var(--line-strong); background: var(--surface); }
+.home-chip:hover .home-chip-url { color: var(--text-2); }
+.share { position: relative; }
+.share summary { list-style: none; display: inline-flex; align-items: center; gap: var(--space-2); min-height: 2.25rem; padding: 0 var(--space-4) 0 var(--space-3); border: 1px solid var(--line-strong); border-radius: 999px; color: var(--brand-ink); font-size: var(--size-s); font-weight: 700; cursor: pointer; }
+.share summary::-webkit-details-marker { display: none; }
+.share summary:hover, .share[open] summary { border-color: var(--brand); background: var(--brand-fill); }
+.share-panel { position: absolute; right: 0; top: calc(100% + var(--space-2)); width: min(27rem, calc(100vw - 2rem)); display: grid; gap: var(--space-3); padding: var(--space-5); background: var(--surface-raised); border: 1px solid var(--line-strong); border-top: 3px solid var(--brand); border-radius: var(--radius-m); box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.5); }
+.share-panel .eyebrow, .share-lead { margin: 0; }
+.share-lead { color: var(--text-2); font-size: var(--size-s); line-height: 1.5; }
+.share-panel label { color: var(--text-2); font-size: var(--size-xs); font-weight: 700; }
+.share-link { width: 100%; padding: var(--space-2) var(--space-3); background: var(--surface); border: 1px dashed var(--line-strong); border-radius: var(--radius-s); color: var(--text); font: 500 var(--size-s) var(--mono); }
+.share-link:focus { border-style: solid; border-color: var(--brand); }
+.share-targets { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-2); }
+.share-targets a { padding: var(--space-2) var(--space-1); border: 1px solid var(--line-strong); border-radius: var(--radius-s); color: var(--text); font-size: var(--size-xs); font-weight: 700; text-align: center; text-decoration: none; }
+.share-targets a:hover { border-color: var(--action); color: var(--action-hover); }
+@media (max-width: 520px) { .home-chip-url { display: none; } .share-targets { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 main { flex: 1; width: 100%; max-width: var(--container); margin: 0 auto; padding: 0 var(--gutter) var(--space-7); }
 /* Long unbroken values (account IDs, emails) wrap instead of widening their column; tables scroll instead. */
 main { overflow-wrap: anywhere; }

@@ -662,6 +662,11 @@ using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staf
     using var ownerHome = feedbackHost.Browser(owner);
     var homeHtml = await ownerHome.GetStringAsync("/Account");
     Check(homeHtml.Contains("href=\"/Guide\""), "The getting-started card links the tester guide");
+    Check(homeHtml.Contains("class=\"homebar\"") && homeHtml.Contains("<a class=\"home-chip\" href=\"https://s4ops.com/\">") && homeHtml.Contains("value=\"https://s4ops.com/\"")
+        && homeHtml.Contains("https://wa.me/?text=") && homeHtml.Contains("mailto:?subject=Fly%20with%20S4%20OPS") && homeHtml.Contains("u=https%3A%2F%2Fs4ops.com%2F")
+        && Regex.Matches(homeHtml, "rel=\"noopener noreferrer\"").Count == 5 && !Regex.IsMatch(homeHtml, @"\sstyle="""), "Signed in, every page offers the way home to s4ops.com and a script-free share card for it");
+    var anonHome = await anon.GetStringAsync("/Guide");
+    Check(!anonHome.Contains("class=\"homebar\""), "Signed-out pages have no home bar");
     Check(homeHtml.Contains("Getting started") && homeHtml.Contains("href=\"/Account/Feedback\"") && homeHtml.Contains("class=\"step done\""),
     "The account page shows the getting-started checklist, with finished steps marked");
     // Airline invitations by email carry a link, never the invitation code.

@@ -42,6 +42,9 @@ Reece, 13 October 2026. About ten minutes to read; the decisions are in section 
    - Backfill older flights, or skip them?
 4. **The desktop icon and colours.** Swap to the S4 tile, and carry the website's colour tokens into WPF? This is
    cosmetic and can wait.
+5. **Account data for your 7.27 UI.** `7.27-account-data.md` maps your mockup's panels to real data. Header,
+   role, fleet, network and today's planned legs are available now (`ListRoutesAsync`, `ListFleetAsync`,
+   `AirlineSchedule.Between`). Live counts, on-time %, alerts and finances aren't, so please keep sample numbers off them.
 
 ## 3. Ten minutes on the website
 

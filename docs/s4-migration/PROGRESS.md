@@ -136,6 +136,23 @@ Not pushed. Dan's handoff doc: `docs/SIERRA4-PROJECT-CONTINUITY.md`.
 
 ## Next steps
 
+**2026-10-19 session (`feat/launch-prep`, local commits, not pushed).** Suites: core 194, desktop identity 107,
+accounts 292, server 286, all green; both solutions 0 warnings.
+- [x] Staff-only **preview builds** (97c0007): `/Staff/Builds` lists a private R2 bucket and redirects to 5-minute
+      SigV4 links (no new package). `scripts/upload-preview-build.ps1` builds through `publish-release.ps1`'s dry run
+      and uploads with wrangler. A local 0.23.0 build passed the hosted-config check. **Reece:** create bucket
+      `s4ops-builds` + a read-only R2 token, set `PreviewBuilds__AccountId/Bucket/AccessKeyId/SecretAccessKey` on Render,
+      push, then upload with `-SimConnectDll` pointing at `work\msfs2024-sdk-1.7.3\SimConnect SDK\lib\SimConnect.dll`.
+- [x] Security review of everything since the 7.26B merge (feedback uploads, staff area, request form, mailer,
+      invitations, crew/settings split, deletion purge): no confirmed issues.
+- [x] Phase 5 journey test (4d9e444): dispatcher, pilot, non-member and pending-deletion member through the console
+      pages. Phone-width screenshots in `work/ui-check/20261019-110624/`: no overflow, no scripts, no console errors.
+      Snapshot mode trips the shared-IP rate limit in two rate checks; normal runs pass.
+- [x] For Dan's 7.27 UI (4c8e80d, 5ed45fb): `ListRoutesAsync`/`ListFleetAsync` on the desktop session and
+      `AirlineSchedule.Between` for dated legs; `7.27-account-data.md` maps his mockup panels. A separate
+      airline-context endpoint was dropped as a duplicate of existing member reads.
+- Decision: no desktop UI work until Dan pushes 7.27.
+
 **2026-10-13 session (`feat/launch-prep`, worktree `C:\Dev\_scratch\s4-merge`, local commits only, not pushed).**
 Reece: everything stays local until Dan's final approval. Plan: `PLAN-to-invites.md`. Suites: core 194, desktop identity
 102, accounts 292, server 237, landing 15, all green; both solutions 0 warnings.

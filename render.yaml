@@ -61,3 +61,12 @@ services:
         sync: false
       - key: Turnstile__SecretKey
         sync: false
+      # Optional private R2 bucket for staff-only desktop builds (/Staff/Builds). Use an R2 token scoped to that bucket.
+      - key: PreviewBuilds__AccountId
+        sync: false
+      - key: PreviewBuilds__Bucket
+        sync: false
+      - key: PreviewBuilds__AccessKeyId
+        sync: false
+      - key: PreviewBuilds__SecretAccessKey
+        sync: false

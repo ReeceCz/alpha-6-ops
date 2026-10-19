@@ -1,0 +1,31 @@
+@page "/Staff/Builds"
+@model Alpha6Ops.Server.Pages.Staff.BuildsModel
+@{ ViewData["Title"] = "Preview builds"; }
+<div class="page-heading"><div class="eyebrow">Staff</div><h1>Preview builds</h1><partial name="_StaffNav" model='@("builds")' />
+<p class="lead">Private desktop builds for staff. Pilots see only the published release on <a href="/Download">Download</a>.</p></div>
+<partial name="_AccountError" model="Model" />
+@if (Model.ErrorCode is null) {
+if (!Model.Enabled) {
+<section class="card">
+    <h2>Not set up</h2>
+    <p>Preview builds come from a private Cloudflare R2 bucket. Set these on the server to switch this page on:</p>
+    <ul><li><code>PreviewBuilds__AccountId</code></li><li><code>PreviewBuilds__Bucket</code></li><li><code>PreviewBuilds__AccessKeyId</code></li><li><code>PreviewBuilds__SecretAccessKey</code></li></ul>
+    <p class="muted">Upload builds with <code>scripts/upload-preview-build.ps1</code>.</p>
+</section>
+} else if (Model.StoreError is { } storeError) {
+<section class="card"><h2>Builds unavailable</h2><p>@storeError</p></section>
+} else if (Model.Builds.Length == 0) {
+<section class="card"><h2>No builds yet</h2><p>Upload one with <code>scripts/upload-preview-build.ps1</code>.</p></section>
+} else {
+<section class="card">
+    <h2>Builds</h2>
+    <ul class="report-list">
+    @foreach (var b in Model.Builds) {
+        <li class="row"><div><strong class="mono break">@b.Name</strong><span class="muted block">@((b.Size / 1048576.0).ToString("0.0")) MB · uploaded @b.Uploaded.ToString("yyyy-MM-dd HH:mm") UTC</span></div>
+            <div class="actions"><a class="button" href="/Staff/Builds?handler=Download&amp;key=@Uri.EscapeDataString(b.Key)">Download</a></div></li>
+    }
+    </ul>
+    <p class="muted">Each link works for @((int)Alpha6Ops.Server.PreviewBuildSettings.LinkLifetime.TotalMinutes) minutes. Builds are not code-signed, so Windows warns about an unknown publisher.</p>
+</section>
+}
+}

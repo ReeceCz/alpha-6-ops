@@ -82,6 +82,8 @@ builder.Services.AddSingleton(StaffAccess.FromEmails(builder.Configuration["Staf
 builder.Services.Configure<TurnstileSettings>(builder.Configuration.GetSection("Turnstile"));
 builder.Services.AddHttpClient<ITurnstileVerifier, CloudflareTurnstileVerifier>(c => c.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddSingleton<InviteRequestLimiter>();
+builder.Services.Configure<PreviewBuildSettings>(builder.Configuration.GetSection("PreviewBuilds"));
+builder.Services.AddHttpClient<IPreviewBuildStore, R2PreviewBuildStore>(c => c.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Email"));
 builder.Services.AddSingleton<EmailOutbox>();
 builder.Services.AddSingleton<Mailer>();

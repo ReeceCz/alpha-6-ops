@@ -29,6 +29,36 @@ void Check(bool condition, string scenario)
     Console.WriteLine($"{(condition ? "PASS" : "FAIL")} {scenario}");
     if (!condition) failures++;
 }
+// Preview builds: SigV4 against AWS's published presigned-URL example, then the R2 store over a fake transport.
+var awsExample = SigV4.Presign("GET", "examplebucket.s3.amazonaws.com", "/test.txt", new Dictionary<string, string>(), "us-east-1", "s3",
+    "AKIAIOSFODNN7EXAMPLE", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", new DateTimeOffset(2013, 5, 24, 0, 0, 0, TimeSpan.Zero), TimeSpan.FromDays(1));
+Check(awsExample.Query.EndsWith("&X-Amz-Signature=aeeed9bbccd4d02ee5c0109b86d86835f995330da4c265957d157751f604d404"), "Presigned links match AWS's published SigV4 example");
+const string listing = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>builds</Name>
+    <Contents><Key>preview/</Key><Size>0</Size><LastModified>2026-10-01T00:00:00.000Z</LastModified></Contents>
+    <Contents><Key>preview/Sierra4-Setup-0.23.0-aaaaaaa.exe</Key><Size>99614720</Size><LastModified>2026-10-10T08:00:00.000Z</LastModified></Contents>
+    <Contents><Key>preview/Sierra4-Setup-0.23.0-bbbbbbb.exe</Key><Size>99614721</Size><LastModified>2026-10-18T09:30:00.000Z</LastModified></Contents>
+    <Contents><Key>other/secret.txt</Key><Size>5</Size><LastModified>2026-10-19T00:00:00.000Z</LastModified></Contents>
+    </ListBucketResult>
+    """;
+var parsedBuilds = R2PreviewBuildStore.Parse(listing, "preview/");
+Check(parsedBuilds.Select(b => b.Name).SequenceEqual(["Sierra4-Setup-0.23.0-bbbbbbb.exe", "Sierra4-Setup-0.23.0-aaaaaaa.exe"]) && parsedBuilds[0].Size == 99614721,
+    "A bucket listing yields the prefix's builds, newest first, without folder placeholders or other prefixes");
+var r2Transport = new CapturingHandler(listing);
+var r2Store = new R2PreviewBuildStore(new HttpClient(r2Transport), Options.Create(new PreviewBuildSettings { AccountId = "acct", Bucket = "builds", AccessKeyId = "id", SecretAccessKey = "secret" }),
+    TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<R2PreviewBuildStore>.Instance);
+var listed = await r2Store.ListAsync(CancellationToken.None);
+var listUrl = r2Transport.Request!.RequestUri!;
+Check(listed.Length == 2 && listUrl.Host == "acct.r2.cloudflarestorage.com" && listUrl.AbsolutePath == "/builds" && listUrl.Query.Contains("list-type=2") && listUrl.Query.Contains("prefix=preview%2F"),
+    "The store lists the bucket's preview prefix with a signed request");
+var link = r2Store.DownloadUrl(listed[0]);
+Check(link.AbsoluteUri.StartsWith("https://acct.r2.cloudflarestorage.com/builds/preview/Sierra4-Setup-0.23.0-bbbbbbb.exe?") && link.Query.Contains("X-Amz-Expires=300")
+    && link.Query.Contains("response-content-disposition=attachment%3B%20filename%3D%22Sierra4-Setup-0.23.0-bbbbbbb.exe%22"), "Download links are signed for five minutes and save under the build's name");
+var refusingStore = new R2PreviewBuildStore(new HttpClient(new CapturingHandler("<Error/>", HttpStatusCode.Forbidden)), Options.Create(new PreviewBuildSettings { AccountId = "acct", Bucket = "builds", AccessKeyId = "id", SecretAccessKey = "wrong" }),
+    TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<R2PreviewBuildStore>.Instance);
+try { await refusingStore.ListAsync(CancellationToken.None); Check(false, "A refused listing is reported"); }
+catch (PreviewBuildStoreException ex) { Check(ex.Message.Contains("403"), "A refused listing is reported with its status"); }
 using (var setup = new ServerFactory(null))
 using (var client = setup.CreateClient(new() { BaseAddress = new("https://localhost"), AllowAutoRedirect = false }))
 {
@@ -579,10 +609,11 @@ using (var inviteOnly = new ServerFactory(connection, admission: null, invitedEm
 }
 // Problem reports: pilots send them from the portal; allowlisted staff with a fresh MFA read them.
 var feedbackMail = new RecordingEmailSender();
+var previewStore = new FakePreviewBuildStore();
 using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staff:Emails"] = $"staff-{run}@example.test",
     ["Release:Version"] = "7.7.7", ["Release:DownloadUrl"] = "https://example.test/Sierra4-Setup-7.7.7.exe", ["Release:Sha256"] = new string('a', 64),
     ["Email:BaseUrl"] = "https://app.example.test", ["Legal:Contact"] = "support@s4ops.example" },
-    extraServices: s => s.AddSingleton<IEmailSender>(feedbackMail)))
+    extraServices: s => s.AddSingleton<IEmailSender>(feedbackMail).AddSingleton<IPreviewBuildStore>(previewStore)))
 {
     using var reporterBrowser = feedbackHost.Browser($"reporter-{run}");
     using var staffBrowser = feedbackHost.Browser($"staff-{run}");
@@ -751,6 +782,30 @@ using (var feedbackHost = new ServerFactory(connection, settings: new() { ["Staf
         await File.WriteAllTextAsync(Path.Combine(releaseSnapshots, "download-notes.html"), downloadNotes);
         await File.WriteAllTextAsync(Path.Combine(releaseSnapshots, "staff-releases.html"), await staffBrowser.GetStringAsync("/Staff/Releases"));
     }
+    // Preview builds: staff with a fresh check download private builds; everyone else gets 404, and only listed keys are signed.
+    var buildKey = Uri.EscapeDataString(previewStore.Builds[0].Key);
+    Check((await reporterBrowser.GetAsync("/Staff/Builds")).StatusCode == HttpStatusCode.NotFound
+        && (await reporterBrowser.GetAsync($"/Staff/Builds?handler=Download&key={buildKey}")).StatusCode == HttpStatusCode.NotFound, "Preview builds are 404 for pilots");
+    Check((await anon.GetAsync($"/Staff/Builds?handler=Download&key={buildKey}")).Headers.Location?.OriginalString.Contains("builds.example.test") != true, "Signed-out visitors get no build link");
+    var staleBuilds = await staffNoMfa.GetAsync($"/Staff/Builds?handler=Download&key={buildKey}");
+    Check(staleBuilds.StatusCode == HttpStatusCode.Forbidden && (await staleBuilds.Content.ReadAsStringAsync()).Contains("returnUrl=%2FStaff%2FBuilds"),
+        "A stale security check gets the check, which returns to the builds page, not a link");
+    var buildsPage = await staffBrowser.GetAsync("/Staff/Builds");
+    var buildsHtml = await buildsPage.Content.ReadAsStringAsync();
+    Check(buildsPage.IsSuccessStatusCode && buildsHtml.Contains("Sierra4-Setup-0.23.0-abc1234.exe") && buildsHtml.Contains("95.0 MB") && buildsHtml.Contains("href=\"/Staff/Builds\"")
+        && !Regex.IsMatch(buildsHtml, @"\sstyle=""") && !buildsHtml.Contains("<script"), "Staff see the private builds with their size");
+    var buildDownload = await staffBrowser.GetAsync($"/Staff/Builds?handler=Download&key={buildKey}");
+    Check(buildDownload.StatusCode == HttpStatusCode.Redirect && buildDownload.Headers.Location?.AbsoluteUri == "https://builds.example.test/preview/Sierra4-Setup-0.23.0-abc1234.exe?signed=1"
+        && buildDownload.Headers.CacheControl?.NoStore == true, "Staff download a build through a signed link that isn't cached");
+    Check((await staffBrowser.GetAsync("/Staff/Builds?handler=Download&key=other%2Fsecret.txt")).StatusCode == HttpStatusCode.NotFound, "A key the store didn't list is never signed");
+    previewStore.Broken = true;
+    var brokenBuilds = await staffBrowser.GetAsync("/Staff/Builds");
+    Check(brokenBuilds.StatusCode == HttpStatusCode.BadGateway && (await brokenBuilds.Content.ReadAsStringAsync()).Contains("Builds unavailable"), "An unreachable build store is explained");
+    previewStore.Broken = false;
+    previewStore.Enabled = false;
+    Check((await staffBrowser.GetStringAsync("/Staff/Builds")).Contains("PreviewBuilds__SecretAccessKey")
+        && (await staffBrowser.GetAsync($"/Staff/Builds?handler=Download&key={buildKey}")).StatusCode == HttpStatusCode.NotFound, "Without settings the page says what to set and offers no download");
+    previewStore.Enabled = true;
     using (var oldDesktop = feedbackHost.Client($"reporter-{run}"))
     {
         oldDesktop.DefaultRequestHeaders.UserAgent.ParseAdd("Alpha6OPS/0.1.0");
@@ -867,7 +922,7 @@ sealed class RecordingEmailSender : IEmailSender
     public Task SendAsync(EmailMessage message, CancellationToken ct) { Sent.Enqueue(message); return Task.CompletedTask; }
 }
 
-sealed class CapturingHandler : HttpMessageHandler
+sealed class CapturingHandler(string response = "{\"id\":\"test\"}", HttpStatusCode status = HttpStatusCode.OK) : HttpMessageHandler
 {
     public HttpRequestMessage? Request { get; private set; }
     public string? Body { get; private set; }
@@ -875,8 +930,17 @@ sealed class CapturingHandler : HttpMessageHandler
     {
         Request = request;
         Body = request.Content is null ? null : await request.Content.ReadAsStringAsync(ct);
-        return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"id\":\"test\"}") };
+        return new HttpResponseMessage(status) { Content = new StringContent(response) };
     }
+}
+
+sealed class FakePreviewBuildStore : IPreviewBuildStore
+{
+    public bool Enabled { get; set; } = true;
+    public bool Broken { get; set; }
+    public PreviewBuild[] Builds { get; } = [new("preview/Sierra4-Setup-0.23.0-abc1234.exe", "Sierra4-Setup-0.23.0-abc1234.exe", 99614720, new(2026, 10, 18, 9, 30, 0, TimeSpan.Zero))];
+    public Task<PreviewBuild[]> ListAsync(CancellationToken ct) => Broken ? throw new PreviewBuildStoreException("The build store didn't answer. Try again in a minute.") : Task.FromResult(Builds);
+    public Uri DownloadUrl(PreviewBuild build) => new("https://builds.example.test/" + build.Key + "?signed=1");
 }
 
 sealed class FakeTurnstile : ITurnstileVerifier
